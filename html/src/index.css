@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  font-family: "Nunito", "Trebuchet MS", "Avenir Next", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}

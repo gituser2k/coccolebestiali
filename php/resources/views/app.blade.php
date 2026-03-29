@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inertia App</title>
+</head>
+<body>
+@inertia
+</body>
+</html>

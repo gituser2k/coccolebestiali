@@ -1,0 +1,35 @@
+<?php
+
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    $indexFile = base_path('../html/dist/index.html');
+
+    if (! File::exists($indexFile)) {
+        return response(
+            'Homepage non compilata. Esegui "npm run build" nella cartella html.',
+            Response::HTTP_SERVICE_UNAVAILABLE
+        );
+    }
+
+    return response()->file($indexFile, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+    ]);
+});
+
+Route::get('/index.html', function () {
+    return redirect('/');
+});
+
+Route::get('/asset/{path}', function (string $path) {
+    $base = realpath(base_path('../asset'));
+    $file = realpath(base_path('../asset/'.$path));
+
+    if (! $base || ! $file || ! str_starts_with($file, $base) || ! File::exists($file)) {
+        abort(Response::HTTP_NOT_FOUND);
+    }
+
+    return response()->file($file);
+})->where('path', '.*');
