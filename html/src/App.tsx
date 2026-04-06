@@ -1,139 +1,127 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
 import './App.css'
+import animaliImage from './assets/animali.png'
+import logoImage from './assets/logo.png'
+import { useState } from 'react'
 
 function App() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isSent, setIsSent] = useState(false)
-
-  const openInfoModal = () => {
-    setIsModalOpen(true)
-    setIsSent(false)
-  }
-
-  const closeInfoModal = () => {
-    setIsModalOpen(false)
-  }
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setIsSent(true)
-    event.currentTarget.reset()
-  }
-
-  useEffect(() => {
-    if (!isModalOpen) {
-      return
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeInfoModal()
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isModalOpen])
+  const currentYear = new Date().getFullYear()
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false)
 
   return (
     <main className="home-shell">
-      <header className="topbar" aria-label="Barra principale">
-        <button
-          className="brand email-trigger"
-          type="button"
-          aria-label="Apri modulo richiesta informazioni"
-          onClick={openInfoModal}
-        >
-          <span className="brand-mark">@</span>
-          <span className="brand-text">info@coccolebestiali.it</span>
-        </button>
-        <nav className="top-actions" aria-label="Azioni rapide">
-          <a className="action ghost" href="/demo.html">
-            Accedi
-          </a>
-          <a className="action solid" href="#">
-            Registrati
-          </a>
-        </nav>
-      </header>
-
       <section className="hero-card" aria-label="Banner principale">
-        <img
-          className="hero-image"
-          src="/asset/banner.svg"
-          alt="Cani e gatti felici nel servizio Coccole Bestiali"
-        />
-        <div className="hero-overlay">
-          <p className="kicker">Servizi professionali per animali domestici</p>
-          <h1>Trova la coccola perfetta per il tuo pet</h1>
-          <p className="lead">
-            Assistenza affidabile, stile premium, atmosfera accogliente.
-          </p>
-          <div className="cta-row">
-            <a className="action solid" href="#">
-              Cerca Un Petassistant
-            </a>
-            <a className="action ghost" href="#">
-              Diventa Petassistant
-            </a>
+        <div className="hero-layout">
+          <div className="hero-left">
+            <img className="hero-logo" src={logoImage} alt="Logo Coccole Bestiali" />
+            <img
+              className="hero-animals"
+              src={animaliImage}
+              alt="Cani e gatti felici nel servizio Coccole Bestiali"
+            />
+          </div>
+          <div className="hero-right">
+            <img className="hero-logo-mobile-top" src={logoImage} alt="Logo Coccole Bestiali" />
+            <div className="hero-right-panel">
+              <div className="hero-topstrip">
+                <a
+                  className="email-link"
+                  href="mailto:info@coccolebestiali.it"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setIsInfoModalOpen(true)
+                  }}
+                >
+                  info@coccolebestiali.it
+                </a>
+                <nav className="top-actions" aria-label="Azioni rapide">
+                  <a className="action ghost" href="#">
+                    Accedi
+                  </a>
+                  <a className="action solid" href="#">
+                    Registrati
+                  </a>
+                </nav>
+              </div>
+              <section className="hero-cta" aria-label="Call to action principale">
+                <p className="hero-kicker">SERVIZI PROFESSIONALI PER ANIMALI DOMESTICI</p>
+                <h1 className="hero-title">Trova la coccola perfetta per il tuo pet</h1>
+                <p className="hero-subtitle">
+                  Assistenza affidabile, stile professionale, atmosfera accogliente.
+                </p>
+                <div className="hero-cta-actions">
+                  <a className="cta-btn cta-primary" href="#">
+                    Cerca Un Pet Assistant
+                  </a>
+                  <a className="cta-btn cta-secondary" href="#">
+                    Diventa Pet Assistant
+                  </a>
+                </div>
+              </section>
+              <footer className="hero-legal" aria-label="Informazioni legali">
+                <small>© {currentYear} Coccole Bestiali. Tutti i diritti riservati.</small>
+                <a
+                  href="https://www.iubenda.com"
+                  className="hero-privacy-link"
+                  aria-label="Privacy Policy - iubenda"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Privacy Policy
+                </a>
+              </footer>
+            </div>
           </div>
         </div>
       </section>
 
-      {isModalOpen && (
-        <div className="modal-backdrop" onClick={closeInfoModal}>
-          <section
-            className="info-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Richiesta informazioni"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <h2>Richiedi informazioni</h2>
-              <button
-                className="modal-close"
-                type="button"
-                aria-label="Chiudi modale"
-                onClick={closeInfoModal}
-              >
-                ×
-              </button>
-            </div>
-
-            <p className="modal-subtitle">
+      {isInfoModalOpen ? (
+        <div
+          className="info-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Richiedi informazioni"
+          onClick={() => setIsInfoModalOpen(false)}
+        >
+          <div className="info-modal" onClick={(event) => event.stopPropagation()}>
+            <h2 className="info-modal-title">Richiedi informazioni</h2>
+            <p className="info-modal-subtitle">
               Compila il modulo e ti risponderemo al piu presto.
             </p>
-
-            <form className="info-form" onSubmit={handleSubmit}>
-              <label>
-                Nome
+            <form
+              className="info-modal-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                setIsInfoModalOpen(false)
+              }}
+            >
+              <label className="info-field">
+                <span>Nome</span>
                 <input type="text" name="name" required />
               </label>
-
-              <label>
-                Email
+              <label className="info-field">
+                <span>Email</span>
                 <input type="email" name="email" required />
               </label>
-
-              <label>
-                Messaggio
+              <label className="info-field">
+                <span>Messaggio</span>
                 <textarea name="message" rows={4} required />
               </label>
-
-              <button className="action solid" type="submit">
-                Invia richiesta
-              </button>
-
-              {isSent && <p className="success-note">Richiesta inviata con successo.</p>}
+              <div className="info-modal-actions">
+                <button
+                  type="button"
+                  className="info-btn info-btn-cancel"
+                  onClick={() => setIsInfoModalOpen(false)}
+                >
+                  Annulla
+                </button>
+                <button type="submit" className="info-btn info-btn-submit">
+                  Invia richiesta
+                </button>
+              </div>
             </form>
-          </section>
+          </div>
         </div>
-      )}
+      ) : null}
     </main>
   )
 }
