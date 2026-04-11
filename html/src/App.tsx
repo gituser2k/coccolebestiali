@@ -1,11 +1,42 @@
 import './App.css'
 import animaliImage from './assets/animali.png'
 import logoImage from './assets/logo.png'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { areRequiredFieldsFilled, sanitizeText, validateEmail } from './utility.js'
 
 function App() {
   const currentYear = new Date().getFullYear()
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastType, setToastType] = useState<'error' | 'success'>('error')
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    msg: '',
+  })
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => setToastMessage(null), 3000)
+    return () => window.clearTimeout(timeout)
+  }, [toastMessage])
+
+  function showToast(message: string, type: 'error' | 'success') {
+    setToastMessage(message)
+    setToastType(type)
+  }
+
+  function resetForm() {
+    setFormData({
+      name: '',
+      email: '',
+      msg: '',
+    })
+  }
 
   return (
     <main className="home-shell">
@@ -89,37 +120,107 @@ function App() {
             </p>
             <form
               className="info-modal-form"
-              onSubmit={(event) => {
+              noValidate
+              onSubmit={async (event) => {
                 event.preventDefault()
-                setIsInfoModalOpen(false)
+
+                const payload = {
+                  name: sanitizeText(formData.name),
+                  email: sanitizeText(formData.email),
+                  msg: sanitizeText(formData.msg),
+                }
+
+                if (!areRequiredFieldsFilled(payload)) {
+                  showToast('Alcuni campi obbligatori non sono stati popolati.', 'error')
+                  return
+                }
+
+                if (!validateEmail(payload.email)) {
+                  showToast('Indirizzo email errato.', 'error')
+                  return
+                }
+
+                try {
+                  setIsSubmitting(true)
+
+                  const response = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Accept: 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                  })
+
+                  if (!response.ok) {
+                    throw new Error('Errore API')
+                  }
+
+                  setIsInfoModalOpen(false)
+                  resetForm()
+                  showToast('Richiesta inviata con successo.', 'success')
+                } catch {
+                  showToast('Errore in fase di Invio. Si prega di riprovare.', 'error')
+                } finally {
+                  setIsSubmitting(false)
+                }
               }}
             >
               <label className="info-field">
                 <span>Nome</span>
-                <input type="text" name="name" required />
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={(event) =>
+                    setFormData((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
               </label>
               <label className="info-field">
                 <span>Email</span>
-                <input type="email" name="email" required />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={(event) =>
+                    setFormData((current) => ({ ...current, email: event.target.value }))
+                  }
+                />
               </label>
               <label className="info-field">
                 <span>Messaggio</span>
-                <textarea name="message" rows={4} required />
+                <textarea
+                  name="message"
+                  rows={4}
+                  value={formData.msg}
+                  onChange={(event) =>
+                    setFormData((current) => ({ ...current, msg: event.target.value }))
+                  }
+                />
               </label>
+              <p className="info-required-note">Tutti i campi obbligatori.</p>
               <div className="info-modal-actions">
                 <button
                   type="button"
                   className="info-btn info-btn-cancel"
+                  disabled={isSubmitting}
                   onClick={() => setIsInfoModalOpen(false)}
                 >
                   Annulla
                 </button>
-                <button type="submit" className="info-btn info-btn-submit">
+                <button type="submit" className="info-btn info-btn-submit" disabled={isSubmitting}>
                   Invia richiesta
                 </button>
               </div>
             </form>
           </div>
+        </div>
+      ) : null}
+
+      {toastMessage ? (
+        <div className={`info-toast ${toastType === 'error' ? 'is-error' : 'is-success'}`}>
+          {toastMessage}
         </div>
       ) : null}
     </main>

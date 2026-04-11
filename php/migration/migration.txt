@@ -1,0 +1,19 @@
+CREATE DATABASE `{{DB_DATABASE}}` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
+USE `{{DB_DATABASE}}`;
+
+CREATE TABLE `message` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `email` varchar(255) NOT NULL DEFAULT '',
+  `msg` varchar(4096) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `error` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `params` varchar(4096) NOT NULL DEFAULT '',
+  `msg` varchar(4096) NOT NULL DEFAULT '',
+  `method` varchar(255) NOT NULL DEFAULT '',
+  `timestamp` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

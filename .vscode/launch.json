@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Listen for Xdebug (Coccolebestiali root)",
+      "type": "php",
+      "request": "launch",
+      "port": 9003,
+      "hostname": "127.0.0.1",
+      "log": true,
+      "pathMappings": {
+        "/Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/php": "${workspaceFolder}/php"
+      },
+      "ignore": [
+        "**/vendor/**/*.php"
+      ]
+    }
+  ]
+}
