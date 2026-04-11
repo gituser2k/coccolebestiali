@@ -14,4 +14,11 @@ class Admin extends Model
             ->orderByDesc('id')
             ->get();
     }
+
+    public function deleteAdminErrorsByIds(array $ids): int
+    {
+        return DB::table('error')
+            ->whereIn('id', $ids)
+            ->delete();
+    }
 }

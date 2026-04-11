@@ -37,4 +37,36 @@ class AdminController extends Controller
             ], 500);
         }
     }
+
+    public function deleteAdminErrors(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $validated = $request->validate([
+                'ids' => ['required', 'array', 'min:1'],
+                'ids.*' => ['required', 'integer', 'min:1'],
+            ]);
+
+            $m = new Admin();
+            $deleted = $m->deleteAdminErrorsByIds($validated['ids']);
+
+            return response()->json([
+                'ok' => true,
+                'deleted' => $deleted,
+            ], 200);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], 500);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], 500);
+        }
+    }
 }

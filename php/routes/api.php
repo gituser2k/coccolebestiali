@@ -55,6 +55,18 @@ Route::get('/cmsadminsite', function () {
     ]);
 });
 
+Route::get('/utility.js', function () {
+    $utilityFile = base_path('../html/src/utility.js');
+
+    if (! File::exists($utilityFile)) {
+        abort(Response::HTTP_NOT_FOUND);
+    }
+
+    return response()->file($utilityFile, [
+        'Content-Type' => 'application/javascript; charset=UTF-8',
+    ]);
+});
+
 Route::middleware('api')
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->prefix('api')
@@ -68,5 +80,9 @@ Route::middleware('api')
     Route::post('/messages', [MessageController::class, 'saveMessage']);
 
     Route::get('/admin/messages', [MessageController::class, 'getAdminMessages']);
+    Route::get('/admin/messages/{messageId}/reply', [MessageController::class, 'getLastAdminMessageReply']);
+    Route::delete('/admin/messages', [MessageController::class, 'deleteAdminMessages']);
+    Route::post('/admin/messages/reply', [MessageController::class, 'replyAdminMessage']);
     Route::get('/admin/errors', [AdminController::class, 'getAdminErrors']);
+    Route::delete('/admin/errors', [AdminController::class, 'deleteAdminErrors']);
 });

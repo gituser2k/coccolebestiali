@@ -17,3 +17,10 @@ CREATE TABLE `error` (
   `timestamp` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `messageback` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `messageid` int NOT NULL DEFAULT 0,
+  `method` varchar(15000) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
