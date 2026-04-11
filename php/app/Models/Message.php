@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class Message extends Model
 {
-    public function saveMessage($params)
+    public function saveMessage(array $params): void
     {
         if (isset($params["id"])) {
             DB::table('message')
@@ -25,5 +25,13 @@ class Message extends Model
                 'msg' => $params['msg'],
             ]);
         }
+    }
+
+    public function getAdminMessages()
+    {
+        return DB::table('message')
+            ->select(['id', 'name', 'email', 'msg'])
+            ->orderByDesc('id')
+            ->get();
     }
 }

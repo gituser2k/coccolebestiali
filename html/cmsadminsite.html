@@ -3,11 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CMS Admin Login</title>
+    <title>CMS Admin Site</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.4/css/dataTables.tailwindcss.css" />
+    <script src="https://cdn.datatables.net/2.3.4/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.3.4/js/dataTables.tailwindcss.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment-with-locales.min.js"></script>
     <style>
       :root {
         --green: #2f7a4a;
         --blue: #1f5fa7;
+        --light: #f3f5f6;
         --text: #333333;
         --white: #ffffff;
       }
@@ -18,16 +25,26 @@
 
       body {
         margin: 0;
+        height: 100vh;
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--text);
+        background: var(--light);
+        overflow: hidden;
+      }
+
+      .is-hidden {
+        display: none !important;
+      }
+
+      .login-shell {
         min-height: 100vh;
         display: grid;
         place-items: center;
-        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: var(--text);
+        padding: 24px;
         background:
           radial-gradient(circle at 20% 20%, rgba(47, 122, 74, 0.18), transparent 40%),
           radial-gradient(circle at 80% 20%, rgba(31, 95, 167, 0.2), transparent 45%),
           linear-gradient(135deg, #f7faf8, #eef3f8 55%, #f7f9fc);
-        padding: 24px;
       }
 
       .login-card {
@@ -47,7 +64,7 @@
 
       .login-header h1 {
         margin: 0;
-        font-size: clamp(1.2rem, 2vw, 1.5rem);
+        font-size: 1.4rem;
       }
 
       .login-header p {
@@ -95,24 +112,448 @@
         background: linear-gradient(90deg, var(--green), var(--blue));
         cursor: pointer;
       }
+
+      .login-error {
+        margin: 0;
+        color: #b42318;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .dashboard-shell {
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 240px 1fr;
+      }
+
+      .sidenav {
+        background: linear-gradient(180deg, var(--green), #245f3a 55%, var(--blue));
+        color: var(--white);
+        padding: 24px 16px;
+      }
+
+      .sidenav h2 {
+        margin: 0 0 18px;
+        font-size: 1.05rem;
+      }
+
+      .menu-btn {
+        width: 100%;
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--white);
+        border-radius: 10px;
+        padding: 12px 10px;
+        margin-bottom: 10px;
+        text-align: left;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .menu-btn.is-active {
+        background: rgba(255, 255, 255, 0.24);
+      }
+
+      .dashboard-main {
+        padding: 22px;
+        min-height: 0;
+      }
+
+      .panel {
+        background: var(--white);
+        border: 1px solid #e2e8ec;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+        height: calc(100vh - 44px);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel-header {
+        padding: 16px;
+        border-bottom: 1px solid #ecf1f4;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .panel-header h3 {
+        margin: 0;
+      }
+
+      .table-wrap {
+        overflow: hidden;
+        padding: 16px;
+        flex: 1;
+        min-height: 0;
+      }
+
+      table {
+        width: 100%;
+        table-layout: fixed;
+        min-width: 720px;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #eef2f5;
+        text-align: left;
+        vertical-align: top;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      thead th {
+        background: #f7fafb;
+        color: #1f3d52;
+        font-size: 0.9rem;
+      }
+
+      .status-note {
+        margin: 0;
+        padding: 12px 16px;
+        font-size: 0.92rem;
+        color: #5e6b76;
+      }
+
+      .dt-layout-row {
+        margin-bottom: 8px !important;
+        align-items: center;
+      }
+
+      @media (max-width: 900px) {
+        body {
+          overflow: auto;
+          height: auto;
+        }
+
+        .dashboard-shell {
+          grid-template-columns: 1fr;
+          height: auto;
+        }
+
+        .sidenav {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          padding: 12px;
+        }
+
+        .sidenav h2 {
+          margin: 0 8px 0 0;
+          font-size: 0.95rem;
+          white-space: nowrap;
+        }
+
+        .menu-btn {
+          margin: 0;
+          width: auto;
+          white-space: nowrap;
+          padding: 10px 12px;
+        }
+
+        .panel {
+          height: auto;
+        }
+      }
     </style>
   </head>
   <body>
-    <main class="login-card" aria-label="Login CMS Admin">
-      <header class="login-header">
-        <h1>CMS Admin Site</h1>
-        <p>Accedi al pannello di amministrazione</p>
-      </header>
+    <section id="loginShell" class="login-shell">
+      <main class="login-card" aria-label="Login CMS Admin">
+        <header class="login-header">
+          <h1>CMS Admin Site</h1>
+          <p>Accedi al pannello di amministrazione</p>
+        </header>
 
-      <form class="login-form" method="post" action="#">
-        <label for="username">Nome Utente</label>
-        <input id="username" name="username" type="text" autocomplete="username" required />
+        <form id="loginForm" class="login-form" method="post" action="#">
+          <label for="username">Nome Utente</label>
+          <input value="coccoadmin" id="username" name="username" type="text" autocomplete="username" style="padding-left: 10px;" required />
 
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <label for="password">Password</label>
+          <input value="cocco123." id="password" name="password" type="password" autocomplete="current-password" style="padding-left: 10px;" required />
 
-        <button type="submit">Accedi</button>
-      </form>
-    </main>
+          <p id="loginError" class="login-error is-hidden">Credenziali non valide.</p>
+          <button type="submit">Accedi</button>
+        </form>
+      </main>
+    </section>
+
+    <section id="dashboardShell" class="dashboard-shell is-hidden">
+      <aside class="sidenav">
+        <h2>CMS Admin</h2>
+        <button id="btnMessages" class="menu-btn is-active" type="button">Messaggi</button>
+        <button id="btnErrors" class="menu-btn" type="button">Errori</button>
+      </aside>
+
+      <main class="dashboard-main">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 id="tableTitle">Messaggi</h3>
+          </div>
+          <p id="statusNote" class="status-note">Caricamento dati...</p>
+          <div class="table-wrap">
+            <table id="dataTable" aria-label="Dati CMS">
+              <colgroup id="dataCols"></colgroup>
+              <thead id="dataHead"></thead>
+              <tbody id="dataBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <script>
+      const ADMIN_USERNAME = 'coccoadmin'
+      const ADMIN_PASSWORD = 'cocco123.'
+
+      const loginShell = document.getElementById('loginShell')
+      const dashboardShell = document.getElementById('dashboardShell')
+      const loginForm = document.getElementById('loginForm')
+      const loginError = document.getElementById('loginError')
+
+      const btnMessages = document.getElementById('btnMessages')
+      const btnErrors = document.getElementById('btnErrors')
+      const tableTitle = document.getElementById('tableTitle')
+      const statusNote = document.getElementById('statusNote')
+      const dataCols = document.getElementById('dataCols')
+      const dataHead = document.getElementById('dataHead')
+      const dataBody = document.getElementById('dataBody')
+      const panel = document.querySelector('.panel')
+      const panelHeader = document.querySelector('.panel-header')
+      let dataTableInstance = null
+      moment.locale('it')
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;')
+      }
+
+      function setActiveMenu(type) {
+        btnMessages.classList.toggle('is-active', type === 'messages')
+        btnErrors.classList.toggle('is-active', type === 'errors')
+      }
+
+      function destroyDataTable() {
+        if (dataTableInstance) {
+          dataTableInstance.destroy()
+          dataTableInstance = null
+        }
+      }
+
+      function getDynamicScrollY() {
+        if (!panel) {
+          return '260px'
+        }
+
+        const panelHeight = panel.clientHeight
+        const headerHeight = panelHeader ? panelHeader.offsetHeight : 0
+        const statusHeight = statusNote ? statusNote.offsetHeight : 0
+        const reserveForPagination = 72
+        const reserveForGaps = 32
+        const available = panelHeight - headerHeight - statusHeight - reserveForPagination - reserveForGaps
+        const scrollBodyHeight = Math.max(160, Math.floor(available))
+        return `${scrollBodyHeight}px`
+      }
+
+      function syncDataTableLayout() {
+        if (!dataTableInstance) {
+          return
+        }
+
+        const container = dataTableInstance.table().container()
+        const scrollBody = container.querySelector('.dt-scroll-body')
+        const scrollHead = container.querySelector('.dt-scroll-head')
+        const paging = container.querySelector('.dt-paging')
+        const tableWrap = container.closest('.table-wrap')
+
+        if (!scrollBody || !tableWrap) {
+          return
+        }
+
+        const wrapStyle = window.getComputedStyle(tableWrap)
+        const wrapPaddingTop = parseFloat(wrapStyle.paddingTop) || 0
+        const wrapPaddingBottom = parseFloat(wrapStyle.paddingBottom) || 0
+        const wrapInnerHeight = tableWrap.clientHeight - wrapPaddingTop - wrapPaddingBottom
+        const scrollHeadHeight = scrollHead ? scrollHead.offsetHeight : 0
+        const pagingHeight = paging ? paging.offsetHeight : 0
+        const bodyHeight = Math.max(160, Math.floor(wrapInnerHeight - scrollHeadHeight - pagingHeight - 8))
+
+        scrollBody.style.height = `${bodyHeight}px`
+        scrollBody.style.maxHeight = `${bodyHeight}px`
+        dataTableInstance.columns.adjust()
+      }
+
+      function initDataTable(customOptions = {}) {
+        dataTableInstance = new DataTable('#dataTable', {
+          pageLength: 10,
+          lengthMenu: [10, 25, 50, 100],
+          order: [[0, 'desc']],
+          autoWidth: false,
+          scrollY: getDynamicScrollY(),
+          scrollCollapse: true,
+          paging: true,
+          searching: false,
+          info: false,
+          lengthChange: false,
+          layout: {
+            topStart: null,
+            topEnd: null,
+            bottomStart: null,
+            bottomEnd: 'paging',
+          },
+          language: {
+            search: 'Cerca:',
+            lengthMenu: 'Mostra _MENU_ record',
+            info: 'Visualizzati _START_ - _END_ di _TOTAL_ record',
+            infoEmpty: 'Nessun record disponibile',
+            zeroRecords: 'Nessun risultato trovato',
+            emptyTable: 'Nessun record disponibile',
+            paginate: {
+              first: 'Prima',
+              previous: 'Precedente',
+              next: 'Successiva',
+              last: 'Ultima',
+            },
+          },
+          ...customOptions,
+        })
+
+        dataTableInstance.on('draw', () => {
+          syncDataTableLayout()
+        })
+
+        requestAnimationFrame(() => {
+          syncDataTableLayout()
+        })
+      }
+
+      function renderTable(columns, rows, dtOptions = null) {
+        destroyDataTable()
+        dataCols.innerHTML = columns
+          .map(() => `<col style="width:${Math.floor(100 / columns.length)}%;">`)
+          .join('')
+
+        const headHtml = `<tr>${columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('')}</tr>`
+        dataHead.innerHTML = headHtml
+
+        dataBody.innerHTML = rows
+          .map((row) => {
+            const cells = columns
+              .map((column) => `<td>${escapeHtml(row[column])}</td>`)
+              .join('')
+            return `<tr>${cells}</tr>`
+          })
+          .join('')
+
+        initDataTable(dtOptions ?? {})
+      }
+
+      async function loadMessages() {
+        tableTitle.textContent = 'Messaggi'
+        statusNote.textContent = 'Caricamento messaggi...'
+        const response = await fetch('/api/admin/messages', { headers: { Accept: 'application/json' } })
+
+        if (!response.ok) {
+          throw new Error('Errore caricamento messaggi')
+        }
+
+        const payload = await response.json()
+        const rows = Array.isArray(payload.data) ? payload.data : []
+        renderTable(['id', 'name', 'email', 'msg'], rows, {
+          columnDefs: [
+            { targets: 0, width: '7%' },
+            { targets: 1, width: '20%' },
+            { targets: 2, width: '30%' },
+            { targets: 3, width: '43%' },
+          ],
+        })
+        statusNote.textContent = `Record trovati: ${rows.length}`
+      }
+
+      async function loadErrors() {
+        tableTitle.textContent = 'Errori'
+        statusNote.textContent = 'Caricamento errori...'
+        const response = await fetch('/api/admin/errors', { headers: { Accept: 'application/json' } })
+
+        if (!response.ok) {
+          throw new Error('Errore caricamento errori')
+        }
+
+        const payload = await response.json()
+        const rows = Array.isArray(payload.data) ? payload.data : []
+        const normalizedRows = rows.map((row) => ({
+          ...row,
+          timestamp: row.timestamp ? moment.unix(row.timestamp).format('DD/MM/YYYY HH:mm') : '',
+        }))
+        renderTable(['id', 'params', 'msg', 'method', 'timestamp'], normalizedRows, {
+          columnDefs: [
+            { targets: 0, width: '7%' },
+            { targets: 1, width: '20%' },
+            { targets: 2, width: '43%' },
+            { targets: 3, width: '20%' },
+            { targets: 4, width: '10%' },
+          ],
+        })
+        statusNote.textContent = `Record trovati: ${rows.length}`
+      }
+
+      async function showSection(section) {
+        try {
+          if (section === 'messages') {
+            setActiveMenu('messages')
+            await loadMessages()
+            return
+          }
+
+          setActiveMenu('errors')
+          await loadErrors()
+        } catch (error) {
+          destroyDataTable()
+          statusNote.textContent = 'Errore nel caricamento dei dati.'
+          dataHead.innerHTML = ''
+          dataBody.innerHTML = '<tr><td>Impossibile leggere i dati dal server.</td></tr>'
+        }
+      }
+
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault()
+
+        const username = document.getElementById('username').value.trim()
+        const password = document.getElementById('password').value
+
+        if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+          loginError.classList.add('is-hidden')
+          loginShell.classList.add('is-hidden')
+          dashboardShell.classList.remove('is-hidden')
+          await showSection('messages')
+          return
+        }
+
+        loginError.classList.remove('is-hidden')
+      })
+
+      btnMessages.addEventListener('click', async () => {
+        await showSection('messages')
+      })
+
+      btnErrors.addEventListener('click', async () => {
+        await showSection('errors')
+      })
+
+      window.addEventListener('resize', () => {
+        requestAnimationFrame(() => {
+          syncDataTableLayout()
+        })
+      })
+    </script>
   </body>
 </html>

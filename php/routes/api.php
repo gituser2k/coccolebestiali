@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
@@ -38,9 +39,9 @@ Route::get('/asset/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/cmsadminsite', function () {
-    $distLoginFile = base_path('../html/dist/cmsadminsite.html');
     $sourceLoginFile = base_path('../html/cmsadminsite.html');
-    $loginFile = File::exists($distLoginFile) ? $distLoginFile : $sourceLoginFile;
+    $distLoginFile = base_path('../html/dist/cmsadminsite.html');
+    $loginFile = File::exists($sourceLoginFile) ? $sourceLoginFile : $distLoginFile;
 
     if (! File::exists($loginFile)) {
         return response(
@@ -65,4 +66,7 @@ Route::middleware('api')
     });
 
     Route::post('/messages', [MessageController::class, 'saveMessage']);
+
+    Route::get('/admin/messages', [MessageController::class, 'getAdminMessages']);
+    Route::get('/admin/errors', [AdminController::class, 'getAdminErrors']);
 });
