@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, 'index.html'),
         demo: resolve(__dirname, 'demo.html'),
+        register: resolve(__dirname, 'register.html'),
       },
     },
   },

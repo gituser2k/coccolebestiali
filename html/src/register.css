@@ -1,0 +1,269 @@
+:root {
+  --brand-green: #2f7a4a;
+  --brand-blue: #1f5fa7;
+  --text-main: #333333;
+}
+
+.register-shell {
+  min-height: 100svh;
+  padding: clamp(0.8rem, 2vw, 1.4rem);
+  background-color: #2b6f78;
+  background-image: url("./assets/sfondo.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 100% 100%;
+  display: grid;
+  place-items: center;
+}
+
+.register-hero {
+  width: min(100%, 1320px);
+  min-height: calc(100svh - clamp(1.6rem, 4vw, 2.8rem));
+  border-radius: 1.45rem;
+  border: 1px solid rgb(255 255 255 / 58%);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 72%),
+    inset 0 -1px 0 rgb(255 255 255 / 22%),
+    0 26px 54px rgb(0 22 52 / 18%);
+  padding: clamp(0.85rem, 1.9vw, 1.4rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 1.5vw, 1.2rem);
+  position: relative;
+}
+
+.register-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(110% 62% at 12% 2%, rgb(255 255 255 / 42%) 0%, transparent 62%),
+    radial-gradient(84% 48% at 90% 98%, rgb(167 208 140 / 10%) 0%, transparent 72%);
+}
+
+.register-header {
+  min-height: 4.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 999px;
+  padding: 0.48rem 0.78rem;
+  border: 1px solid rgb(255 255 255 / 48%);
+  background: linear-gradient(165deg, rgb(255 255 255 / 40%) 0%, rgb(255 255 255 / 22%) 100%);
+  backdrop-filter: blur(12px) saturate(120%);
+}
+
+.register-brand-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.register-logo {
+  position: relative;
+  top: -3px;
+  width: 200px;
+  left: 15px;
+  max-height: 3.3rem;
+}
+
+.register-home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.95rem;
+  padding: 0.52rem 1.22rem;
+  border-radius: 999px;
+  border: 2px solid rgb(31 95 167 / 50%);
+  background: rgb(255 255 255 / 92%);
+  color: var(--brand-blue);
+  font-weight: 800;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.register-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.8rem, 1.6vw, 1.25rem);
+}
+
+.register-card {
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 72%);
+  background: linear-gradient(170deg, rgb(255 255 255 / 82%) 0%, rgb(255 255 255 / 62%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 76%),
+    0 18px 32px rgb(7 28 62 / 16%);
+  backdrop-filter: blur(9px) saturate(120%);
+  padding: clamp(1rem, 2vw, 1.45rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.register-card-title {
+  margin: 0;
+  font-size: clamp(1.28rem, 2vw, 1.8rem);
+  color: var(--brand-green);
+  line-height: 1.15;
+}
+
+.register-card-subtitle {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(0.94rem, 1.25vw, 1.08rem);
+  line-height: 1.45;
+}
+
+.register-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.register-field {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.register-field span {
+  color: #29435e;
+  font-weight: 800;
+  font-size: clamp(0.97rem, 1.1vw, 1.05rem);
+}
+
+.register-field input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #cfd8dc;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 0.98rem;
+  outline: none;
+  background: #fff;
+}
+
+.register-field input:focus {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgb(31 95 167 / 14%);
+}
+
+.register-action {
+  margin-top: 0.2rem;
+  min-height: 3rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font-weight: 800;
+  font-size: clamp(1.02rem, 1.16vw, 1.16rem);
+  cursor: pointer;
+}
+
+.register-action.is-owner {
+  background: var(--brand-green);
+  color: #fff;
+  box-shadow: 0 14px 24px rgb(47 122 74 / 24%);
+}
+
+.register-action.is-assistant {
+  background: var(--brand-blue);
+  color: #fff;
+  box-shadow: 0 14px 24px rgb(31 95 167 / 24%);
+}
+
+.register-divider {
+  display: flex;
+  align-items: center;
+  color: #4b5d70;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.register-divider::before,
+.register-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgb(31 95 167 / 24%);
+}
+
+.register-divider span {
+  padding: 0 0.7rem;
+}
+
+.social-actions {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.social-btn {
+  min-height: 2.9rem;
+  border-radius: 999px;
+  border: 1px solid rgb(31 95 167 / 38%);
+  background: rgb(255 255 255 / 94%);
+  color: #26496d;
+  font-size: clamp(1rem, 1.04vw, 1.08rem);
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.social-btn .social-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+@media (max-width: 980px) {
+  .register-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .register-hero {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .register-shell {
+    padding: 0.55rem;
+  }
+
+  .register-hero {
+    min-height: auto;
+    border-radius: 1rem;
+    padding: 0.62rem;
+  }
+
+  .register-header {
+    border-radius: 0.95rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .register-brand-link {
+    transform: translate(0.08rem, -0.1rem);
+  }
+
+  .register-logo {
+    width: min(88vw, 15.5rem);
+    max-height: 3.1rem;
+  }
+
+  .register-home-link {
+    width: 100%;
+  }
+
+  .register-card {
+    border-radius: 1rem;
+    padding: 0.85rem;
+  }
+}

@@ -68,7 +68,7 @@ function App() {
                   <a className="action ghost" href="#">
                     Accedi
                   </a>
-                  <a className="action solid" href="#">
+                  <a className="action solid" href="/register.html">
                     Registrati
                   </a>
                 </nav>

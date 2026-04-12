@@ -27,6 +27,21 @@ Route::get('/index.html', function () {
     return redirect('/');
 });
 
+Route::get('/register.html', function () {
+    $registerFile = base_path('../html/dist/register.html');
+
+    if (! File::exists($registerFile)) {
+        return response(
+            'Pagina registrazione non compilata. Esegui "npm run build" nella cartella html.',
+            Response::HTTP_SERVICE_UNAVAILABLE
+        );
+    }
+
+    return response()->file($registerFile, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+    ]);
+});
+
 Route::get('/asset/{path}', function (string $path) {
     $base = realpath(base_path('../asset'));
     $file = realpath(base_path('../asset/'.$path));
