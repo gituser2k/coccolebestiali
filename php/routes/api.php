@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    $indexFile = base_path('../html/dist/index.html');
+    $indexFile = base_path('../html/dist/src/html/index.html');
 
     if (! File::exists($indexFile)) {
         return response(
@@ -23,12 +23,8 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/index.html', function () {
-    return redirect('/');
-});
-
-Route::get('/register.html', function () {
-    $registerFile = base_path('../html/dist/register.html');
+Route::get('/register', function () {
+    $registerFile = base_path('../html/dist/src/html/register.html');
 
     if (! File::exists($registerFile)) {
         return response(
@@ -54,13 +50,13 @@ Route::get('/asset/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/cmsadminsite', function () {
-    $sourceLoginFile = base_path('../html/cmsadminsite.html');
+    $sourceLoginFile = base_path('../html/src/html/cmsadminsite.html');
     $distLoginFile = base_path('../html/dist/cmsadminsite.html');
     $loginFile = File::exists($sourceLoginFile) ? $sourceLoginFile : $distLoginFile;
 
     if (! File::exists($loginFile)) {
         return response(
-            'Pagina login CMS non trovata. Verifica il file html/dist/cmsadminsite.html.',
+            'Pagina login CMS non trovata. Verifica il file html/src/html/cmsadminsite.html o html/dist/cmsadminsite.html.',
             Response::HTTP_SERVICE_UNAVAILABLE
         );
     }

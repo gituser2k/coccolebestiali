@@ -8,7 +8,7 @@
   min-height: 100svh;
   padding: clamp(0.8rem, 2vw, 1.4rem);
   background-color: #2b6f78;
-  background-image: url("./assets/sfondo.png");
+  background-image: url("../assets/sfondo.png");
   background-repeat: no-repeat;
   background-position: center center;
   background-size: 100% 100%;

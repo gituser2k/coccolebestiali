@@ -1,10 +1,10 @@
-import './App.css'
-import animaliImage from './assets/animali.png'
-import logoImage from './assets/logo.png'
+import '../css/home.css'
+import animaliImage from '../assets/animali.png'
+import logoImage from '../assets/logo.png'
 import { useEffect, useState } from 'react'
-import { areRequiredFieldsFilled, sanitizeText, validateEmail } from './utility.js'
+import { areRequiredFieldsFilled, sanitizeText, validateEmail } from '../utility.js'
 
-function App() {
+function HomePage() {
   const currentYear = new Date().getFullYear()
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -68,7 +68,7 @@ function App() {
                   <a className="action ghost" href="#">
                     Accedi
                   </a>
-                  <a className="action solid" href="/register.html">
+                  <a className="action solid" href="/register">
                     Registrati
                   </a>
                 </nav>
@@ -227,4 +227,4 @@ function App() {
   )
 }
 
-export default App
+export default HomePage

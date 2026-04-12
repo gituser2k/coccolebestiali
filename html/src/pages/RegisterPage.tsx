@@ -1,5 +1,5 @@
 import logoImage from '../assets/logo.png'
-import '../register.css'
+import '../css/register.css'
 
 type RoleCardProps = {
   title: string

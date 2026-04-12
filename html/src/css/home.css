@@ -26,7 +26,7 @@ a {
   overflow: hidden;
   isolation: isolate;
   background-color: #2b6f78;
-  background-image: url("./assets/sfondo.png");
+  background-image: url("../assets/sfondo.png");
   background-repeat: no-repeat;
   background-position: center center;
   background-size: 100% 100%;

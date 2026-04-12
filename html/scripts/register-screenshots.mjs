@@ -20,7 +20,7 @@ const page = await browser.newPage()
 for (const vp of viewports) {
   await page.setViewportSize({ width: vp.w, height: vp.h })
   for (const z of zooms) {
-    await page.goto('http://localhost/register.html', { waitUntil: 'networkidle' })
+    await page.goto('http://localhost/register', { waitUntil: 'networkidle' })
     await page.evaluate((zoom) => {
       document.body.style.zoom = `${zoom}%`
     }, z)

@@ -1,8 +1,8 @@
 import { createInertiaApp } from '@inertiajs/react'
 import type { Page } from '@inertiajs/core'
 import { createRoot } from 'react-dom/client'
-import DemoPage, { type DemoPageProps } from './pages/DemoPage'
-import './index.css'
+import DemoPage, { type DemoPageProps } from '../pages/DemoPage'
+import '../css/index.css'
 
 type DemoInertiaPageProps = DemoPageProps & {
   errors: Record<string, string>
