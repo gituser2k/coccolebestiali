@@ -44,11 +44,19 @@
     radial-gradient(84% 48% at 90% 98%, rgb(167 208 140 / 10%) 0%, transparent 72%);
 }
 
+.register-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .register-header {
+  margin-left: auto;
+  width: 80%;
   min-height: 4.2rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.75rem;
   border-radius: 999px;
   padding: 0.48rem 0.78rem;
@@ -60,15 +68,15 @@
 .register-brand-link {
   display: inline-flex;
   align-items: center;
-  min-width: 0;
+  justify-content: center;
+  width: 18%;
+  min-width: 6.5rem;
 }
 
 .register-logo {
-  position: relative;
-  top: -3px;
-  width: 200px;
-  left: 15px;
-  max-height: 3.3rem;
+  width: min(100%, 12rem);
+  /*max-height: 4.3rem;*/
+  object-fit: contain;
 }
 
 .register-home-link {
@@ -244,22 +252,24 @@
   }
 
   .register-header {
+    width: 100%;
     border-radius: 0.95rem;
+    justify-content: center;
+  }
+
+  .register-topbar {
     flex-wrap: wrap;
     justify-content: center;
   }
 
   .register-brand-link {
-    transform: translate(0.08rem, -0.1rem);
+    width: 100%;
+    min-width: 0;
   }
 
   .register-logo {
     width: min(88vw, 15.5rem);
     max-height: 3.1rem;
-  }
-
-  .register-home-link {
-    width: 100%;
   }
 
   .register-card {

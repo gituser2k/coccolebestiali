@@ -84,14 +84,16 @@ export default function RegisterPage() {
   return (
     <main className="register-shell">
       <section className="register-hero" aria-label="Registrazione Coccole Bestiali">
-        <header className="register-header">
+        <div className="register-topbar">
           <a href="/" className="register-brand-link" aria-label="Torna alla home">
             <img src={logoImage} className="register-logo" alt="Coccole Bestiali" />
           </a>
-          <a className="register-home-link" href="/">
-            Torna alla Home
-          </a>
-        </header>
+          <header className="register-header">
+            <a className="register-home-link" href="/">
+              Torna alla Home
+            </a>
+          </header>
+        </div>
 
         <section className="register-grid">
           <RoleCard
