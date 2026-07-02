@@ -134,6 +134,199 @@ a {
   border: 1px solid rgb(255 255 255 / 72%);
 }
 
+.hero-login-panel {
+  margin-top: clamp(0.7rem, 1.9vw, 1.2rem);
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 72%);
+  background: linear-gradient(170deg, rgb(255 255 255 / 82%) 0%, rgb(255 255 255 / 62%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 76%),
+    0 18px 32px rgb(7 28 62 / 16%);
+  backdrop-filter: blur(9px) saturate(120%);
+  padding: clamp(1rem, 2vw, 1.45rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.hero-login-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hero-login-title {
+  margin: 0;
+  font-size: clamp(1.28rem, 2vw, 1.8rem);
+  color: var(--brand-green);
+  line-height: 1.15;
+}
+
+.hero-login-subtitle {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(0.94rem, 1.25vw, 1.08rem);
+  line-height: 1.45;
+}
+
+.hero-login-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.hero-login-field {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.hero-login-field span {
+  color: #29435e;
+  font-weight: 800;
+  font-size: clamp(0.97rem, 1.1vw, 1.05rem);
+}
+
+.hero-login-field input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #cfd8dc;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 0.98rem;
+  outline: none;
+  background: #fff;
+}
+
+.hero-login-field input:focus {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgb(31 95 167 / 14%);
+}
+
+.hero-login-action {
+  margin-top: 0.2rem;
+  min-height: 3rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font-weight: 800;
+  font-size: clamp(1.02rem, 1.16vw, 1.16rem);
+  cursor: pointer;
+}
+
+.hero-login-action:disabled,
+.hero-login-social-btn:disabled,
+.hero-role-card:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.hero-login-primary {
+  background: var(--brand-green);
+  color: #fff;
+  box-shadow: 0 14px 24px rgb(47 122 74 / 24%);
+}
+
+.hero-login-divider {
+  display: flex;
+  align-items: center;
+  color: #4b5d70;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.hero-login-divider::before,
+.hero-login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgb(31 95 167 / 24%);
+}
+
+.hero-login-divider span {
+  padding: 0 0.7rem;
+}
+
+.hero-login-socials {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.hero-login-social-btn {
+  min-height: 2.9rem;
+  border-radius: 999px;
+  border: 1px solid rgb(31 95 167 / 38%);
+  background: rgb(255 255 255 / 94%);
+  color: #26496d;
+  font-size: clamp(1rem, 1.04vw, 1.08rem);
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.hero-login-social-btn .social-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.hero-login-back {
+  min-height: 2.35rem;
+  padding: 0.42rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgb(31 95 167 / 34%);
+  background: rgb(255 255 255 / 86%);
+  color: var(--brand-blue);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hero-role-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.hero-role-card {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 7.2rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(31 95 167 / 22%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 96%) 0%, rgb(243 245 246 / 88%) 100%);
+  text-align: left;
+  color: #23405c;
+  box-shadow: 0 14px 26px rgb(7 28 62 / 10%);
+  cursor: pointer;
+}
+
+.hero-role-card strong {
+  font-size: 1.02rem;
+  color: var(--brand-green);
+}
+
+.hero-role-card span {
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.hero-login-status {
+  margin: 0.15rem 0 0;
+  font-size: 0.93rem;
+  font-weight: 700;
+}
+
+.hero-login-status.is-error {
+  color: #b42318;
+}
+
+.hero-login-status.is-success {
+  color: var(--brand-green);
+}
+
 .hero-kicker {
   margin: 0;
   font-size: clamp(0.74rem, 1vw, 0.82rem);
@@ -217,6 +410,22 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.user-initial-badge {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgb(47 122 74 / 96%) 0%, rgb(31 95 167 / 96%) 100%);
+  color: var(--white);
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: 0 12px 20px rgb(16 49 86 / 20%);
+  border: 1px solid rgb(255 255 255 / 60%);
+  flex: 0 0 auto;
 }
 
 .action {
@@ -353,9 +562,9 @@ a {
 
 .info-toast {
   position: fixed;
-  z-index: 80;
+  z-index: 9999;
   right: 1rem;
-  bottom: 1rem;
+  top: max(1rem, env(safe-area-inset-top));
   min-width: min(90vw, 22rem);
   max-width: min(90vw, 26rem);
   border-radius: 0.8rem;
@@ -363,14 +572,17 @@ a {
   color: #fff;
   font-weight: 700;
   box-shadow: 0 15px 30px rgb(7 22 45 / 30%);
+  pointer-events: none;
 }
 
 .info-toast.is-error {
-  background: #c03830;
+  background: linear-gradient(135deg, #c63b32 0%, #a02318 100%);
+  color: #fff;
 }
 
 .info-toast.is-success {
-  background: #2f7a4a;
+  background: linear-gradient(135deg, #2f7a4a 0%, #1f5fa7 100%);
+  color: #fff;
 }
 
 @media (max-width: 760px) {
@@ -445,6 +657,10 @@ a {
     padding: 0.9rem;
   }
 
+  .hero-login-panel {
+    padding: 0.9rem;
+  }
+
   .hero-title {
     font-size: clamp(1.65rem, 8.5vw, 2.15rem);
   }
@@ -455,7 +671,25 @@ a {
     gap: 0.55rem;
   }
 
+  .hero-login-socials {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-login-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-role-picker {
+    grid-template-columns: 1fr;
+  }
+
   .cta-btn {
+    width: 100%;
+  }
+
+  .hero-login-action,
+  .hero-login-social-btn {
     width: 100%;
   }
 

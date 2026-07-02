@@ -1,73 +1,177 @@
-# React + TypeScript + Vite
+# Coccole Bestiali Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Questo frontend vive in:
 
-Currently, two official plugins are available:
+- `/Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/html`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Ed e costruito con:
 
-## React Compiler
+- `React`
+- `TypeScript`
+- `Vite`
+- `Tailwind CSS`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Struttura attuale
 
-## Expanding the ESLint configuration
+- `src/pages/` contiene le pagine React.
+- `src/css/` contiene i CSS per pagina.
+- `src/html/` contiene gli entry point HTML gestiti da Vite.
+- `src/tsx/` contiene i bootstrap file che montano le singole pagine.
+- `src/assets/` contiene immagini e asset grafici.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Comandi utili
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Sviluppo locale:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd /Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/html
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Build produzione:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd /Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/html
+npm run build
 ```
+
+Importante:
+
+- `npm run build` va sempre eseguito dentro la cartella `html/`.
+- Non usare la root del progetto per i comandi npm, perche li non esiste `package.json`.
+
+## Regola definitiva per le nuove form
+
+Questa regola nasce dalla correzione effettuata sulla pagina:
+
+- `/profile/petassistant`
+
+ed e da considerare il criterio standard per tutte le future pagine interne.
+
+### 1. Mobile first, ma con controllo esplicito del tablet
+
+Non basta verificare solo:
+
+- desktop largo
+- mobile stretto
+
+La fascia piu delicata e spesso il tablet, in particolare viewport simili a:
+
+- `1024x1366`
+- `1366x768`
+
+Se una sezione ha:
+
+- due colonne
+- una mappa
+- campi affiancati
+- label lunghe
+- dropdown o autocomplete
+
+allora deve avere un breakpoint tablet dedicato prima del mobile puro.
+
+### 2. Quando una sezione deve andare in stacking
+
+Se una sezione contiene blocchi complessi, per esempio:
+
+- form a sinistra
+- mappa o card a destra
+- `indirizzo` e `numero civico` sulla stessa riga
+
+non bisogna aspettare il breakpoint mobile per forzare `grid-template-columns: 1fr`.
+
+Regola pratica:
+
+- desktop ampio: layout a colonne
+- tablet: stacking anticipato se i campi iniziano a comprimersi
+- mobile: layout a colonna completa
+
+Nel profilo pet assistant questa regola e gia applicata in:
+
+- [profile.css](/Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/html/src/css/profile.css)
+
+con breakpoint tablet dedicato per il blocco indirizzo.
+
+### 3. Cosa non va toccato se una parte e gia corretta
+
+Se una sezione e gia stata validata visivamente, le correzioni future devono essere:
+
+- locali
+- chirurgiche
+- limitate al blocco problematico
+
+Esempio corretto:
+
+- correggere solo `.profile-location-grid`
+- lasciare invariata la sezione alta con alias, email, nome e foto
+
+Questo evita regressioni su parti gia approvate.
+
+### 4. Regola di spaziatura dei campi form
+
+Per i campi con label sopra input:
+
+- la distanza verticale label-campo deve essere uniforme
+- se una sezione ha una distribuzione speciale, conviene lavorare sul contenitore reale che gestisce l'impilamento
+
+Nel progetto si e visto che, per la sezione alta del profilo, la soluzione corretta non era forzare margini generici, ma:
+
+- organizzare bene il blocco sinistro
+- distribuire i campi nella colonna corretta
+- mantenere la foto nella colonna separata
+
+Questa e la logica da riutilizzare nelle prossime form.
+
+## Procedura obbligatoria di verifica visuale
+
+Per ogni modifica grafica importante bisogna sempre fare verifica reale con screenshot.
+
+Viewport minime da controllare:
+
+- `3840x2160`
+- `1920x1080`
+- `1366x768`
+- `1024x1366`
+- una viewport mobile, ad esempio `430x932`
+
+Se il cambiamento tocca spaziature o comportamento responsive, la verifica non e opzionale.
+
+### Criteri di controllo
+
+Controllare sempre:
+
+- centratura generale dei blocchi
+- equilibrio tra colonna sinistra e destra
+- assenza di sovrapposizioni tra label, input e componenti
+- assenza di tagli o compressioni anomale
+- resa coerente su mobile senza rompere cio che era gia corretto
+
+### Tecnica operativa da riutilizzare
+
+Usare Playwright per generare screenshot della pagina reale su `http://localhost/...`.
+
+Esempio:
+
+```bash
+cd /Applications/XAMPP/xamppfiles/htdocs/coccolebestiali/html
+node --input-type=module
+```
+
+Poi generare screenshot per le viewport necessarie.
+
+Cartella consigliata:
+
+- `html/screenshots/`
+
+## Principio operativo per il futuro
+
+Da ora in poi, nella costruzione di altre form:
+
+1. si sviluppa il layout
+2. si verifica il desktop
+3. si verifica obbligatoriamente il tablet
+4. si verifica il mobile
+5. si corregge solo il blocco che fallisce
+6. si rigenera la build con `npm run build`
+
+Questo e il criterio definitivo da seguire per evitare regressioni e mantenere un livello grafico professionale e stabile.

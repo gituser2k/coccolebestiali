@@ -24,3 +24,348 @@ CREATE TABLE `messageback` (
   `method` varchar(15000) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `users` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `role` varchar(32) NOT NULL DEFAULT '',
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `email` varchar(255) DEFAULT NULL,
+  `email_verified` tinyint(1) NOT NULL DEFAULT 0,
+  `password_hash` varchar(255) NOT NULL DEFAULT '',
+  `avatar` varchar(1024) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_users_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `social_accounts` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `provider` varchar(32) NOT NULL DEFAULT '',
+  `provider_sub` varchar(255) NOT NULL DEFAULT '',
+  `provider_email` varchar(255) NOT NULL DEFAULT '',
+  `provider_email_verified` tinyint(1) NOT NULL DEFAULT 0,
+  `is_private_email` tinyint(1) NOT NULL DEFAULT 0,
+  `raw_claims` varchar(4096) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_provider_sub` (`provider`, `provider_sub`),
+  KEY `idx_social_accounts_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `personaldata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `photo` varchar(1024) NOT NULL DEFAULT '',
+  `age` int NOT NULL DEFAULT 0,
+  `city` varchar(255) NOT NULL DEFAULT '',
+  `phone` varchar(64) NOT NULL DEFAULT '',
+  `address` varchar(255) NOT NULL DEFAULT '',
+  `addressnumber` varchar(64) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_personaldata_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `language` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(120) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `languagedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `language_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_languagedata_user_language` (`user_id`, `language_id`),
+  KEY `idx_languagedata_user_id` (`user_id`),
+  KEY `idx_languagedata_language_id` (`language_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `operatordata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `bio` varchar(4096) NOT NULL DEFAULT '',
+  `experience_years` int NOT NULL DEFAULT 0,
+  `dog_weight_limit` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_operatordata_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `operatortitle` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(120) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `operatortitledata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `title_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_operatortitledata_user_title` (`user_id`, `title_id`),
+  KEY `idx_operatortitledata_user_id` (`user_id`),
+  KEY `idx_operatortitledata_title_id` (`title_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `dogbreed` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(160) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `dogbreeddata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `breed_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dogbreeddata_user_breed` (`user_id`, `breed_id`),
+  KEY `idx_dogbreeddata_user_id` (`user_id`),
+  KEY `idx_dogbreeddata_breed_id` (`breed_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `pettype` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(160) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `pettypedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `pettype_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_pettypedata_user_pettype` (`user_id`, `pettype_id`),
+  KEY `idx_pettypedata_user_id` (`user_id`),
+  KEY `idx_pettypedata_pettype_id` (`pettype_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `pettype` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Docile', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Aggressivo con persone', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Aggressivo con pet', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Ansioso', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Iperattivo', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Anziano', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (7, 'Cucciolo', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (8, 'Con esigenze speciali', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+CREATE TABLE `housefeature` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `housefeaturedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `housefeature_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_housefeaturedata_user_feature` (`user_id`, `housefeature_id`),
+  KEY `idx_housefeaturedata_user_id` (`user_id`),
+  KEY `idx_housefeaturedata_feature_id` (`housefeature_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `housefeature` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Giardino (recintato SI/NO)', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Appartamento', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Casa indipendente', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Villa', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Terrazzo (piccolo medio grande)', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Confinamento (zona dedicata, cuccia interna/esterna, intera casa)', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (7, 'Presenza altri animali', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (8, 'Presenza ascensore', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+CREATE TABLE `operatorgallery` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `photo` varchar(1024) NOT NULL DEFAULT '',
+  `caption` varchar(255) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_operatorgallery_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `service` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `description` varchar(4096) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `servicefeature` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `servicefeaturedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `feature_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_servicefeaturedata_service_feature` (`service_id`, `feature_id`),
+  KEY `idx_servicefeaturedata_service_id` (`service_id`),
+  KEY `idx_servicefeaturedata_feature_id` (`feature_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `operatorservicedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `is_exclusive` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_operatorservicedata_user_service` (`user_id`, `service_id`),
+  KEY `idx_operatorservicedata_user_id` (`user_id`),
+  KEY `idx_operatorservicedata_service_id` (`service_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `operatorservicefeaturedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `feature_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_operatorservicefeaturedata_user_service_feature` (`user_id`, `service_id`, `feature_id`),
+  KEY `idx_operatorservicefeaturedata_user_id` (`user_id`),
+  KEY `idx_operatorservicefeaturedata_service_id` (`service_id`),
+  KEY `idx_operatorservicefeaturedata_feature_id` (`feature_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES
+  (1, 'Tracking GPS', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Chat privata', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Note fine servizio', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Invio foto/video', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Incontro preventivo', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Urgenza', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (7, 'Periodico', UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `service` (`id`, `name`, `description`, `created_at`, `updated_at`) VALUES
+  (1, 'Passeggiata', 'Passeggiate personalizzate per il tuo pet, con attenzione ai ritmi, al benessere e alle abitudini quotidiane.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Soggiorno a domicilio', 'Assistenza direttamente a casa del cliente per garantire continuita, serenita e cura nell''ambiente abituale del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Soggiorno presso il petassistant', 'Ospitalita in ambiente accogliente e controllato presso il petassistant, con presenza costante e cura dedicata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Asilo diurno', 'Accoglienza giornaliera con momenti di gioco, relax e attenzione continua, ideale per assenze durante la giornata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Pet Taxi (presso veterinari o tolettatori)', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `servicefeaturedata` (`service_id`, `feature_id`, `created_at`, `updated_at`) VALUES
+  (1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `language` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Italiano', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'English', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Francais', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Espanol', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Deutsch', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Addestratore', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Educatore', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Veterinario', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Petsitter', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Toelettatore', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `dogbreed` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Labrador Retriever', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Golden Retriever', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Pastore Tedesco', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Bulldog Francese', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Barboncino', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Beagle', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (7, 'Carlino', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (8, 'Border Collie', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (9, 'Chihuahua', 90, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (10, 'Jack Russell Terrier', 100, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (11, 'Maltese', 110, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (12, 'Rottweiler', 120, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (13, 'Setter Inglese', 130, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (14, 'Cocker Spaniel', 140, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (15, 'Meticcio', 150, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+
+INSERT INTO `pettype` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (1, 'Docile', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Aggressivo con persone', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Aggressivo con pet', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Ansioso', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Iperattivo', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Anziano', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (7, 'Cucciolo', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (8, 'Con esigenze speciali', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());

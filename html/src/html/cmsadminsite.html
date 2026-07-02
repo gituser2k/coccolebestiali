@@ -402,6 +402,315 @@
         min-height: 0;
       }
 
+      .services-admin {
+        height: 100%;
+        overflow: auto;
+      }
+
+      .services-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+        gap: 18px;
+        min-height: 100%;
+      }
+
+      .services-card {
+        background: #f8fbfc;
+        border: 1px solid #e2e8ec;
+        border-radius: 14px;
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+        align-content: start;
+      }
+
+      .services-card h4 {
+        margin: 0;
+        color: #1f3d52;
+        font-size: 1rem;
+      }
+
+      .services-heading-green {
+        color: var(--green) !important;
+        font-weight: 800;
+      }
+
+      .services-heading-blue {
+        color: var(--blue) !important;
+        font-weight: 800;
+      }
+
+      .services-card p {
+        margin: 0;
+        color: #5b6b76;
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+
+      .service-form-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .service-form-grid input,
+      .service-form-grid textarea {
+        width: 100%;
+        border: 1px solid #ccd6dc;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.96rem;
+        font-family: inherit;
+        outline: none;
+        background: #ffffff;
+      }
+
+      .service-form-grid textarea {
+        resize: vertical;
+        min-height: 110px;
+      }
+
+      .service-form-grid input:focus,
+      .service-form-grid textarea:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(31, 95, 167, 0.14);
+      }
+
+      .service-features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+      }
+
+      .service-feature-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #d9e4ea;
+        background: #ffffff;
+        font-size: 0.94rem;
+        font-weight: 600;
+      }
+
+      .service-feature-check input {
+        width: 18px;
+        height: 18px;
+        margin: 1px 0 0;
+        accent-color: var(--blue);
+      }
+
+      .service-form-actions,
+      .service-feature-actions,
+      .service-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .service-btn {
+        margin-top: 0;
+        height: 40px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-size: 0.94rem;
+      }
+
+      .service-btn.secondary {
+        background: #6b7780;
+      }
+
+      .service-btn.danger {
+        background: #b42318;
+      }
+
+      .service-btn.light {
+        background: linear-gradient(90deg, #eef5f9, #e6eef7);
+        color: #1f3d52;
+        border: 1px solid #d5e0e8;
+      }
+
+      .service-icon-btn {
+        width: 40px;
+        min-width: 40px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .service-icon-btn svg {
+        width: 17px;
+        height: 17px;
+        display: block;
+      }
+
+      .services-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .services-divider {
+        height: 1px;
+        background: linear-gradient(90deg, rgba(31, 95, 167, 0.08), rgba(31, 95, 167, 0.24), rgba(47, 122, 74, 0.08));
+        margin: 2px 0;
+      }
+
+      .service-row {
+        border: 1px solid #dde7ec;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .service-row-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+      }
+
+      .service-row-title {
+        margin: 0;
+        color: #17394d;
+        font-size: 1rem;
+      }
+
+      .service-row-desc {
+        color: #4f616d;
+        font-size: 0.93rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+
+      .service-badges,
+      .feature-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .service-badge,
+      .feature-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #1f5fa7;
+        background: rgba(31, 95, 167, 0.1);
+        border: 1px solid rgba(31, 95, 167, 0.18);
+      }
+
+      .service-badge {
+        gap: 8px;
+        padding-right: 8px;
+      }
+
+      .service-badge-action {
+        width: 22px;
+        min-width: 22px;
+        height: 22px;
+        margin-top: 0;
+        padding: 0;
+        border-radius: 999px;
+        border: 0;
+        background: rgba(31, 95, 167, 0.14);
+        color: #1f5fa7;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .service-badge-action:hover {
+        background: rgba(180, 35, 24, 0.14);
+        color: #b42318;
+      }
+
+      .feature-item {
+        border: 1px solid #dde7ec;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .feature-item strong {
+        color: #17394d;
+      }
+
+      .pettype-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .pettype-card {
+        position: relative;
+        min-height: 116px;
+        align-items: flex-start;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .pettype-card:active {
+        cursor: grabbing;
+      }
+
+      .pettype-card.is-dragging {
+        opacity: 0.58;
+        transform: scale(0.985);
+      }
+
+      .pettype-card.is-drop-target {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(31, 95, 167, 0.12);
+      }
+
+      .pettype-card-main {
+        display: grid;
+        gap: 0;
+        min-width: 0;
+      }
+
+      .pettype-order-chip {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, rgba(47, 122, 74, 0.14), rgba(31, 95, 167, 0.18));
+        color: #17394d;
+        font-size: 0.82rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pettype-card .service-feature-actions {
+        margin-top: auto;
+      }
+
+      .service-empty {
+        padding: 18px 14px;
+        border-radius: 12px;
+        background: #ffffff;
+        border: 1px dashed #cfd9df;
+        color: #62727d;
+        font-size: 0.94rem;
+      }
+
       table {
         width: 100%;
         table-layout: fixed;
@@ -430,6 +739,10 @@
         padding: 12px 16px;
         font-size: 0.92rem;
         color: #5e6b76;
+      }
+
+      .status-note:empty {
+        display: none;
       }
 
       .dt-layout-row {
@@ -482,6 +795,14 @@
         .panel {
           height: auto;
         }
+
+        .services-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .pettype-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
     </style>
   </head>
@@ -512,6 +833,9 @@
         <div class="menu-list">
           <button id="btnMessages" class="menu-btn is-active" type="button">Messaggi</button>
           <button id="btnErrors" class="menu-btn" type="button">Errori</button>
+          <button id="btnServices" class="menu-btn" type="button">Servizi</button>
+          <button id="btnPetTypes" class="menu-btn" type="button">Tipo di pet</button>
+          <button id="btnHouseFeatures" class="menu-btn" type="button">Caratteristiche casa</button>
         </div>
         <button id="btnLogout" class="menu-btn logout-btn" type="button">Logout</button>
       </aside>
@@ -524,6 +848,7 @@
           </div>
           <p id="statusNote" class="status-note">Caricamento dati...</p>
           <div class="table-wrap">
+            <div id="servicesManager" class="services-admin is-hidden" aria-label="Gestione servizi"></div>
             <table id="dataTable" aria-label="Dati CMS">
               <colgroup id="dataCols"></colgroup>
               <thead id="dataHead"></thead>
@@ -584,6 +909,9 @@
 
       const btnMessages = document.getElementById('btnMessages')
       const btnErrors = document.getElementById('btnErrors')
+      const btnServices = document.getElementById('btnServices')
+      const btnPetTypes = document.getElementById('btnPetTypes')
+      const btnHouseFeatures = document.getElementById('btnHouseFeatures')
       const btnLogout = document.getElementById('btnLogout')
       const btnDeleteErrors = document.getElementById('btnDeleteErrors')
       const rowContextMenu = document.getElementById('rowContextMenu')
@@ -604,6 +932,8 @@
       const dataCols = document.getElementById('dataCols')
       const dataHead = document.getElementById('dataHead')
       const dataBody = document.getElementById('dataBody')
+      const dataTable = document.getElementById('dataTable')
+      const servicesManager = document.getElementById('servicesManager')
       const panel = document.querySelector('.panel')
       const panelHeader = document.querySelector('.panel-header')
       let dataTableInstance = null
@@ -615,6 +945,16 @@
       let replyTargetMessage = null
       let shouldReloadMessagesOnReplyClose = false
       let pendingLaravelCalls = 0
+      let serviceRows = []
+      let featureRows = []
+      let petTypeRows = []
+      let houseFeatureRows = []
+      let editingServiceId = null
+      let editingFeatureId = null
+      let editingPetTypeId = null
+      let editingHouseFeatureId = null
+      let draggedPetTypeId = null
+      let draggedHouseFeatureId = null
       moment.locale('it')
 
       function escapeHtml(value) {
@@ -630,7 +970,21 @@
         currentSection = type
         btnMessages.classList.toggle('is-active', type === 'messages')
         btnErrors.classList.toggle('is-active', type === 'errors')
+        btnServices.classList.toggle('is-active', type === 'services')
+        btnPetTypes.classList.toggle('is-active', type === 'pettypes')
+        btnHouseFeatures.classList.toggle('is-active', type === 'housefeatures')
         hideRowContextMenu()
+      }
+
+      function showTableWrap() {
+        dataTable.classList.remove('is-hidden')
+        servicesManager.classList.add('is-hidden')
+      }
+
+      function showServicesWrap() {
+        destroyDataTable()
+        dataTable.classList.add('is-hidden')
+        servicesManager.classList.remove('is-hidden')
       }
 
       function setDeleteButtonVisibility(isVisible) {
@@ -840,6 +1194,608 @@
         scrollBody.style.height = `${bodyHeight}px`
         scrollBody.style.maxHeight = `${bodyHeight}px`
         dataTableInstance.columns.adjust()
+      }
+
+      function getSelectedServiceFeatureIds() {
+        return Array.from(document.querySelectorAll('.service-feature-selector:checked'))
+          .map((entry) => Number(entry.value))
+          .filter((value) => value > 0)
+      }
+
+      function resetServiceForm() {
+        editingServiceId = null
+        const idField = document.getElementById('serviceId')
+        const nameField = document.getElementById('serviceName')
+        const descField = document.getElementById('serviceDescription')
+
+        if (idField) idField.value = ''
+        if (nameField) nameField.value = ''
+        if (descField) descField.value = ''
+
+        document.querySelectorAll('.service-feature-selector').forEach((entry) => {
+          entry.checked = false
+        })
+      }
+
+      function populateServiceForm(serviceId) {
+        const service = serviceRows.find((entry) => Number(entry.id) === Number(serviceId))
+        if (!service) {
+          resetServiceForm()
+          return
+        }
+
+        editingServiceId = Number(service.id)
+        const idField = document.getElementById('serviceId')
+        const nameField = document.getElementById('serviceName')
+        const descField = document.getElementById('serviceDescription')
+
+        if (idField) idField.value = String(service.id)
+        if (nameField) nameField.value = service.name ?? ''
+        if (descField) descField.value = service.description ?? ''
+
+        const selectedIds = new Set((service.feature_ids ?? []).map((value) => Number(value)))
+        document.querySelectorAll('.service-feature-selector').forEach((entry) => {
+          entry.checked = selectedIds.has(Number(entry.value))
+        })
+      }
+
+      function resetFeatureForm() {
+        editingFeatureId = null
+        const idField = document.getElementById('featureId')
+        const nameField = document.getElementById('featureName')
+
+        if (idField) idField.value = ''
+        if (nameField) nameField.value = ''
+      }
+
+      function resetPetTypeForm() {
+        editingPetTypeId = null
+        const idField = document.getElementById('petTypeId')
+        const nameField = document.getElementById('petTypeName')
+
+        if (idField) idField.value = ''
+        if (nameField) nameField.value = ''
+      }
+
+      function resetHouseFeatureForm() {
+        editingHouseFeatureId = null
+        const idField = document.getElementById('houseFeatureId')
+        const nameField = document.getElementById('houseFeatureName')
+
+        if (idField) idField.value = ''
+        if (nameField) nameField.value = ''
+      }
+
+      function populateFeatureForm(featureId) {
+        const feature = featureRows.find((entry) => Number(entry.id) === Number(featureId))
+        if (!feature) {
+          resetFeatureForm()
+          return
+        }
+
+        editingFeatureId = Number(feature.id)
+        const idField = document.getElementById('featureId')
+        const nameField = document.getElementById('featureName')
+
+        if (idField) idField.value = String(feature.id)
+        if (nameField) nameField.value = feature.name ?? ''
+      }
+
+      function populatePetTypeForm(petTypeId) {
+        const petType = petTypeRows.find((entry) => Number(entry.id) === Number(petTypeId))
+        if (!petType) {
+          resetPetTypeForm()
+          return
+        }
+
+        editingPetTypeId = Number(petType.id)
+        const idField = document.getElementById('petTypeId')
+        const nameField = document.getElementById('petTypeName')
+
+        if (idField) idField.value = String(petType.id)
+        if (nameField) nameField.value = petType.name ?? ''
+      }
+
+      function populateHouseFeatureForm(houseFeatureId) {
+        const houseFeature = houseFeatureRows.find((entry) => Number(entry.id) === Number(houseFeatureId))
+        if (!houseFeature) {
+          resetHouseFeatureForm()
+          return
+        }
+
+        editingHouseFeatureId = Number(houseFeature.id)
+        const idField = document.getElementById('houseFeatureId')
+        const nameField = document.getElementById('houseFeatureName')
+
+        if (idField) idField.value = String(houseFeature.id)
+        if (nameField) nameField.value = houseFeature.name ?? ''
+      }
+
+      function getPetTypeIdsInCurrentOrder() {
+        return petTypeRows
+          .map((entry) => Number(entry.id))
+          .filter((value) => value > 0)
+      }
+
+      function getHouseFeatureIdsInCurrentOrder() {
+        return houseFeatureRows
+          .map((entry) => Number(entry.id))
+          .filter((value) => value > 0)
+      }
+
+      async function persistPetTypeOrder() {
+        const ids = getPetTypeIdsInCurrentOrder()
+        if (ids.length === 0) {
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/pet-types/reorder', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore riordino tipi di pet')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Riordino tipi di pet non completato')
+        }
+      }
+
+      async function persistHouseFeatureOrder() {
+        const ids = getHouseFeatureIdsInCurrentOrder()
+        if (ids.length === 0) {
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/house-features/reorder', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore riordino caratteristiche casa')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Riordino caratteristiche casa non completato')
+        }
+      }
+
+      function reorderPetTypeRows(sourceId, targetId) {
+        const sourceIndex = petTypeRows.findIndex((entry) => Number(entry.id) === Number(sourceId))
+        const targetIndex = petTypeRows.findIndex((entry) => Number(entry.id) === Number(targetId))
+
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+          return false
+        }
+
+        const nextRows = [...petTypeRows]
+        const [moved] = nextRows.splice(sourceIndex, 1)
+        nextRows.splice(targetIndex, 0, moved)
+
+        petTypeRows = nextRows.map((entry, index) => ({
+          ...entry,
+          sortorder: (index + 1) * 10,
+        }))
+
+        return true
+      }
+
+      function reorderHouseFeatureRows(sourceId, targetId) {
+        const sourceIndex = houseFeatureRows.findIndex((entry) => Number(entry.id) === Number(sourceId))
+        const targetIndex = houseFeatureRows.findIndex((entry) => Number(entry.id) === Number(targetId))
+
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+          return false
+        }
+
+        const nextRows = [...houseFeatureRows]
+        const [moved] = nextRows.splice(sourceIndex, 1)
+        nextRows.splice(targetIndex, 0, moved)
+
+        houseFeatureRows = nextRows.map((entry, index) => ({
+          ...entry,
+          sortorder: (index + 1) * 10,
+        }))
+
+        return true
+      }
+
+      function bindPetTypeDragEvents() {
+        const cards = Array.from(document.querySelectorAll('.pettype-card'))
+        if (!cards.length) {
+          return
+        }
+
+        cards.forEach((card) => {
+          card.addEventListener('dragstart', (event) => {
+            draggedPetTypeId = Number(card.getAttribute('data-id'))
+            card.classList.add('is-dragging')
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', String(draggedPetTypeId))
+            }
+          })
+
+          card.addEventListener('dragend', () => {
+            draggedPetTypeId = null
+            cards.forEach((entry) => entry.classList.remove('is-dragging', 'is-drop-target'))
+          })
+
+          card.addEventListener('dragover', (event) => {
+            event.preventDefault()
+            if (draggedPetTypeId && Number(card.getAttribute('data-id')) !== draggedPetTypeId) {
+              card.classList.add('is-drop-target')
+            }
+          })
+
+          card.addEventListener('dragleave', () => {
+            card.classList.remove('is-drop-target')
+          })
+
+          card.addEventListener('drop', async (event) => {
+            event.preventDefault()
+            card.classList.remove('is-drop-target')
+
+            const targetId = Number(card.getAttribute('data-id'))
+            const sourceId = draggedPetTypeId || Number(event.dataTransfer?.getData('text/plain') || 0)
+
+            if (!sourceId || !targetId || sourceId === targetId) {
+              return
+            }
+
+            const didReorder = reorderPetTypeRows(sourceId, targetId)
+            if (!didReorder) {
+              return
+            }
+
+            renderPetTypesManager()
+            statusNote.textContent = 'Salvataggio nuovo ordine in corso...'
+
+            try {
+              await persistPetTypeOrder()
+              statusNote.textContent = 'Ordine tipi di pet aggiornato correttamente.'
+            } catch (error) {
+              await loadPetTypesSection()
+              statusNote.textContent = 'Errore durante il riordino dei tipi di pet.'
+            }
+          })
+        })
+      }
+
+      function bindHouseFeatureDragEvents() {
+        const cards = Array.from(document.querySelectorAll('.housefeature-card'))
+        if (!cards.length) {
+          return
+        }
+
+        cards.forEach((card) => {
+          card.addEventListener('dragstart', (event) => {
+            draggedHouseFeatureId = Number(card.getAttribute('data-id'))
+            card.classList.add('is-dragging')
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', String(draggedHouseFeatureId))
+            }
+          })
+
+          card.addEventListener('dragend', () => {
+            draggedHouseFeatureId = null
+            cards.forEach((entry) => entry.classList.remove('is-dragging', 'is-drop-target'))
+          })
+
+          card.addEventListener('dragover', (event) => {
+            event.preventDefault()
+            if (draggedHouseFeatureId && Number(card.getAttribute('data-id')) !== draggedHouseFeatureId) {
+              card.classList.add('is-drop-target')
+            }
+          })
+
+          card.addEventListener('dragleave', () => {
+            card.classList.remove('is-drop-target')
+          })
+
+          card.addEventListener('drop', async (event) => {
+            event.preventDefault()
+            card.classList.remove('is-drop-target')
+
+            const targetId = Number(card.getAttribute('data-id'))
+            const sourceId = draggedHouseFeatureId || Number(event.dataTransfer?.getData('text/plain') || 0)
+
+            if (!sourceId || !targetId || sourceId === targetId) {
+              return
+            }
+
+            const didReorder = reorderHouseFeatureRows(sourceId, targetId)
+            if (!didReorder) {
+              return
+            }
+
+            renderHouseFeaturesManager()
+            statusNote.textContent = 'Salvataggio nuovo ordine in corso...'
+
+            try {
+              await persistHouseFeatureOrder()
+              statusNote.textContent = 'Ordine caratteristiche casa aggiornato correttamente.'
+            } catch (error) {
+              await loadHouseFeaturesSection()
+              statusNote.textContent = 'Errore durante il riordino delle caratteristiche casa.'
+            }
+          })
+        })
+      }
+
+      function renderServicesManager() {
+        const featureChecks = featureRows.length > 0
+          ? featureRows.map((feature) => `
+              <label class="service-feature-check">
+                <input class="service-feature-selector" type="checkbox" value="${Number(feature.id)}">
+                <span>${escapeHtml(feature.name)}</span>
+              </label>
+            `).join('')
+          : '<div class="service-empty">Nessuna funzionalità disponibile. Creane almeno una nella colonna di destra.</div>'
+
+        const servicesList = serviceRows.length > 0
+          ? serviceRows.map((service) => `
+              <article class="service-row">
+                <div class="service-row-top">
+                  <div>
+                    <h5 class="service-row-title">${escapeHtml(service.name)}</h5>
+                    <div class="service-row-desc">${escapeHtml(service.description)}</div>
+                  </div>
+                  <div class="service-row-actions">
+                    <button class="service-btn service-icon-btn light" type="button" data-action="edit-service" data-id="${Number(service.id)}" aria-label="Modifica servizio ${Number(service.id)}" title="Modifica">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                      </svg>
+                    </button>
+                    <button class="service-btn service-icon-btn danger" type="button" data-action="delete-service" data-id="${Number(service.id)}" aria-label="Elimina servizio ${Number(service.id)}" title="Elimina">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="service-badges">
+                  ${(service.feature_names ?? []).length > 0
+                    ? service.feature_names.map((name, index) => `
+                        <span class="service-badge">
+                          <span>${escapeHtml(name)}</span>
+                          <button
+                            class="service-badge-action"
+                            type="button"
+                            data-action="detach-feature-from-service"
+                            data-service-id="${Number(service.id)}"
+                            data-feature-id="${Number((service.feature_ids ?? [])[index] ?? 0)}"
+                            title="Disabilita nel servizio"
+                            aria-label="Disabilita ${escapeHtml(name)} dal servizio ${escapeHtml(service.name)}"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M18 6 6 18" />
+                              <path d="M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      `).join('')
+                    : '<span class="service-badge" style="color:#6b7780;background:#f4f7f9;border-color:#dde5ea;">Nessuna funzionalità associata</span>'}
+                </div>
+              </article>
+            `).join('')
+          : '<div class="service-empty">Nessun servizio caricato.</div>'
+
+        const featureList = featureRows.length > 0
+          ? featureRows.map((feature) => `
+              <div class="feature-item">
+                <strong>${escapeHtml(feature.name)}</strong>
+                <div class="service-feature-actions">
+                  <button class="service-btn service-icon-btn secondary" type="button" data-action="detach-feature-global" data-id="${Number(feature.id)}" aria-label="Disabilita funzionalità ${Number(feature.id)} su tutti i servizi" title="Disabilita su tutti i servizi">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M17 7 7 17" />
+                      <path d="m7 7 10 10" />
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    </svg>
+                  </button>
+                  <button class="service-btn service-icon-btn light" type="button" data-action="edit-feature" data-id="${Number(feature.id)}" aria-label="Modifica funzionalità ${Number(feature.id)}" title="Modifica">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                    </svg>
+                  </button>
+                  <button class="service-btn service-icon-btn danger" type="button" data-action="delete-feature" data-id="${Number(feature.id)}" aria-label="Elimina funzionalità ${Number(feature.id)}" title="Elimina">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `).join('')
+          : '<div class="service-empty">Nessuna funzionalità caricata.</div>'
+
+        servicesManager.innerHTML = `
+          <div class="services-layout pettype-layout">
+            <section class="services-card">
+              <div>
+                <h4 class="services-heading-green" style="margin-bottom:10px;">Servizi caricati</h4>
+                <div class="services-list">${servicesList}</div>
+              </div>
+              <div class="services-divider"></div>
+              <div class="service-form-grid">
+                <input id="serviceId" type="hidden" value="">
+                <label>
+                  Nome servizio
+                  <input id="serviceName" type="text" placeholder="Es. Dog sitting premium">
+                </label>
+                <label>
+                  Descrizione
+                  <textarea id="serviceDescription" placeholder="Descrizione del servizio"></textarea>
+                </label>
+                <div>
+                  <div style="font-weight:700;margin-bottom:8px;">Funzionalità associate</div>
+                  <div class="service-features-grid">${featureChecks}</div>
+                </div>
+                <div class="service-form-actions">
+                  <button class="service-btn" type="button" data-action="save-service">SALVA</button>
+                  <button class="service-btn secondary" type="button" data-action="reset-service">Nuovo</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="services-card">
+              <div>
+                <h4 class="services-heading-blue" style="margin-bottom:10px;">Funzionalità caricate</h4>
+                <div class="services-list">${featureList}</div>
+              </div>
+              <div class="services-divider"></div>
+              <div class="service-form-grid">
+                <input id="featureId" type="hidden" value="">
+                <label>
+                  Nome funzionalità
+                  <input id="featureName" type="text" placeholder="Es. Aggiornamenti foto giornalieri">
+                </label>
+                <div class="service-form-actions">
+                  <button class="service-btn" type="button" data-action="save-feature">SALVA</button>
+                  <button class="service-btn secondary" type="button" data-action="reset-feature">Nuova</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        `
+
+        resetServiceForm()
+        resetFeatureForm()
+      }
+
+      function renderPetTypesManager() {
+        const petTypesList = petTypeRows.length > 0
+          ? `<div class="pettype-grid">${petTypeRows.map((petType, index) => `
+              <div class="feature-item pettype-card" draggable="true" data-id="${Number(petType.id)}">
+                <span class="pettype-order-chip">${index + 1}</span>
+                <div class="pettype-card-main">
+                  <strong>${escapeHtml(petType.name)}</strong>
+                </div>
+                <div class="service-feature-actions">
+                  <button class="service-btn service-icon-btn light" type="button" data-action="edit-pettype" data-id="${Number(petType.id)}" aria-label="Modifica tipo di pet ${Number(petType.id)}" title="Modifica">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                    </svg>
+                  </button>
+                  <button class="service-btn service-icon-btn danger" type="button" data-action="delete-pettype" data-id="${Number(petType.id)}" aria-label="Elimina tipo di pet ${Number(petType.id)}" title="Elimina">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `).join('')}</div>`
+          : '<div class="service-empty">Nessun tipo di pet caricato.</div>'
+
+        servicesManager.innerHTML = `
+          <div>
+            <section class="services-card">
+              <div>
+                <h4 class="services-heading-green" style="margin-bottom:10px;">Tipi di pet caricati</h4>
+                <div class="services-list">${petTypesList}</div>
+              </div>
+              <div class="services-divider"></div>
+              <div class="service-form-grid">
+                <input id="petTypeId" type="hidden" value="">
+                <label>
+                  Nome tipo di pet
+                  <input id="petTypeName" type="text" placeholder="Es. Docile">
+                </label>
+                <div class="service-form-actions">
+                  <button class="service-btn" type="button" data-action="save-pettype">SALVA</button>
+                  <button class="service-btn secondary" type="button" data-action="reset-pettype">Nuovo</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        `
+
+        resetPetTypeForm()
+        bindPetTypeDragEvents()
+      }
+
+      function renderHouseFeaturesManager() {
+        const items = houseFeatureRows.length > 0
+          ? houseFeatureRows.map((houseFeature, index) => `
+              <div class="feature-item pettype-card housefeature-card" draggable="true" data-id="${Number(houseFeature.id)}">
+                <span class="pettype-order-chip">${index + 1}</span>
+                <div class="pettype-card-main">
+                  <strong>${escapeHtml(houseFeature.name)}</strong>
+                </div>
+                <div class="service-feature-actions">
+                  <button class="service-btn service-icon-btn light" type="button" data-action="edit-housefeature" data-id="${Number(houseFeature.id)}" aria-label="Modifica caratteristica casa ${Number(houseFeature.id)}" title="Modifica">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                    </svg>
+                  </button>
+                  <button class="service-btn service-icon-btn danger" type="button" data-action="delete-housefeature" data-id="${Number(houseFeature.id)}" aria-label="Elimina caratteristica casa ${Number(houseFeature.id)}" title="Elimina">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `).join('')
+          : '<div class="service-empty">Nessuna caratteristica casa caricata.</div>'
+
+        servicesManager.innerHTML = `
+          <div>
+            <section class="services-card">
+              <div>
+                <h4 class="services-heading-green" style="margin-bottom:10px;">Caratteristiche casa caricate</h4>
+                <div class="pettype-grid">${items}</div>
+              </div>
+              <div class="services-divider"></div>
+              <div class="service-form-grid">
+                <input id="houseFeatureId" type="hidden" value="">
+                <label>
+                  Nome caratteristica casa
+                  <input id="houseFeatureName" type="text" placeholder="Es. Appartamento">
+                </label>
+                <div class="service-form-actions">
+                  <button class="service-btn" type="button" data-action="save-housefeature">SALVA</button>
+                  <button class="service-btn secondary" type="button" data-action="reset-housefeature">Nuova</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        `
+
+        resetHouseFeatureForm()
+        bindHouseFeatureDragEvents()
       }
 
       function updateSelectAllErrorsCheckbox() {
@@ -1172,6 +2128,354 @@
         statusNote.textContent = `Record trovati: ${rows.length}`
       }
 
+      async function loadServicesSection() {
+        hideRowContextMenu()
+        contextMessageId = null
+        setDeleteButtonVisibility(false)
+        selectedErrorIds.clear()
+        selectedMessageIds.clear()
+        messageRowsMap.clear()
+        tableTitle.textContent = 'Servizi'
+        statusNote.textContent = ''
+        showServicesWrap()
+
+        const [servicesResponse, featuresResponse] = await Promise.all([
+          laravelFetch('/api/admin/services', { headers: { Accept: 'application/json' } }),
+          laravelFetch('/api/admin/service-features', { headers: { Accept: 'application/json' } }),
+        ])
+
+        if (!servicesResponse.ok || !featuresResponse.ok) {
+          throw new Error('Errore caricamento servizi')
+        }
+
+        const servicesPayload = await servicesResponse.json()
+        const featuresPayload = await featuresResponse.json()
+
+        serviceRows = Array.isArray(servicesPayload?.data) ? servicesPayload.data : []
+        featureRows = Array.isArray(featuresPayload?.data) ? featuresPayload.data : []
+
+        renderServicesManager()
+        statusNote.textContent = ''
+      }
+
+      async function loadPetTypesSection() {
+        hideRowContextMenu()
+        contextMessageId = null
+        setDeleteButtonVisibility(false)
+        selectedErrorIds.clear()
+        selectedMessageIds.clear()
+        messageRowsMap.clear()
+        tableTitle.textContent = 'Tipo di pet'
+        statusNote.textContent = ''
+        showServicesWrap()
+
+        const response = await laravelFetch('/api/admin/pet-types', { headers: { Accept: 'application/json' } })
+
+        if (!response.ok) {
+          throw new Error('Errore caricamento tipi di pet')
+        }
+
+        const payload = await response.json()
+        petTypeRows = Array.isArray(payload?.data) ? payload.data : []
+        renderPetTypesManager()
+        statusNote.textContent = ''
+      }
+
+      async function loadHouseFeaturesSection() {
+        hideRowContextMenu()
+        contextMessageId = null
+        setDeleteButtonVisibility(false)
+        selectedErrorIds.clear()
+        selectedMessageIds.clear()
+        messageRowsMap.clear()
+        tableTitle.textContent = 'Caratteristiche casa'
+        statusNote.textContent = ''
+        showServicesWrap()
+
+        const response = await laravelFetch('/api/admin/house-features', { headers: { Accept: 'application/json' } })
+
+        if (!response.ok) {
+          throw new Error('Errore caricamento caratteristiche casa')
+        }
+
+        const payload = await response.json()
+        houseFeatureRows = Array.isArray(payload?.data) ? payload.data : []
+        renderHouseFeaturesManager()
+        statusNote.textContent = ''
+      }
+
+      async function saveCurrentService() {
+        const name = document.getElementById('serviceName')?.value?.trim() ?? ''
+        const description = document.getElementById('serviceDescription')?.value?.trim() ?? ''
+        const featureIds = getSelectedServiceFeatureIds()
+        const isEditing = Boolean(editingServiceId)
+
+        if (!name || !description) {
+          statusNote.textContent = 'Compila nome e descrizione del servizio.'
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/services', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: editingServiceId,
+            name,
+            description,
+            feature_ids: featureIds,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore salvataggio servizio')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Salvataggio servizio non completato')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = isEditing ? 'Servizio aggiornato correttamente.' : 'Servizio creato correttamente.'
+      }
+
+      async function saveCurrentFeature() {
+        const name = document.getElementById('featureName')?.value?.trim() ?? ''
+        const isEditing = Boolean(editingFeatureId)
+
+        if (!name) {
+          statusNote.textContent = 'Inserisci il nome della funzionalità.'
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/service-features', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: editingFeatureId,
+            name,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore salvataggio funzionalità')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Salvataggio funzionalità non completato')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = isEditing ? 'Funzionalità aggiornata correttamente.' : 'Funzionalità creata correttamente.'
+      }
+
+      async function saveCurrentPetType() {
+        const name = document.getElementById('petTypeName')?.value?.trim() ?? ''
+        const isEditing = Boolean(editingPetTypeId)
+
+        if (!name) {
+          statusNote.textContent = 'Inserisci il nome del tipo di pet.'
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/pet-types', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: editingPetTypeId,
+            name,
+            sortorder: editingPetTypeId
+              ? Number((petTypeRows.find((entry) => Number(entry.id) === Number(editingPetTypeId))?.sortorder) ?? 0)
+              : ((petTypeRows.length + 1) * 10),
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore salvataggio tipo di pet')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Salvataggio tipo di pet non completato')
+        }
+
+        await loadPetTypesSection()
+        statusNote.textContent = isEditing ? 'Tipo di pet aggiornato correttamente.' : 'Tipo di pet creato correttamente.'
+      }
+
+      async function deleteServiceById(serviceId) {
+        const response = await laravelFetch(`/api/admin/services/${Number(serviceId)}`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore eliminazione servizio')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Eliminazione servizio non completata')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = 'Servizio eliminato correttamente.'
+      }
+
+      async function deleteFeatureById(featureId) {
+        const response = await laravelFetch(`/api/admin/service-features/${Number(featureId)}`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore eliminazione funzionalità')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Eliminazione funzionalità non completata')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = 'Funzionalità eliminata correttamente.'
+      }
+
+      async function deletePetTypeById(petTypeId) {
+        const response = await laravelFetch(`/api/admin/pet-types/${Number(petTypeId)}`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore eliminazione tipo di pet')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Eliminazione tipo di pet non completata')
+        }
+
+        await loadPetTypesSection()
+        statusNote.textContent = 'Tipo di pet eliminato correttamente.'
+      }
+
+      async function saveCurrentHouseFeature() {
+        const name = document.getElementById('houseFeatureName')?.value?.trim() ?? ''
+        const isEditing = Boolean(editingHouseFeatureId)
+
+        if (!name) {
+          statusNote.textContent = 'Inserisci il nome della caratteristica casa.'
+          return
+        }
+
+        const response = await laravelFetch('/api/admin/house-features', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: editingHouseFeatureId,
+            name,
+            sortorder: editingHouseFeatureId
+              ? Number((houseFeatureRows.find((entry) => Number(entry.id) === Number(editingHouseFeatureId))?.sortorder) ?? 0)
+              : ((houseFeatureRows.length + 1) * 10),
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore salvataggio caratteristica casa')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Salvataggio caratteristica casa non completato')
+        }
+
+        await loadHouseFeaturesSection()
+        statusNote.textContent = isEditing ? 'Caratteristica casa aggiornata correttamente.' : 'Caratteristica casa creata correttamente.'
+      }
+
+      async function deleteHouseFeatureById(houseFeatureId) {
+        const response = await laravelFetch(`/api/admin/house-features/${Number(houseFeatureId)}`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore eliminazione caratteristica casa')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Eliminazione caratteristica casa non completata')
+        }
+
+        await loadHouseFeaturesSection()
+        statusNote.textContent = 'Caratteristica casa eliminata correttamente.'
+      }
+
+      async function detachFeatureFromService(serviceId, featureId) {
+        const response = await laravelFetch(`/api/admin/services/${Number(serviceId)}/features/${Number(featureId)}`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore disabilitazione funzionalità nel servizio')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Disabilitazione funzionalità nel servizio non completata')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = 'Funzionalità rimossa dal servizio correttamente.'
+      }
+
+      async function detachFeatureGlobally(featureId) {
+        const response = await laravelFetch(`/api/admin/service-features/${Number(featureId)}/services`, {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Errore disabilitazione globale funzionalità')
+        }
+
+        const payload = await response.json()
+        if (!payload?.ok) {
+          throw new Error('Disabilitazione globale funzionalità non completata')
+        }
+
+        await loadServicesSection()
+        statusNote.textContent = 'Funzionalità disabilitata su tutti i servizi associati.'
+      }
+
       async function deleteSelectedErrors() {
         const ids = Array.from(selectedErrorIds)
         if (ids.length === 0) {
@@ -1254,17 +2558,46 @@
         try {
           if (section === 'messages') {
             setActiveMenu('messages')
+            showTableWrap()
             await loadMessages()
             return
           }
 
+          if (section === 'services') {
+            setActiveMenu('services')
+            await loadServicesSection()
+            return
+          }
+
+          if (section === 'pettypes') {
+            setActiveMenu('pettypes')
+            await loadPetTypesSection()
+            return
+          }
+
+          if (section === 'housefeatures') {
+            setActiveMenu('housefeatures')
+            await loadHouseFeaturesSection()
+            return
+          }
+
           setActiveMenu('errors')
+          showTableWrap()
           await loadErrors()
         } catch (error) {
           destroyDataTable()
           statusNote.textContent = 'Errore nel caricamento dei dati.'
-          dataHead.innerHTML = ''
-          dataBody.innerHTML = '<tr><td>Impossibile leggere i dati dal server.</td></tr>'
+          if (section === 'services') {
+            showServicesWrap()
+            servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
+          } else if (section === 'pettypes' || section === 'housefeatures') {
+            showServicesWrap()
+            servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
+          } else {
+            showTableWrap()
+            dataHead.innerHTML = ''
+            dataBody.innerHTML = '<tr><td>Impossibile leggere i dati dal server.</td></tr>'
+          }
         }
       }
 
@@ -1289,6 +2622,18 @@
 
       btnErrors.addEventListener('click', async () => {
         await showSection('errors')
+      })
+
+      btnServices.addEventListener('click', async () => {
+        await showSection('services')
+      })
+
+      btnPetTypes.addEventListener('click', async () => {
+        await showSection('pettypes')
+      })
+
+      btnHouseFeatures.addEventListener('click', async () => {
+        await showSection('housefeatures')
       })
 
       btnLogout.addEventListener('click', () => {
@@ -1431,6 +2776,250 @@
 
       replyCloseBtn.addEventListener('click', async () => {
         await closeReplyModal()
+      })
+
+      servicesManager.addEventListener('click', async (event) => {
+        const actionTarget = event.target.closest('[data-action]')
+        if (!actionTarget) {
+          return
+        }
+
+        const action = actionTarget.getAttribute('data-action')
+        const id = Number(actionTarget.getAttribute('data-id'))
+
+        try {
+          if (action === 'save-service') {
+            await saveCurrentService()
+            return
+          }
+
+          if (action === 'reset-service') {
+            resetServiceForm()
+            return
+          }
+
+          if (action === 'edit-service') {
+            populateServiceForm(id)
+            return
+          }
+
+          if (action === 'delete-service') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Eliminazione servizio',
+              body: `Attenzione, si sta per eliminare il servizio <b>#${id}</b>. Procedere?`,
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await deleteServiceById(id)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+            return
+          }
+
+          if (action === 'detach-feature-from-service') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            const serviceId = Number(actionTarget.getAttribute('data-service-id'))
+            const featureId = Number(actionTarget.getAttribute('data-feature-id'))
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Disabilitazione funzionalità',
+              body: 'La funzionalità verrà rimossa dal singolo servizio e anche dalle attivazioni già salvate dai pet assistant per quel servizio. Procedere?',
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await detachFeatureFromService(serviceId, featureId)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+            return
+          }
+
+          if (action === 'save-feature') {
+            await saveCurrentFeature()
+            return
+          }
+
+          if (action === 'reset-feature') {
+            resetFeatureForm()
+            return
+          }
+
+          if (action === 'edit-feature') {
+            populateFeatureForm(id)
+            return
+          }
+
+          if (action === 'delete-feature') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Eliminazione funzionalità',
+              body: `Attenzione, si sta per eliminare la funzionalità <b>#${id}</b> e le sue associazioni ai servizi. Procedere?`,
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await deleteFeatureById(id)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+            return
+          }
+
+          if (action === 'detach-feature-global') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Disabilitazione globale funzionalità',
+              body: 'La funzionalità verrà rimossa da <b>tutti</b> i servizi a cui è associata e anche dalle attivazioni già salvate dai pet assistant. Procedere?',
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await detachFeatureGlobally(id)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+            return
+          }
+
+          if (action === 'save-pettype') {
+            await saveCurrentPetType()
+            return
+          }
+
+          if (action === 'reset-pettype') {
+            resetPetTypeForm()
+            return
+          }
+
+          if (action === 'edit-pettype') {
+            populatePetTypeForm(id)
+            return
+          }
+
+          if (action === 'delete-pettype') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Eliminazione tipo di pet',
+              body: `Attenzione, si sta per eliminare il tipo di pet <b>#${id}</b> e le eventuali associazioni già salvate nei profili. Procedere?`,
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await deletePetTypeById(id)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+            return
+          }
+
+          if (action === 'save-housefeature') {
+            await saveCurrentHouseFeature()
+            return
+          }
+
+          if (action === 'reset-housefeature') {
+            resetHouseFeatureForm()
+            return
+          }
+
+          if (action === 'edit-housefeature') {
+            populateHouseFeatureForm(id)
+            return
+          }
+
+          if (action === 'delete-housefeature') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            window.CBUtility.showUtilityModal({
+              testo_header: 'Eliminazione caratteristica casa',
+              body: `Attenzione, si sta per eliminare la caratteristica casa <b>#${id}</b> e le eventuali associazioni già salvate nei profili. Procedere?`,
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: 'Si',
+                  callback: async ({ close }) => {
+                    await deleteHouseFeatureById(id)
+                    close()
+                  },
+                },
+                {
+                  label: 'No',
+                  callback: ({ close }) => {
+                    close()
+                  },
+                },
+              ],
+            })
+          }
+        } catch (error) {
+          statusNote.textContent = 'Operazione non completata. Verifica i dati e riprova.'
+        }
       })
 
       window.addEventListener('resize', () => {
