@@ -44,6 +44,7 @@ type ServiceOption = {
 type OperatorServiceSelection = {
   serviceId: number
   featureIds: number[]
+  hourlyRate: number
 }
 
 type CityOption = {
@@ -91,6 +92,34 @@ type OperatorProfileData = {
   houseFeatureIds: number[]
   services: OperatorServiceSelection[]
   gallery: OperatorGalleryItem[]
+}
+
+type CalendarSlotServiceSelection = {
+  serviceId: number
+  enabled: boolean
+  hourlyRate: number
+}
+
+type CalendarDaySlot = {
+  id: string | number
+  startTime: string
+  endTime: string
+  enabled: boolean
+  services: CalendarSlotServiceSelection[]
+}
+
+type CalendarDayData = {
+  date: string
+  enabled: boolean
+  slots: CalendarDaySlot[]
+}
+
+type CalendarDaySummary = {
+  date: string
+  enabled: boolean
+  slotCount: number
+  serviceCount: number
+  totalMinutes: number
 }
 
 const EMPTY_PROFILE: PersonalProfileData = {
@@ -190,6 +219,120 @@ function buildSequentialOptions(max: number) {
 
 const EXPERIENCE_OPTIONS = buildSequentialOptions(50)
 const DOG_WEIGHT_OPTIONS = buildSequentialOptions(100)
+const CALENDAR_MONTH_LABELS = [
+  'Gennaio',
+  'Febbraio',
+  'Marzo',
+  'Aprile',
+  'Maggio',
+  'Giugno',
+  'Luglio',
+  'Agosto',
+  'Settembre',
+  'Ottobre',
+  'Novembre',
+  'Dicembre',
+]
+const CALENDAR_WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+const QUARTER_HOUR_OPTIONS = Array.from({ length: 24 * 4 }, (_, index) => {
+  const hours = Math.floor(index / 4)
+  const minutes = (index % 4) * 15
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+})
+
+function getTodayCalendarDate() {
+  const now = new Date()
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    isoDate: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+  }
+}
+
+function buildMonthGrid(year: number, month: number) {
+  const firstDay = new Date(year, month - 1, 1)
+  const totalDays = new Date(year, month, 0).getDate()
+  const firstWeekday = (firstDay.getDay() + 6) % 7
+  const cells: Array<{ date: string | null; day: number | null }> = []
+
+  for (let index = 0; index < firstWeekday; index += 1) {
+    cells.push({ date: null, day: null })
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    cells.push({
+      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+    })
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push({ date: null, day: null })
+  }
+
+  return cells
+}
+
+function createEmptyCalendarDay(date: string): CalendarDayData {
+  return {
+    date,
+    enabled: false,
+    slots: [],
+  }
+}
+
+function createEmptyCalendarSlot(index: number): CalendarDaySlot {
+  return {
+    id: `new-${index}-${Date.now()}`,
+    startTime: '09:00',
+    endTime: '10:00',
+    enabled: true,
+    services: [],
+  }
+}
+
+function formatCalendarDurationParts(totalMinutes: number) {
+  if (totalMinutes <= 0) {
+    return {
+      primary: '0h',
+      secondary: '00m',
+    }
+  }
+
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  return {
+    primary: `${hours}h`,
+    secondary: `${minutes.toString().padStart(2, '0')}m`,
+  }
+}
+
+function summarizeCalendarDay(day: CalendarDayData): CalendarDaySummary {
+  const totalMinutes = day.enabled
+    ? day.slots
+        .filter((slot) => slot.enabled)
+        .reduce((total, slot) => {
+          const [startHour, startMinute] = slot.startTime.split(':').map((value) => Number(value))
+          const [endHour, endMinute] = slot.endTime.split(':').map((value) => Number(value))
+          const start = (startHour * 60) + startMinute
+          const end = (endHour * 60) + endMinute
+          return end > start ? total + (end - start) : total
+        }, 0)
+    : 0
+
+  const serviceCount = day.enabled
+    ? day.slots.reduce((total, slot) => total + slot.services.filter((service) => service.enabled).length, 0)
+    : 0
+
+  return {
+    date: day.date,
+    enabled: day.enabled,
+    slotCount: day.enabled ? day.slots.length : 0,
+    serviceCount,
+    totalMinutes,
+  }
+}
 
 export default function ProfilePlaceholderPage() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('personal')
@@ -217,6 +360,19 @@ export default function ProfilePlaceholderPage() {
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null)
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null)
+  const [serviceRateDrafts, setServiceRateDrafts] = useState<Record<number, string>>({})
+  const todayCalendar = useMemo(() => getTodayCalendarDate(), [])
+  const [calendarYear, setCalendarYear] = useState(todayCalendar.year)
+  const [calendarMonth, setCalendarMonth] = useState(todayCalendar.month)
+  const [calendarDays, setCalendarDays] = useState<CalendarDaySummary[]>([])
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayCalendar.isoDate)
+  const [calendarDayData, setCalendarDayData] = useState<CalendarDayData>(createEmptyCalendarDay(todayCalendar.isoDate))
+  const [isCalendarEditorOpen, setIsCalendarEditorOpen] = useState(true)
+  const [isCalendarMonthLoading, setIsCalendarMonthLoading] = useState(false)
+  const [isCalendarDayLoading, setIsCalendarDayLoading] = useState(false)
+  const [isCalendarSaving, setIsCalendarSaving] = useState(false)
+  const [isCalendarCopying, setIsCalendarCopying] = useState(false)
+  const [calendarCopySourceDate, setCalendarCopySourceDate] = useState<string | null>(null)
   const didAttemptInitialGeocodeRef = useRef(false)
   const petTypeDropdownRef = useRef<HTMLDivElement | null>(null)
   const houseFeatureDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -288,6 +444,18 @@ export default function ProfilePlaceholderPage() {
     const alias = sanitizeText(profile.alias)
     return alias !== '' ? alias : 'Pet Assistant'
   }, [profile.alias])
+
+  const availableCalendarServices = useMemo(() => {
+    const selectedServiceIds = new Set(operatorProfile.services.map((service) => service.serviceId))
+    return serviceOptions.filter((service) => selectedServiceIds.has(service.id))
+  }, [operatorProfile.services, serviceOptions])
+
+  const calendarMonthLabel = `${CALENDAR_MONTH_LABELS[calendarMonth - 1]} ${calendarYear}`
+  const calendarGridCells = useMemo(() => buildMonthGrid(calendarYear, calendarMonth), [calendarYear, calendarMonth])
+  const calendarDayMap = useMemo(
+    () => Object.fromEntries(calendarDays.map((day) => [day.date, day])),
+    [calendarDays]
+  )
 
   const selectedGalleryIndex = useMemo(() => {
     if (!selectedGalleryId) {
@@ -577,6 +745,7 @@ export default function ProfilePlaceholderPage() {
           services: Array.isArray(operatorProfilePayload?.data?.services)
             ? operatorProfilePayload.data.services.map((item: Record<string, unknown>) => ({
                 serviceId: Number(item.serviceId ?? 0),
+                hourlyRate: Number(item.hourlyRate ?? 0),
                 featureIds: Array.isArray(item.featureIds)
                   ? item.featureIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
                   : [],
@@ -592,6 +761,15 @@ export default function ProfilePlaceholderPage() {
               }))
             : [],
         })
+        setServiceRateDrafts(
+          Array.isArray(operatorProfilePayload?.data?.services)
+            ? Object.fromEntries(
+                operatorProfilePayload.data.services
+                  .map((item: Record<string, unknown>) => [Number(item.serviceId ?? 0), Number(item.hourlyRate ?? 0) > 0 ? String(item.hourlyRate) : ''])
+                  .filter((entry: [number, string]) => entry[0] > 0)
+              )
+            : {}
+        )
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Profilo non disponibile.'
         showProfileToast(message, 'error')
@@ -602,6 +780,22 @@ export default function ProfilePlaceholderPage() {
 
     void loadProfileData()
   }, [])
+
+  useEffect(() => {
+    if (activeMenu !== 'calendar') {
+      return
+    }
+
+    void loadCalendarMonth(calendarYear, calendarMonth)
+  }, [activeMenu, calendarYear, calendarMonth])
+
+  useEffect(() => {
+    if (activeMenu !== 'calendar' || !isCalendarEditorOpen || sanitizeText(selectedCalendarDate) === '') {
+      return
+    }
+
+    void loadCalendarDay(selectedCalendarDate)
+  }, [activeMenu, isCalendarEditorOpen, selectedCalendarDate])
 
   useEffect(() => {
     if (!isCityDropdownOpen) {
@@ -751,13 +945,53 @@ export default function ProfilePlaceholderPage() {
     setOperatorProfile((current) => {
       const exists = current.services.some((service) => service.serviceId === serviceId)
       const option = serviceOptions.find((service) => service.id === serviceId)
+      setServiceRateDrafts((drafts) => {
+        if (exists) {
+          const nextDrafts = { ...drafts }
+          delete nextDrafts[serviceId]
+          return nextDrafts
+        }
+
+        return {
+          ...drafts,
+          [serviceId]: '',
+        }
+      })
       return {
         ...current,
         services: exists
           ? current.services.filter((service) => service.serviceId !== serviceId)
-          : [...current.services, { serviceId, featureIds: (option?.features ?? []).map((feature) => feature.id) }],
+          : [...current.services, { serviceId, featureIds: (option?.features ?? []).map((feature) => feature.id), hourlyRate: 0 }],
       }
     })
+  }
+
+  function updateOperatorServiceHourlyRate(serviceId: number, rawValue: string) {
+    const normalizedValue = rawValue.replace(',', '.').replace(/[^\d.]/g, '')
+    const decimalParts = normalizedValue.split('.')
+    const integerPart = decimalParts[0] ?? ''
+    const decimalPart = decimalParts[1] ?? ''
+    const safeValue = decimalParts.length > 1
+      ? `${integerPart}.${decimalPart.slice(0, 2)}`
+      : integerPart
+    const parsedValue = safeValue !== '' && safeValue !== '.' ? Number(safeValue) : 0
+
+    setServiceRateDrafts((current) => ({
+      ...current,
+      [serviceId]: rawValue,
+    }))
+
+    setOperatorProfile((current) => ({
+      ...current,
+      services: current.services.map((service) => (
+        service.serviceId === serviceId
+          ? {
+              ...service,
+              hourlyRate: Number.isFinite(parsedValue) ? parsedValue : 0,
+            }
+          : service
+      )),
+    }))
   }
 
   function toggleOperatorServiceFeature(serviceId: number, featureId: number) {
@@ -774,6 +1008,304 @@ export default function ProfilePlaceholderPage() {
           : service
       )),
     }))
+  }
+
+  async function loadCalendarMonth(year = calendarYear, month = calendarMonth) {
+    setIsCalendarMonthLoading(true)
+
+    try {
+      const response = await fetch(`/api/profile/petassistant/calendar?year=${year}&month=${month}`, {
+        headers: { Accept: 'application/json' },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Caricamento calendario non completato.')
+      }
+
+      setCalendarDays(Array.isArray(payload?.data?.days) ? payload.data.days : [])
+    } catch {
+      setCalendarDays([])
+    } finally {
+      setIsCalendarMonthLoading(false)
+    }
+  }
+
+  async function loadCalendarDay(date: string) {
+    setIsCalendarDayLoading(true)
+
+    try {
+      const response = await fetch(`/api/profile/petassistant/calendar/day?date=${encodeURIComponent(date)}`, {
+        headers: { Accept: 'application/json' },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Caricamento giornata non completato.')
+      }
+
+      setCalendarDayData({
+        date,
+        enabled: Boolean(payload?.data?.enabled),
+        slots: Array.isArray(payload?.data?.slots)
+          ? payload.data.slots.map((slot: Record<string, unknown>, index: number) => ({
+              id: slot.id ?? `slot-${index}`,
+              startTime: sanitizeText(String(slot.startTime ?? '09:00')) || '09:00',
+              endTime: sanitizeText(String(slot.endTime ?? '10:00')) || '10:00',
+              enabled: Boolean(slot.enabled),
+              services: Array.isArray(slot.services)
+                ? slot.services.map((service: Record<string, unknown>) => ({
+                    serviceId: Number(service.serviceId ?? 0),
+                    enabled: Boolean(service.enabled),
+                    hourlyRate: Number(service.hourlyRate ?? 0),
+                  })).filter((service: CalendarSlotServiceSelection) => service.serviceId > 0)
+                : [],
+            }))
+          : [],
+      })
+    } catch {
+      setCalendarDayData(createEmptyCalendarDay(date))
+    } finally {
+      setIsCalendarDayLoading(false)
+    }
+  }
+
+  function shiftCalendarMonth(delta: number) {
+    const nextDate = new Date(calendarYear, calendarMonth - 1 + delta, 1)
+    const nextYear = nextDate.getFullYear()
+    const nextMonth = nextDate.getMonth() + 1
+    const nextSelectedDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+    setCalendarYear(nextYear)
+    setCalendarMonth(nextMonth)
+    setSelectedCalendarDate(nextSelectedDate)
+  }
+
+  function updateCalendarDayField<K extends keyof CalendarDayData>(field: K, value: CalendarDayData[K]) {
+    setCalendarDayData((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function addCalendarSlot() {
+    setCalendarDayData((current) => ({
+      ...current,
+      slots: [...current.slots, createEmptyCalendarSlot(current.slots.length + 1)],
+    }))
+  }
+
+  function updateCalendarSlot(index: number, field: keyof CalendarDaySlot, value: string | boolean | CalendarSlotServiceSelection[]) {
+    setCalendarDayData((current) => ({
+      ...current,
+      slots: current.slots.map((slot, slotIndex) => (
+        slotIndex === index
+          ? {
+              ...slot,
+              [field]: value,
+            }
+          : slot
+      )),
+    }))
+  }
+
+  function removeCalendarSlot(index: number) {
+    setCalendarDayData((current) => ({
+      ...current,
+      slots: current.slots.filter((_, slotIndex) => slotIndex !== index),
+    }))
+  }
+
+  function toggleCalendarSlotService(slotIndex: number, serviceId: number) {
+    setCalendarDayData((current) => ({
+      ...current,
+      slots: current.slots.map((slot, currentIndex) => {
+        if (currentIndex !== slotIndex) {
+          return slot
+        }
+
+        const exists = slot.services.some((service) => service.serviceId === serviceId)
+        const defaultHourlyRate = operatorProfile.services.find((service) => service.serviceId === serviceId)?.hourlyRate ?? 0
+
+        return {
+          ...slot,
+          services: exists
+            ? slot.services.filter((service) => service.serviceId !== serviceId)
+            : [...slot.services, { serviceId, enabled: true, hourlyRate: defaultHourlyRate }],
+        }
+      }),
+    }))
+  }
+
+  function updateCalendarSlotServiceRate(slotIndex: number, serviceId: number, rawValue: string) {
+    const normalizedValue = rawValue.replace(',', '.').replace(/[^\d.]/g, '')
+    const decimalParts = normalizedValue.split('.')
+    const safeValue = decimalParts.length > 1
+      ? `${decimalParts[0]}.${(decimalParts[1] ?? '').slice(0, 2)}`
+      : decimalParts[0] ?? ''
+    const parsedValue = safeValue !== '' && safeValue !== '.' ? Number(safeValue) : 0
+
+    setCalendarDayData((current) => ({
+      ...current,
+      slots: current.slots.map((slot, currentIndex) => (
+        currentIndex === slotIndex
+          ? {
+              ...slot,
+              services: slot.services.map((service) => (
+                service.serviceId === serviceId
+                  ? { ...service, hourlyRate: Number.isFinite(parsedValue) ? parsedValue : 0 }
+                  : service
+              )),
+            }
+          : slot
+      )),
+    }))
+  }
+
+  function exitCalendarEditor() {
+    setIsCalendarEditorOpen(false)
+    setCalendarCopySourceDate(null)
+  }
+
+  async function persistCalendarDay(showSuccessToast = true) {
+    if (calendarDayData.slots.some((slot) => sanitizeText(slot.startTime) === '' || sanitizeText(slot.endTime) === '')) {
+      showProfileToast('Ogni fascia deve avere orario inizio e fine.', 'error')
+      return false
+    }
+
+    if (calendarDayData.slots.some((slot) => slot.enabled && slot.services.length === 0)) {
+      showProfileToast('Seleziona almeno un servizio per ogni fascia attiva prima di salvare.', 'error')
+      return false
+    }
+
+    setIsCalendarSaving(true)
+
+    try {
+      const response = await fetch('/api/profile/petassistant/calendar/day', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(calendarDayData),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Salvataggio calendario non completato.')
+      }
+
+      setCalendarDayData({
+        date: calendarDayData.date,
+        enabled: Boolean(payload?.data?.enabled),
+        slots: Array.isArray(payload?.data?.slots)
+          ? payload.data.slots.map((slot: Record<string, unknown>, index: number) => ({
+              id: slot.id ?? `slot-${index}`,
+              startTime: sanitizeText(String(slot.startTime ?? '09:00')) || '09:00',
+              endTime: sanitizeText(String(slot.endTime ?? '10:00')) || '10:00',
+              enabled: Boolean(slot.enabled),
+              services: Array.isArray(slot.services)
+                ? slot.services.map((service: Record<string, unknown>) => ({
+                    serviceId: Number(service.serviceId ?? 0),
+                    enabled: Boolean(service.enabled),
+                    hourlyRate: Number(service.hourlyRate ?? 0),
+                  })).filter((service: CalendarSlotServiceSelection) => service.serviceId > 0)
+                : [],
+            }))
+          : [],
+      })
+      setCalendarDays((current) => {
+        const nextSummary = summarizeCalendarDay({
+          date: calendarDayData.date,
+          enabled: Boolean(payload?.data?.enabled),
+          slots: Array.isArray(payload?.data?.slots)
+            ? payload.data.slots.map((slot: Record<string, unknown>, index: number) => ({
+                id: slot.id ?? `slot-${index}`,
+                startTime: sanitizeText(String(slot.startTime ?? '09:00')) || '09:00',
+                endTime: sanitizeText(String(slot.endTime ?? '10:00')) || '10:00',
+                enabled: Boolean(slot.enabled),
+                services: Array.isArray(slot.services)
+                  ? slot.services.map((service: Record<string, unknown>) => ({
+                      serviceId: Number(service.serviceId ?? 0),
+                      enabled: Boolean(service.enabled),
+                      hourlyRate: Number(service.hourlyRate ?? 0),
+                    })).filter((service: CalendarSlotServiceSelection) => service.serviceId > 0)
+                  : [],
+              }))
+            : [],
+        })
+
+        return current.map((day) => (day.date === nextSummary.date ? nextSummary : day))
+      })
+      await loadCalendarMonth()
+      if (showSuccessToast) {
+        showProfileToast(payload?.message || 'Disponibilita calendario salvata con successo.', 'success')
+      }
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Salvataggio calendario non completato.'
+      showProfileToast(message, 'error')
+      return false
+    } finally {
+      setIsCalendarSaving(false)
+    }
+  }
+
+  async function saveCalendarDay() {
+    await persistCalendarDay(true)
+  }
+
+  async function enableCalendarCopyMode() {
+    const saved = await persistCalendarDay(false)
+    if (!saved) {
+      return
+    }
+
+    setCalendarCopySourceDate(selectedCalendarDate)
+    setIsCalendarEditorOpen(false)
+    showProfileToast(`Modalita copia attiva dal giorno ${selectedCalendarDate}. Clicca i giorni di calendario per applicarla.`, 'success')
+  }
+
+  async function copyCalendarDayToTarget(targetDate: string) {
+    if (calendarCopySourceDate === null || targetDate === calendarCopySourceDate) {
+      return
+    }
+
+    setIsCalendarCopying(true)
+
+    try {
+      const response = await fetch('/api/profile/petassistant/calendar/copy', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceDate: calendarCopySourceDate,
+          targetDates: [targetDate],
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Copia calendario non completata.')
+      }
+
+      await loadCalendarMonth()
+      showProfileToast(`Configurazione copiata sul giorno ${targetDate}.`, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Copia calendario non completata.'
+      showProfileToast(message, 'error')
+    } finally {
+      setIsCalendarCopying(false)
+    }
+  }
+
+  function handleCalendarCellClick(date: string) {
+    if (calendarCopySourceDate !== null) {
+      void copyCalendarDayToTarget(date)
+      return
+    }
+
+    setSelectedCalendarDate(date)
+    setIsCalendarEditorOpen(true)
   }
 
   function handleOperatorGalleryChange(index: number, field: 'caption' | 'file', value: string | File | null) {
@@ -1034,6 +1566,9 @@ export default function ProfilePlaceholderPage() {
     })
     operatorProfile.services.forEach((service, index) => {
       body.append(`services[${index}][serviceId]`, String(service.serviceId))
+      if (service.hourlyRate > 0) {
+        body.append(`services[${index}][hourlyRate]`, String(service.hourlyRate))
+      }
       service.featureIds.forEach((featureId, featureIndex) => {
         body.append(`services[${index}][featureIds][${featureIndex}]`, String(featureId))
       })
@@ -1082,6 +1617,7 @@ export default function ProfilePlaceholderPage() {
         services: Array.isArray(payload?.data?.services)
           ? payload.data.services.map((item: Record<string, unknown>) => ({
               serviceId: Number(item.serviceId ?? 0),
+              hourlyRate: Number(item.hourlyRate ?? 0),
               featureIds: Array.isArray(item.featureIds)
                 ? item.featureIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
                 : [],
@@ -1103,6 +1639,15 @@ export default function ProfilePlaceholderPage() {
             }))
           : [],
       })
+      setServiceRateDrafts(
+        Array.isArray(payload?.data?.services)
+          ? Object.fromEntries(
+              payload.data.services
+                .map((item: Record<string, unknown>) => [Number(item.serviceId ?? 0), Number(item.hourlyRate ?? 0) > 0 ? String(item.hourlyRate) : ''])
+                .filter((entry: [number, string]) => entry[0] > 0)
+            )
+          : {}
+      )
       showProfileToast(payload?.message || 'Dati operatore salvati con successo.', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Salvataggio non completato.'
@@ -1595,6 +2140,20 @@ export default function ProfilePlaceholderPage() {
                                     </button>
                                   ))}
                                 </div>
+                                {selected ? (
+                                  <label className="profile-field profile-service-rate">
+                                    <span>Prezzo orario (EUR)</span>
+                                    <input
+                                      type="text"
+                                      value={serviceRateDrafts[service.id] ?? (currentSelection?.hourlyRate ? String(currentSelection.hourlyRate) : '')}
+                                      placeholder="Es. 15.00"
+                                      inputMode="decimal"
+                                      onChange={(event) => {
+                                        updateOperatorServiceHourlyRate(service.id, event.target.value)
+                                      }}
+                                    />
+                                  </label>
+                                ) : null}
                               </article>
                             )
                           })}
@@ -1768,13 +2327,243 @@ export default function ProfilePlaceholderPage() {
                 </>
               ) : (
                 <>
-                  <p className="profile-stage-kicker">SEZIONE IN PREPARAZIONE</p>
+                  <p className="profile-stage-kicker">DISPONIBILITA PRENOTABILE</p>
                   <h1 className="profile-stage-title">Calendario</h1>
-                  <p className="profile-stage-text">
-                    Questa sezione resta pronta per il prossimo passaggio di sviluppo. La base dati
-                    personali e operatore e gia collegata al backend e rappresenta il blocco operativo
-                    del profilo Pet Assistant.
-                  </p>
+                  <div className="profile-calendar-shell">
+                    <section className="profile-form-section profile-calendar-toolbar">
+                      <div className="profile-calendar-nav">
+                        <button type="button" className="profile-calendar-nav-btn" onClick={() => shiftCalendarMonth(-1)}>
+                          Mese precedente
+                        </button>
+                        <strong className="profile-calendar-month-label">{calendarMonthLabel}</strong>
+                        <button type="button" className="profile-calendar-nav-btn" onClick={() => shiftCalendarMonth(1)}>
+                          Mese successivo
+                        </button>
+                      </div>
+                      <p className="profile-location-text">
+                        Attiva i giorni, definisci una o piu fasce orarie e scegli per ogni fascia quali servizi possono essere prenotati.
+                      </p>
+                    </section>
+
+                    <div className="profile-calendar-layout">
+                      {isCalendarEditorOpen ? (
+                        <section className="profile-form-section profile-calendar-day-card">
+                          <div className="profile-calendar-day-header">
+                            <div className="profile-location-copy">
+                              <p className="profile-location-kicker">GIORNO SELEZIONATO</p>
+                              <h2 className="profile-location-title">{selectedCalendarDate}</h2>
+                            </div>
+                            <label className="profile-calendar-toggle">
+                              <input
+                                type="checkbox"
+                                checked={calendarDayData.enabled}
+                                onChange={(event) => updateCalendarDayField('enabled', event.target.checked)}
+                              />
+                              <span>Attivo</span>
+                            </label>
+                          </div>
+
+                          {availableCalendarServices.length === 0 ? (
+                            <div className="profile-gallery-empty">
+                              Seleziona prima almeno un servizio nella sezione DATI OPERATORE per poter configurare il calendario.
+                            </div>
+                          ) : isCalendarDayLoading ? (
+                            <div className="profile-loading-card">Caricamento giornata in corso...</div>
+                          ) : (
+                            <>
+                              <div className="profile-calendar-actions">
+                                <button type="button" className="profile-calendar-action-btn" onClick={addCalendarSlot}>
+                                  + Aggiungi fascia
+                                </button>
+                                {calendarDayData.slots.length > 0 ? (
+                                  <>
+                                    <button type="button" className="profile-calendar-action-btn" onClick={enableCalendarCopyMode} disabled={isCalendarSaving || isCalendarCopying}>
+                                      {isCalendarCopying ? 'Copia...' : 'Avvia copia'}
+                                    </button>
+                                    <button type="button" className="profile-calendar-action-btn" onClick={exitCalendarEditor}>
+                                      Esci
+                                    </button>
+                                  </>
+                                ) : null}
+                                <button type="button" className="profile-calendar-action-btn is-primary" onClick={saveCalendarDay} disabled={isCalendarSaving}>
+                                  {isCalendarSaving ? 'Salvataggio...' : 'Salva dati'}
+                                </button>
+                              </div>
+
+                              <div className="profile-calendar-slots">
+                                {calendarDayData.slots.length > 0 ? (
+                                  calendarDayData.slots.map((slot, slotIndex) => (
+                                    <article key={`${slot.id}-${slotIndex}`} className="profile-calendar-slot-card">
+                                      <div className="profile-calendar-slot-top">
+                                        <div className="profile-calendar-slot-times">
+                                          <label className="profile-field">
+                                            <span>Inizio</span>
+                                            <select
+                                              value={slot.startTime}
+                                              onChange={(event) => updateCalendarSlot(slotIndex, 'startTime', event.target.value)}
+                                            >
+                                              {QUARTER_HOUR_OPTIONS.map((timeValue) => (
+                                                <option key={`start-${slot.id}-${timeValue}`} value={timeValue}>
+                                                  {timeValue}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </label>
+                                          <label className="profile-field">
+                                            <span>Fine</span>
+                                            <select
+                                              value={slot.endTime}
+                                              onChange={(event) => updateCalendarSlot(slotIndex, 'endTime', event.target.value)}
+                                            >
+                                              {QUARTER_HOUR_OPTIONS.map((timeValue) => (
+                                                <option key={`end-${slot.id}-${timeValue}`} value={timeValue}>
+                                                  {timeValue}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </label>
+                                        </div>
+                                        <div className="profile-calendar-slot-controls">
+                                          <label className="profile-calendar-toggle">
+                                            <input
+                                              type="checkbox"
+                                              checked={slot.enabled}
+                                              onChange={(event) => updateCalendarSlot(slotIndex, 'enabled', event.target.checked)}
+                                            />
+                                            <span>Fascia attiva</span>
+                                          </label>
+                                          <button type="button" className="profile-calendar-remove-btn" onClick={() => removeCalendarSlot(slotIndex)}>
+                                            Elimina fascia
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div className="profile-calendar-service-grid">
+                                        {availableCalendarServices.map((service) => {
+                                          const serviceSelection = slot.services.find((entry) => entry.serviceId === service.id)
+                                          const serviceSelected = Boolean(serviceSelection)
+
+                                          return (
+                                            <div key={`${slot.id}-${service.id}`} className={`profile-calendar-service-card ${serviceSelected ? 'is-selected' : ''}`}>
+                                              <label className="profile-service-head">
+                                                <span className="profile-service-checkbox">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={serviceSelected}
+                                                    onChange={() => toggleCalendarSlotService(slotIndex, service.id)}
+                                                  />
+                                                </span>
+                                                <span className="profile-service-copy">
+                                                  <strong>{service.name}</strong>
+                                                  <small>{service.description}</small>
+                                                </span>
+                                              </label>
+                                              {serviceSelected ? (
+                                                <label className="profile-field profile-service-rate">
+                                                  <span>Prezzo orario (EUR)</span>
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={serviceSelection?.hourlyRate ? String(serviceSelection.hourlyRate) : ''}
+                                                    placeholder="Es. 15.50"
+                                                    onChange={(event) => updateCalendarSlotServiceRate(slotIndex, service.id, event.target.value)}
+                                                  />
+                                                </label>
+                                              ) : null}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </article>
+                                  ))
+                                ) : (
+                                  <div className="profile-gallery-empty">
+                                    Nessuna fascia configurata per questo giorno. Usa il pulsante Aggiungi fascia per iniziare.
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </section>
+                      ) : (
+                        <section className="profile-form-section profile-calendar-day-card profile-calendar-day-card-closed">
+                          <div className="profile-calendar-day-header">
+                            <div className="profile-location-copy">
+                              <p className="profile-location-kicker">
+                                {calendarCopySourceDate ? 'MODALITA COPIA ATTIVA' : 'MODALITA VISUALIZZAZIONE'}
+                              </p>
+                              <h2 className="profile-location-title">
+                                {calendarCopySourceDate
+                                  ? `Copia dal giorno ${calendarCopySourceDate}`
+                                  : 'Clicca un giorno di calendario per modificare'}
+                              </h2>
+                            </div>
+                            <div className="profile-calendar-actions">
+                              {calendarCopySourceDate ? (
+                                <button type="button" className="profile-calendar-action-btn" onClick={() => setCalendarCopySourceDate(null)}>
+                                  Termina copia
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <p className="profile-location-text">
+                            {calendarCopySourceDate
+                              ? 'Clicca uno o più giorni del calendario per copiare su ciascuno la configurazione del giorno sorgente.'
+                              : 'Seleziona un giorno per aprire il form di editing.'}
+                          </p>
+                        </section>
+                      )}
+
+                      <section className="profile-form-section profile-calendar-month-card">
+                        <div className="profile-calendar-weekdays">
+                          {CALENDAR_WEEKDAY_LABELS.map((label) => (
+                            <span key={label}>{label}</span>
+                          ))}
+                        </div>
+                        <div className="profile-calendar-grid">
+                          {calendarGridCells.map((cell, index) => {
+                            if (!cell.date || !cell.day) {
+                              return <div key={`empty-${index}`} className="profile-calendar-cell is-empty" aria-hidden="true" />
+                            }
+
+                            const daySummary = calendarDayMap[cell.date]
+                            const isSelected = cell.date === selectedCalendarDate
+                            const isToday = cell.date === todayCalendar.isoDate
+                            const hasActiveAvailability = (daySummary?.totalMinutes ?? 0) > 0
+                            const isConfiguredInactive = hasActiveAvailability && !Boolean(daySummary?.enabled)
+                            const durationParts = formatCalendarDurationParts(daySummary?.totalMinutes ?? 0)
+
+                            return (
+                              <button
+                                key={cell.date}
+                                type="button"
+                                className={`profile-calendar-cell ${isSelected ? 'is-selected' : ''} ${daySummary?.enabled ? 'is-enabled' : ''} ${hasActiveAvailability ? 'is-occupied' : ''} ${isConfiguredInactive ? 'is-configured-inactive' : ''} ${isToday ? 'is-today' : ''}`}
+                                onClick={() => handleCalendarCellClick(cell.date!)}
+                              >
+                                <strong>{cell.day}</strong>
+                                {hasActiveAvailability ? (
+                                  <small className="profile-calendar-duration">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                      <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                                      <path d="M12 7.6v4.8l3.2 1.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    <span className="profile-calendar-duration-values">
+                                      <span>{durationParts.primary}</span>
+                                      <span>{durationParts.secondary}</span>
+                                    </span>
+                                  </small>
+                                ) : (
+                                  <small>&nbsp;</small>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {isCalendarMonthLoading ? <div className="profile-loading-card">Caricamento mese in corso...</div> : null}
+                      </section>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

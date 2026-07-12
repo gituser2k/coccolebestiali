@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Profile;
 use App\Models\Utility;
+use DateTimeImmutable;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -254,6 +255,7 @@ class ProfileController extends Controller
                 'houseFeatureIds.*' => ['required', 'integer', 'min:1'],
                 'services' => ['nullable', 'array'],
                 'services.*.serviceId' => ['required', 'integer', 'min:1'],
+                'services.*.hourlyRate' => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
                 'services.*.featureIds' => ['nullable', 'array'],
                 'services.*.featureIds.*' => ['required', 'integer', 'min:1'],
                 'gallery' => ['nullable', 'array'],
@@ -341,6 +343,169 @@ class ProfileController extends Controller
                 'ok' => false,
                 'message' => 'Salvataggio non completato.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function getPetAssistantCalendarMonth(Request $request): JsonResponse
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $year = max(2024, min(2100, (int) $request->query('year', date('Y'))));
+            $month = max(1, min(12, (int) $request->query('month', date('n'))));
+
+            $model = new Profile();
+
+            return response()->json([
+                'ok' => true,
+                'data' => $model->getCalendarMonthOverview($userId, $year, $month),
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function getPetAssistantCalendarDay(Request $request): JsonResponse
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $date = (string) $request->query('date', '');
+            if (! $this->isValidIsoDate($date)) {
+                return response()->json(['ok' => false, 'message' => 'Data non valida.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $model = new Profile();
+
+            return response()->json([
+                'ok' => true,
+                'data' => $model->getCalendarDay($userId, $date),
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function savePetAssistantCalendarDay(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'date' => ['required', 'string'],
+                'enabled' => ['required', 'boolean'],
+                'slots' => ['nullable', 'array'],
+                'slots.*.startTime' => ['required', 'string'],
+                'slots.*.endTime' => ['required', 'string'],
+                'slots.*.enabled' => ['required', 'boolean'],
+                'slots.*.services' => ['nullable', 'array'],
+                'slots.*.services.*.serviceId' => ['required', 'integer', 'min:1'],
+                'slots.*.services.*.enabled' => ['required', 'boolean'],
+                'slots.*.services.*.hourlyRate' => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+            ]);
+
+            if (! $this->isValidIsoDate((string) $validated['date'])) {
+                return response()->json(['ok' => false, 'message' => 'Data non valida.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $slots = is_array($validated['slots'] ?? null) ? $validated['slots'] : [];
+            $calendarValidationError = $this->validateCalendarSlots($slots);
+            if ($calendarValidationError !== null) {
+                return response()->json(['ok' => false, 'message' => $calendarValidationError], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $model = new Profile();
+            $day = $model->saveCalendarDay($userId, [
+                'date' => (string) $validated['date'],
+                'enabled' => (bool) $validated['enabled'],
+                'slots' => $slots,
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'data' => $day,
+                'message' => 'Disponibilita calendario salvata con successo.',
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function copyPetAssistantCalendarDay(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'sourceDate' => ['required', 'string'],
+                'targetDates' => ['required', 'array', 'min:1'],
+                'targetDates.*' => ['required', 'string'],
+            ]);
+
+            $sourceDate = (string) $validated['sourceDate'];
+            if (! $this->isValidIsoDate($sourceDate)) {
+                return response()->json(['ok' => false, 'message' => 'Data sorgente non valida.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $targetDates = [];
+            foreach ($validated['targetDates'] as $targetDate) {
+                $targetDate = (string) $targetDate;
+                if (! $this->isValidIsoDate($targetDate)) {
+                    return response()->json(['ok' => false, 'message' => 'Una delle date di destinazione non e valida.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+                }
+                $targetDates[] = $targetDate;
+            }
+
+            $model = new Profile();
+            $result = $model->copyCalendarDay($userId, $sourceDate, $targetDates);
+
+            return response()->json([
+                'ok' => true,
+                'data' => $result,
+                'message' => 'Disponibilita copiata con successo.',
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -708,6 +873,55 @@ class ProfileController extends Controller
         $normalized = preg_replace('/[^a-z0-9\s]/', ' ', $normalized) ?? $normalized;
 
         return trim((string) preg_replace('/\s+/', ' ', $normalized));
+    }
+
+    private function isValidIsoDate(string $value): bool
+    {
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return false;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('Y-m-d', $value);
+
+        return $date instanceof DateTimeImmutable && $date->format('Y-m-d') === $value;
+    }
+
+    private function validateCalendarSlots(array $slots): ?string
+    {
+        $ranges = [];
+
+        foreach ($slots as $slot) {
+            if (! is_array($slot)) {
+                return 'Formato fascia oraria non valido.';
+            }
+
+            $startTime = (string) ($slot['startTime'] ?? '');
+            $endTime = (string) ($slot['endTime'] ?? '');
+            if (! preg_match('/^\d{2}:\d{2}$/', $startTime) || ! preg_match('/^\d{2}:\d{2}$/', $endTime)) {
+                return 'Ogni fascia deve avere orari validi nel formato HH:MM.';
+            }
+
+            if ($startTime >= $endTime) {
+                return "L'orario di fine deve essere successivo all'orario di inizio.";
+            }
+
+            $isEnabled = (bool) ($slot['enabled'] ?? false);
+            $services = $slot['services'] ?? [];
+            if ($isEnabled && (! is_array($services) || count($services) === 0)) {
+                return 'Seleziona almeno un servizio per ogni fascia attiva prima di salvare.';
+            }
+
+            $ranges[] = [$startTime, $endTime];
+        }
+
+        usort($ranges, static fn (array $a, array $b) => strcmp($a[0], $b[0]));
+        for ($index = 1; $index < count($ranges); $index += 1) {
+            if ($ranges[$index][0] < $ranges[$index - 1][1]) {
+                return 'Le fasce orarie dello stesso giorno non possono sovrapporsi.';
+            }
+        }
+
+        return null;
     }
 
     private function normalizeCompactText(string $value): string

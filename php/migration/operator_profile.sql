@@ -6,6 +6,7 @@ CREATE TABLE `operatordata` (
   `bio` varchar(4096) NOT NULL DEFAULT '',
   `experience_years` int NOT NULL DEFAULT 0,
   `dog_weight_limit` int NOT NULL DEFAULT 0,
+  `service_hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),

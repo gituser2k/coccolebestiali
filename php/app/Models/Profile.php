@@ -174,7 +174,7 @@ class Profile extends Model
         $this->ensureOperatorMetadataSeeded();
 
         $row = DB::table('operatordata')
-            ->select(['bio', 'experience_years', 'dog_weight_limit'])
+            ->select(['bio', 'experience_years', 'dog_weight_limit', 'service_hour_price'])
             ->where('user_id', $userId)
             ->first();
 
@@ -249,12 +249,13 @@ class Profile extends Model
             );
 
         $services = DB::table('operatorservicedata')
-            ->select(['service_id'])
+            ->select(['service_id', 'hour_price'])
             ->where('user_id', $userId)
             ->orderBy('service_id')
             ->get()
             ->map(fn ($row) => [
                 'serviceId' => (int) $row->service_id,
+                'hourlyRate' => round((float) ($row->hour_price ?? 0), 2),
                 'featureIds' => $selectedFeaturesMap->get((int) $row->service_id, $defaultFeaturesMap->get((int) $row->service_id, [])),
             ])
             ->all();
@@ -437,6 +438,7 @@ class Profile extends Model
                 DB::table('operatorservicedata')->insert([
                     'user_id' => $userId,
                     'service_id' => $serviceId,
+                    'hour_price' => round((float) ($service['hourlyRate'] ?? 0), 2),
                     'is_exclusive' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -478,6 +480,211 @@ class Profile extends Model
         });
 
         return $this->getOperatorProfile($userId);
+    }
+
+    public function getCalendarMonthOverview(int $userId, int $year, int $month): array
+    {
+        $startDate = sprintf('%04d-%02d-01', $year, $month);
+        $endDate = date('Y-m-t', strtotime($startDate));
+
+        $rows = DB::table('calendar_day as cd')
+            ->leftJoin('calendar_day_slot as cds', 'cds.calendar_day_id', '=', 'cd.id')
+            ->leftJoin('calendar_day_slot_service as cdss', 'cdss.slot_id', '=', 'cds.id')
+            ->select([
+                'cd.date',
+                'cd.enabled',
+                DB::raw('COUNT(DISTINCT cds.id) as slot_count'),
+                DB::raw('COUNT(DISTINCT CASE WHEN cdss.enabled = 1 THEN CONCAT(cds.id, "-", cdss.service_id) END) as service_count'),
+                DB::raw('(SELECT COALESCE(SUM(TIME_TO_SEC(TIMEDIFF(inner_slot.end_time, inner_slot.start_time)) / 60), 0) FROM calendar_day_slot inner_slot WHERE inner_slot.calendar_day_id = cd.id AND inner_slot.enabled = 1) as total_minutes'),
+            ])
+            ->where('cd.user_id', $userId)
+            ->whereBetween('cd.date', [$startDate, $endDate])
+            ->groupBy('cd.id', 'cd.date', 'cd.enabled')
+            ->get();
+
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[(string) $row->date] = [
+                'date' => (string) $row->date,
+                'enabled' => (bool) $row->enabled,
+                'slotCount' => (int) $row->slot_count,
+                'serviceCount' => (int) $row->service_count,
+                'totalMinutes' => (int) $row->total_minutes,
+            ];
+        }
+
+        $days = [];
+        $totalDays = (int) date('t', strtotime($startDate));
+        for ($day = 1; $day <= $totalDays; $day += 1) {
+            $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            $days[] = $mapped[$date] ?? [
+                'date' => $date,
+                'enabled' => false,
+                'slotCount' => 0,
+                'serviceCount' => 0,
+                'totalMinutes' => 0,
+            ];
+        }
+
+        return [
+            'year' => $year,
+            'month' => $month,
+            'days' => $days,
+        ];
+    }
+
+    public function getCalendarDay(int $userId, string $date): array
+    {
+        $day = DB::table('calendar_day')
+            ->select(['id', 'date', 'enabled'])
+            ->where('user_id', $userId)
+            ->where('date', $date)
+            ->first();
+
+        if (! $day) {
+            return [
+                'date' => $date,
+                'enabled' => false,
+                'slots' => [],
+            ];
+        }
+
+        $slots = DB::table('calendar_day_slot')
+            ->select(['id', 'start_time', 'end_time', 'enabled', 'sortorder'])
+            ->where('calendar_day_id', (int) $day->id)
+            ->orderBy('sortorder')
+            ->orderBy('start_time')
+            ->get()
+            ->map(function ($slot) {
+                $services = DB::table('calendar_day_slot_service')
+                    ->select(['service_id', 'enabled', 'hour_price'])
+                    ->where('slot_id', (int) $slot->id)
+                    ->orderBy('service_id')
+                    ->get()
+                    ->map(fn ($service) => [
+                        'serviceId' => (int) $service->service_id,
+                        'enabled' => (bool) $service->enabled,
+                        'hourlyRate' => round((float) $service->hour_price, 2),
+                    ])
+                    ->all();
+
+                return [
+                    'id' => (int) $slot->id,
+                    'startTime' => (string) $slot->start_time,
+                    'endTime' => (string) $slot->end_time,
+                    'enabled' => (bool) $slot->enabled,
+                    'services' => $services,
+                ];
+            })
+            ->all();
+
+        return [
+            'date' => (string) $day->date,
+            'enabled' => (bool) $day->enabled,
+            'slots' => $slots,
+        ];
+    }
+
+    public function saveCalendarDay(int $userId, array $payload): array
+    {
+        $date = (string) ($payload['date'] ?? '');
+        $enabled = ! empty($payload['enabled']);
+        $slots = is_array($payload['slots'] ?? null) ? $payload['slots'] : [];
+        $now = time();
+
+        DB::transaction(function () use ($userId, $date, $enabled, $slots, $now) {
+            DB::table('calendar_day')->updateOrInsert(
+                [
+                    'user_id' => $userId,
+                    'date' => $date,
+                ],
+                [
+                    'enabled' => $enabled ? 1 : 0,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+
+            $dayId = (int) DB::table('calendar_day')
+                ->where('user_id', $userId)
+                ->where('date', $date)
+                ->value('id');
+
+            $slotIds = DB::table('calendar_day_slot')
+                ->where('calendar_day_id', $dayId)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if ($slotIds !== []) {
+                DB::table('calendar_day_slot_service')->whereIn('slot_id', $slotIds)->delete();
+            }
+            DB::table('calendar_day_slot')->where('calendar_day_id', $dayId)->delete();
+
+            foreach ($slots as $index => $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+
+                $slotId = (int) DB::table('calendar_day_slot')->insertGetId([
+                    'calendar_day_id' => $dayId,
+                    'start_time' => (string) ($slot['startTime'] ?? ''),
+                    'end_time' => (string) ($slot['endTime'] ?? ''),
+                    'enabled' => ! empty($slot['enabled']) ? 1 : 0,
+                    'sortorder' => $index + 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $services = is_array($slot['services'] ?? null) ? $slot['services'] : [];
+                foreach ($services as $service) {
+                    if (! is_array($service)) {
+                        continue;
+                    }
+
+                    $serviceId = (int) ($service['serviceId'] ?? 0);
+                    if ($serviceId <= 0) {
+                        continue;
+                    }
+
+                    DB::table('calendar_day_slot_service')->insert([
+                        'slot_id' => $slotId,
+                        'service_id' => $serviceId,
+                        'enabled' => ! empty($service['enabled']) ? 1 : 0,
+                        'hour_price' => round((float) ($service['hourlyRate'] ?? 0), 2),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+            }
+        });
+
+        return $this->getCalendarDay($userId, $date);
+    }
+
+    public function copyCalendarDay(int $userId, string $sourceDate, array $targetDates): array
+    {
+        $source = $this->getCalendarDay($userId, $sourceDate);
+        $copied = 0;
+
+        foreach ($targetDates as $targetDate) {
+            $normalizedTarget = (string) $targetDate;
+            if ($normalizedTarget === '' || $normalizedTarget === $sourceDate) {
+                continue;
+            }
+
+            $this->saveCalendarDay($userId, [
+                'date' => $normalizedTarget,
+                'enabled' => $source['enabled'] ?? false,
+                'slots' => $source['slots'] ?? [],
+            ]);
+            $copied += 1;
+        }
+
+        return [
+            'sourceDate' => $sourceDate,
+            'copiedCount' => $copied,
+        ];
     }
 
     private function ensureLanguageSeeded(): void

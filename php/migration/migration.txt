@@ -98,6 +98,7 @@ CREATE TABLE `operatordata` (
   `bio` varchar(4096) NOT NULL DEFAULT '',
   `experience_years` int NOT NULL DEFAULT 0,
   `dog_weight_limit` int NOT NULL DEFAULT 0,
+  `service_hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -253,6 +254,7 @@ CREATE TABLE `operatorservicedata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
   `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `is_exclusive` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
@@ -274,6 +276,45 @@ CREATE TABLE `operatorservicefeaturedata` (
   KEY `idx_operatorservicefeaturedata_user_id` (`user_id`),
   KEY `idx_operatorservicefeaturedata_service_id` (`service_id`),
   KEY `idx_operatorservicefeaturedata_feature_id` (`feature_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `calendar_day` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `date` date NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_calendar_day_user_date` (`user_id`, `date`),
+  KEY `idx_calendar_day_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `calendar_day_slot` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `calendar_day_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `start_time` varchar(5) NOT NULL DEFAULT '',
+  `end_time` varchar(5) NOT NULL DEFAULT '',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_calendar_day_slot_day_id` (`calendar_day_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `calendar_day_slot_service` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `slot_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_calendar_slot_service` (`slot_id`, `service_id`),
+  KEY `idx_calendar_day_slot_service_slot_id` (`slot_id`),
+  KEY `idx_calendar_day_slot_service_service_id` (`service_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES

@@ -139,6 +139,10 @@ Route::middleware('api')
     Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
     Route::get('/profile/petassistant/operator', [ProfileController::class, 'getPetAssistantOperatorProfile']);
     Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
+    Route::get('/profile/petassistant/calendar', [ProfileController::class, 'getPetAssistantCalendarMonth']);
+    Route::get('/profile/petassistant/calendar/day', [ProfileController::class, 'getPetAssistantCalendarDay']);
+    Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
+    Route::post('/profile/petassistant/calendar/copy', [ProfileController::class, 'copyPetAssistantCalendarDay']);
 
     Route::get('/admin/messages', [MessageController::class, 'getAdminMessages']);
     Route::get('/admin/messages/{messageId}/reply', [MessageController::class, 'getLastAdminMessageReply']);
