@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class Profile extends Model
 {
@@ -276,12 +277,26 @@ class Profile extends Model
     public function savePersonalProfile(int $userId, array $payload): array
     {
         $now = time();
+        $email = strtolower(trim((string) ($payload['email'] ?? '')));
 
-        DB::transaction(function () use ($userId, $payload, $now) {
+        if ($email !== '') {
+            $existingEmailUser = DB::table('users')
+                ->select(['id'])
+                ->where('email', $email)
+                ->where('id', '<>', $userId)
+                ->first();
+
+            if ($existingEmailUser) {
+                throw new \RuntimeException('Email gia associata a un altro account.');
+            }
+        }
+
+        DB::transaction(function () use ($userId, $payload, $now, $email) {
             DB::table('users')
                 ->where('id', $userId)
                 ->update([
                     'name' => (string) ($payload['alias'] ?? ''),
+                    'email' => $email,
                     'updated_at' => $now,
                 ]);
 
@@ -331,6 +346,16 @@ class Profile extends Model
         });
 
         return $this->getPersonalProfile($userId);
+    }
+
+    public function changeUserPassword(int $userId, string $password): void
+    {
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'password_hash' => Hash::make($password),
+                'updated_at' => time(),
+            ]);
     }
 
     public function saveOperatorProfile(int $userId, array $payload): array

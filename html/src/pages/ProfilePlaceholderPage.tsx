@@ -122,6 +122,15 @@ type CalendarDaySummary = {
   totalMinutes: number
 }
 
+type PasswordChecks = {
+  minLength: boolean
+  uppercase: boolean
+  lowercase: boolean
+  number: boolean
+  symbol: boolean
+  noSpaces: boolean
+}
+
 const EMPTY_PROFILE: PersonalProfileData = {
   alias: '',
   name: '',
@@ -334,6 +343,21 @@ function summarizeCalendarDay(day: CalendarDayData): CalendarDaySummary {
   }
 }
 
+function getPasswordChecks(password: string): PasswordChecks {
+  return {
+    minLength: password.length >= 10,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    symbol: /[^A-Za-z0-9\s]/.test(password),
+    noSpaces: !/\s/.test(password),
+  }
+}
+
+function isPasswordValid(password: string): boolean {
+  return Object.values(getPasswordChecks(password)).every(Boolean)
+}
+
 export default function ProfilePlaceholderPage() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('personal')
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
@@ -358,6 +382,10 @@ export default function ProfilePlaceholderPage() {
   const [geocodeResult, setGeocodeResult] = useState<GeocodeResult | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isPasswordSaving, setIsPasswordSaving] = useState(false)
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null)
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null)
   const [serviceRateDrafts, setServiceRateDrafts] = useState<Record<number, string>>({})
@@ -444,6 +472,9 @@ export default function ProfilePlaceholderPage() {
     const alias = sanitizeText(profile.alias)
     return alias !== '' ? alias : 'Pet Assistant'
   }, [profile.alias])
+  const passwordChecks = useMemo(() => getPasswordChecks(newPassword), [newPassword])
+  const hasPasswordInput = newPassword.length > 0
+  const isPasswordConfirmationValid = confirmPassword.length > 0 && confirmPassword === newPassword
 
   const availableCalendarServices = useMemo(() => {
     const selectedServiceIds = new Set(operatorProfile.services.map((service) => service.serviceId))
@@ -1482,6 +1513,7 @@ export default function ProfilePlaceholderPage() {
 
     const body = new FormData()
     body.append('alias', sanitizeText(profile.alias))
+    body.append('email', sanitizeText(profile.email).toLowerCase())
     if (sanitizeText(profile.name) !== '') {
       body.append('name', sanitizeText(profile.name))
     }
@@ -1535,6 +1567,51 @@ export default function ProfilePlaceholderPage() {
       showProfileToast(message, 'error')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!isPasswordValid(newPassword)) {
+      showProfileToast('La password inserita non rispetta i criteri previsti.', 'error')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      showProfileToast('Le password inserite non coincidono.', 'error')
+      return
+    }
+
+    setIsPasswordSaving(true)
+
+    try {
+      const response = await fetch('/api/profile/petassistant/password', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password: newPassword,
+          password_confirmation: confirmPassword,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Cambio password non completato.')
+      }
+
+      setNewPassword('')
+      setConfirmPassword('')
+      setIsPasswordModalOpen(false)
+      showProfileToast(payload?.message || 'Password aggiornata con successo.', 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Cambio password non completato.'
+      showProfileToast(message, 'error')
+    } finally {
+      setIsPasswordSaving(false)
     }
   }
 
@@ -1747,20 +1824,16 @@ export default function ProfilePlaceholderPage() {
                   {isLoading ? (
                     <div className="profile-loading-card">Caricamento dati personali in corso...</div>
                   ) : (
-                    <form className="profile-form" onSubmit={handleSavePersonalData}>
+                    <form id="profile-personal-form" className="profile-form" onSubmit={handleSavePersonalData}>
                       <section className="profile-form-section profile-photo-section">
-                        <div>
-                          <label className="profile-field profile-field-gap">
+                        <div className="profile-identity-grid">
+                          <label className="profile-field">
                             <span>Alias</span>
                             <input
                               type="text"
                               value={profile.alias}
                               onChange={(event) => updateProfileField('alias', event.target.value)}
                             />
-                          </label>
-                          <label className="profile-field profile-field-gap">
-                            <span>Email</span>
-                            <input type="email" value={profile.email} readOnly className="is-readonly" />
                           </label>
                           <label className="profile-field">
                             <span>
@@ -1772,6 +1845,24 @@ export default function ProfilePlaceholderPage() {
                               onChange={(event) => updateProfileField('name', event.target.value)}
                             />
                           </label>
+                          <label className="profile-field profile-email-field">
+                            <span>Email</span>
+                            <input
+                              type="email"
+                              value={profile.email}
+                              onChange={(event) => updateProfileField('email', event.target.value)}
+                            />
+                          </label>
+                          <div className="profile-field profile-password-action-field">
+                            <span>Password</span>
+                            <button
+                              type="button"
+                              className="profile-password-button"
+                              onClick={() => setIsPasswordModalOpen(true)}
+                            >
+                              Cambia Password
+                            </button>
+                          </div>
                         </div>
                         <div className="profile-photo-card">
                           <div className="profile-photo-frame">
@@ -1946,12 +2037,6 @@ export default function ProfilePlaceholderPage() {
                           </div>
                         </div>
                       </section>
-                      <div className="profile-form-actions">
-                        <button type="submit" className="profile-save-button" disabled={isSaving}>
-                          <span className="profile-save-button-label">Salva dati</span>
-                          {isSaving ? <span className="profile-save-button-spinner" aria-hidden="true" /> : null}
-                        </button>
-                      </div>
                       <p className="profile-form-footer-note">
                         (*) Queste informazioni saranno visibili solo ai clienti che effettuano una richiesta di assistenza
                       </p>
@@ -1966,7 +2051,7 @@ export default function ProfilePlaceholderPage() {
                   {isLoading ? (
                     <div className="profile-loading-card">Caricamento dati operatore in corso...</div>
                   ) : (
-                    <form className="profile-form" onSubmit={handleSaveOperatorData}>
+                    <form id="profile-operator-form" className="profile-form" onSubmit={handleSaveOperatorData}>
                       <section className="profile-form-section">
                         <label className="profile-field">
                           <span>Presentazione (bio)</span>
@@ -2316,12 +2401,6 @@ export default function ProfilePlaceholderPage() {
                         </div>
                       </section>
 
-                      <div className="profile-form-actions">
-                        <button type="submit" className="profile-save-button" disabled={isOperatorSaving}>
-                          <span className="profile-save-button-label">Salva dati</span>
-                          {isOperatorSaving ? <span className="profile-save-button-spinner" aria-hidden="true" /> : null}
-                        </button>
-                      </div>
                     </form>
                   )}
                 </>
@@ -2570,6 +2649,104 @@ export default function ProfilePlaceholderPage() {
           </section>
         </section>
       </section>
+
+      {activeMenu === 'personal' && !isLoading ? (
+        <div className="profile-floating-actions">
+          <button type="submit" form="profile-personal-form" className="profile-save-button" disabled={isSaving}>
+            <span className="profile-save-button-label">Salva dati</span>
+            {isSaving ? <span className="profile-save-button-spinner" aria-hidden="true" /> : null}
+          </button>
+        </div>
+      ) : null}
+
+      {activeMenu === 'operator' && !isLoading ? (
+        <div className="profile-floating-actions">
+          <button type="submit" form="profile-operator-form" className="profile-save-button" disabled={isOperatorSaving}>
+            <span className="profile-save-button-label">Salva dati</span>
+            {isOperatorSaving ? <span className="profile-save-button-spinner" aria-hidden="true" /> : null}
+          </button>
+        </div>
+      ) : null}
+
+      {isPasswordModalOpen ? (
+        <div className="profile-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
+          <form className="profile-password-modal" onSubmit={handleChangePassword}>
+            <div className="profile-modal-head">
+              <div>
+                <p className="profile-location-kicker">SICUREZZA ACCOUNT</p>
+                <h2 id="change-password-title" className="profile-modal-title">Cambia Password</h2>
+              </div>
+              <button
+                type="button"
+                className="profile-modal-close"
+                aria-label="Chiudi modale cambio password"
+                onClick={() => {
+                  setIsPasswordModalOpen(false)
+                  setNewPassword('')
+                  setConfirmPassword('')
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <label className="profile-field profile-password-modal-field">
+              <span>Password</span>
+              <input
+                type="password"
+                placeholder="Inserisci password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+
+            <div className="profile-password-guidance" aria-live="polite">
+              <strong className="profile-password-guidance-title">La password deve contenere:</strong>
+              <div className="profile-password-rule-list">
+                <span className={`profile-password-rule ${passwordChecks.minLength ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>10+ caratteri</span>
+                <span className={`profile-password-rule ${passwordChecks.uppercase ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>1 maiuscola</span>
+                <span className={`profile-password-rule ${passwordChecks.lowercase ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>1 minuscola</span>
+                <span className={`profile-password-rule ${passwordChecks.number ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>1 numero</span>
+                <span className={`profile-password-rule ${passwordChecks.symbol ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>1 simbolo</span>
+                <span className={`profile-password-rule ${passwordChecks.noSpaces ? 'is-valid' : hasPasswordInput ? 'is-invalid' : ''}`}>nessuno spazio</span>
+              </div>
+            </div>
+
+            <label className="profile-field profile-password-modal-field">
+              <span>Conferma Password</span>
+              <input
+                type="password"
+                placeholder="Conferma password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+            {confirmPassword.length > 0 && !isPasswordConfirmationValid ? (
+              <p className="profile-password-match-error">Le password inserite non coincidono.</p>
+            ) : null}
+
+            <div className="profile-modal-actions">
+              <button
+                type="button"
+                className="profile-modal-button is-secondary"
+                disabled={isPasswordSaving}
+                onClick={() => {
+                  setIsPasswordModalOpen(false)
+                  setNewPassword('')
+                  setConfirmPassword('')
+                }}
+              >
+                Annulla
+              </button>
+              <button type="submit" className="profile-modal-button is-primary" disabled={isPasswordSaving}>
+                {isPasswordSaving ? 'Salvataggio...' : 'Salva Password'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {toastMessage ? (
         <div className={`profile-toast ${toastType === 'success' ? 'is-success' : 'is-error'}`}>

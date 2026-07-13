@@ -713,9 +713,6 @@ function HomePage() {
                     <a className="cta-btn cta-primary" href="#">
                       Cerca Un Pet Assistant
                     </a>
-                    <a className="cta-btn cta-secondary" href="#">
-                      Diventa Pet Assistant
-                    </a>
                   </div>
                 </section>
               )}

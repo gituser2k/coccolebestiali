@@ -170,6 +170,7 @@ class ProfileController extends Controller
 
             $validated = $request->validate([
                 'alias' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'max:255'],
                 'name' => ['nullable', 'string', 'max:255'],
                 'age' => ['nullable', 'integer', 'min:18', 'max:100'],
                 'city' => ['nullable', 'string', 'max:255'],
@@ -197,6 +198,7 @@ class ProfileController extends Controller
 
             $profile = $model->savePersonalProfile($userId, [
                 'alias' => (string) $validated['alias'],
+                'email' => strtolower((string) $validated['email']),
                 'name' => (string) ($validated['name'] ?? ''),
                 'age' => isset($validated['age']) ? (int) $validated['age'] : 0,
                 'city' => (string) ($validated['city'] ?? ''),
@@ -224,6 +226,62 @@ class ProfileController extends Controller
             return response()->json([
                 'ok' => false,
                 'message' => 'Salvataggio non completato.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function changePetAssistantPassword(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'password' => [
+                    'required',
+                    'string',
+                    'min:10',
+                    'max:255',
+                    'regex:/[A-Z]/',
+                    'regex:/[a-z]/',
+                    'regex:/[0-9]/',
+                    'regex:/[^A-Za-z0-9\\s]/',
+                    'not_regex:/\\s/',
+                ],
+                'password_confirmation' => ['required', 'same:password'],
+            ], [
+                'password.min' => 'La password deve contenere almeno 10 caratteri.',
+                'password.regex' => 'La password deve contenere almeno una maiuscola, una minuscola, un numero e un simbolo.',
+                'password.not_regex' => 'La password non puo contenere spazi.',
+                'password_confirmation.same' => 'Le password inserite non coincidono.',
+            ]);
+
+            $model = new Profile();
+            $model->changeUserPassword($userId, (string) $validated['password']);
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Password aggiornata con successo.',
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cambio password non completato.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

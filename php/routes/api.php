@@ -137,6 +137,7 @@ Route::middleware('api')
     Route::get('/profile/geocode', [ProfileController::class, 'geocodeItalianAddress']);
     Route::get('/profile/petassistant/personal', [ProfileController::class, 'getPetAssistantPersonalProfile']);
     Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
+    Route::post('/profile/petassistant/password', [ProfileController::class, 'changePetAssistantPassword']);
     Route::get('/profile/petassistant/operator', [ProfileController::class, 'getPetAssistantOperatorProfile']);
     Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
     Route::get('/profile/petassistant/calendar', [ProfileController::class, 'getPetAssistantCalendarMonth']);

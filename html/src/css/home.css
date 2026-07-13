@@ -375,12 +375,6 @@ a {
   box-shadow: 0 12px 24px rgb(47 122 74 / 24%);
 }
 
-.cta-secondary {
-  color: var(--brand-blue);
-  background: rgb(255 255 255 / 95%);
-  border-color: rgb(31 95 167 / 55%);
-}
-
 .hero-legal {
   margin-top: auto;
   padding: 0.85rem 0.35rem 0.15rem;
