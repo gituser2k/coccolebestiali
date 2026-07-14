@@ -314,6 +314,157 @@ class AuthController extends Controller
         }
     }
 
+    public function changeCurrentAccountToEmail(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Utente non autenticato.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'email' => ['required', 'email', 'max:255'],
+                'password' => [
+                    'required',
+                    'string',
+                    'min:10',
+                    'max:255',
+                    'regex:/[A-Z]/',
+                    'regex:/[a-z]/',
+                    'regex:/[0-9]/',
+                    'regex:/[^A-Za-z0-9\\s]/',
+                    'not_regex:/\\s/',
+                ],
+            ], [
+                'password.min' => 'La password deve contenere almeno 10 caratteri.',
+                'password.regex' => 'La password deve contenere almeno una maiuscola, una minuscola, un numero e un simbolo.',
+                'password.not_regex' => 'La password non puo contenere spazi.',
+            ]);
+
+            $model = new UserAccount();
+            $user = $model->switchCurrentUserToEmail(
+                $userId,
+                strtolower((string) $validated['email']),
+                (string) $validated['password']
+            );
+
+            return $this->withPortalUserCookies(response()->json([
+                'ok' => true,
+                'data' => [
+                    'user' => $user,
+                ],
+                'message' => 'Account aggiornato con successo.',
+            ], Response::HTTP_OK), $user);
+        } catch (RuntimeException $e) {
+            if ($e->getMessage() !== 'EMAIL_ALREADY_EXISTS') {
+                Utility::saveError($validated, $e->getMessage(), __METHOD__);
+            }
+
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() === 'EMAIL_ALREADY_EXISTS'
+                    ? 'Email gia registrata.'
+                    : 'Cambio account non completato.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function changeCurrentAccountToGoogle(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Utente non autenticato.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'idToken' => ['nullable', 'string'],
+                'accessToken' => ['nullable', 'string'],
+            ]);
+
+            $idToken = trim((string) ($validated['idToken'] ?? ''));
+            $accessToken = trim((string) ($validated['accessToken'] ?? ''));
+
+            if ($idToken !== '') {
+                $claims = $this->verifyGoogleIdToken($idToken);
+            } elseif ($accessToken !== '') {
+                $claims = $this->verifyGoogleAccessToken($accessToken);
+            } else {
+                throw new RuntimeException('GOOGLE_TOKEN_MISSING');
+            }
+
+            $model = new UserAccount();
+            $user = $model->switchCurrentUserToSocial(
+                $userId,
+                'google',
+                (string) $claims['sub'],
+                (string) $claims['email'],
+                (bool) $claims['emailVerified'],
+                (string) $claims['name'],
+                (string) $claims['avatar'],
+                false,
+                (array) $claims['rawClaims']
+            );
+
+            return $this->withPortalUserCookies(response()->json([
+                'ok' => true,
+                'data' => [
+                    'user' => $user,
+                ],
+                'message' => 'Account Google aggiornato con successo.',
+            ], Response::HTTP_OK), $user);
+        } catch (RuntimeException $e) {
+            if (! in_array($e->getMessage(), ['EMAIL_ALREADY_EXISTS', 'SOCIAL_ACCOUNT_ALREADY_LINKED'], true)) {
+                Utility::saveError($validated, $e->getMessage(), __METHOD__);
+            }
+
+            $message = match ($e->getMessage()) {
+                'EMAIL_ALREADY_EXISTS' => 'Email gia registrata.',
+                'SOCIAL_ACCOUNT_ALREADY_LINKED' => 'Account Google gia associato a un altro utente.',
+                default => 'Cambio account Google non completato.',
+            };
+
+            return response()->json([
+                'ok' => false,
+                'message' => $message,
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function verifyEmail(Request $request)
     {
         $email = strtolower(trim((string) $request->query('email', '')));
@@ -529,6 +680,79 @@ class AuthController extends Controller
         }
     }
 
+    public function changeCurrentAccountToApple(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Utente non autenticato.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'identityToken' => ['required', 'string'],
+                'user' => ['nullable'],
+            ]);
+
+            $claims = $this->verifyAppleIdentityToken(
+                (string) $validated['identityToken'],
+                $validated['user'] ?? null
+            );
+
+            $model = new UserAccount();
+            $user = $model->switchCurrentUserToSocial(
+                $userId,
+                'apple',
+                (string) $claims['sub'],
+                (string) $claims['email'],
+                (bool) $claims['emailVerified'],
+                (string) $claims['name'],
+                '',
+                (bool) $claims['isPrivateEmail'],
+                (array) $claims['rawClaims']
+            );
+
+            return $this->withPortalUserCookies(response()->json([
+                'ok' => true,
+                'data' => [
+                    'user' => $user,
+                ],
+                'message' => 'Account Apple aggiornato con successo.',
+            ], Response::HTTP_OK), $user);
+        } catch (RuntimeException $e) {
+            if (! in_array($e->getMessage(), ['EMAIL_ALREADY_EXISTS', 'SOCIAL_ACCOUNT_ALREADY_LINKED'], true)) {
+                Utility::saveError($validated, $e->getMessage(), __METHOD__);
+            }
+
+            $message = match ($e->getMessage()) {
+                'EMAIL_ALREADY_EXISTS' => 'Email gia registrata.',
+                'SOCIAL_ACCOUNT_ALREADY_LINKED' => 'Account Apple gia associato a un altro utente.',
+                default => 'Cambio account Apple non completato.',
+            };
+
+            return response()->json([
+                'ok' => false,
+                'message' => $message,
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function registerAppleMock(Request $request): JsonResponse
     {
         $validated = [];
@@ -666,6 +890,93 @@ class AuthController extends Controller
             return response()->json([
                 'ok' => false,
             ], 500);
+        }
+    }
+
+    public function changeCurrentAccountToAppleMock(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            if (! app()->environment('local') || ! $this->isAppleMockEnabled()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Apple mock auth non abilitato.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Utente non autenticato.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'mockEmail' => ['nullable', 'email', 'max:255'],
+                'mockName' => ['nullable', 'string', 'max:255'],
+                'mockSub' => ['nullable', 'string', 'max:255'],
+            ]);
+
+            $email = strtolower((string) ($validated['mockEmail'] ?? ''));
+            $name = trim((string) ($validated['mockName'] ?? 'Apple Mock User'));
+            $sub = trim((string) ($validated['mockSub'] ?? ''));
+
+            if ($sub === '') {
+                $sub = 'apple_mock_change_'.$userId.'_'.time();
+            }
+
+            $claims = [
+                'iss' => 'https://appleid.apple.com',
+                'aud' => (string) env('APPLE_CLIENT_ID', 'apple.mock.local'),
+                'sub' => $sub,
+                'email' => $email,
+                'email_verified' => 'true',
+                'is_private_email' => 'true',
+                'mock' => true,
+            ];
+
+            $model = new UserAccount();
+            $user = $model->switchCurrentUserToSocial(
+                $userId,
+                'apple',
+                $sub,
+                $email,
+                true,
+                $name,
+                '',
+                true,
+                $claims
+            );
+
+            return $this->withPortalUserCookies(response()->json([
+                'ok' => true,
+                'data' => [
+                    'user' => $user,
+                    'mock' => true,
+                ],
+                'message' => 'Account Apple aggiornato con successo.',
+            ], Response::HTTP_OK), $user);
+        } catch (RuntimeException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cambio account Apple mock non completato.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

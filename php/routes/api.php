@@ -130,11 +130,18 @@ Route::middleware('api')
     Route::post('/auth/register/google', [AuthController::class, 'registerGoogle']);
     Route::post('/auth/register/apple', [AuthController::class, 'registerApple']);
     Route::post('/auth/register/apple/mock', [AuthController::class, 'registerAppleMock']);
+    Route::post('/auth/account/email', [AuthController::class, 'changeCurrentAccountToEmail']);
+    Route::post('/auth/account/google', [AuthController::class, 'changeCurrentAccountToGoogle']);
+    Route::post('/auth/account/apple', [AuthController::class, 'changeCurrentAccountToApple']);
+    Route::post('/auth/account/apple/mock', [AuthController::class, 'changeCurrentAccountToAppleMock']);
     Route::get('/auth/verify-email', [AuthController::class, 'verifyEmail']);
     Route::get('/profile/languages', [ProfileController::class, 'getLanguages']);
     Route::get('/profile/operator/options', [ProfileController::class, 'getOperatorOptions']);
     Route::get('/profile/cities', [ProfileController::class, 'searchItalianCities']);
     Route::get('/profile/geocode', [ProfileController::class, 'geocodeItalianAddress']);
+    Route::get('/profile/petowner/personal', [ProfileController::class, 'getPetOwnerPersonalProfile']);
+    Route::post('/profile/petowner/personal', [ProfileController::class, 'savePetOwnerPersonalProfile']);
+    Route::post('/profile/petowner/password', [ProfileController::class, 'changePetOwnerPassword']);
     Route::get('/profile/petassistant/personal', [ProfileController::class, 'getPetAssistantPersonalProfile']);
     Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
     Route::post('/profile/petassistant/password', [ProfileController::class, 'changePetAssistantPassword']);

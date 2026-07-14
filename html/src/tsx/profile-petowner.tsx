@@ -1,10 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../css/index.css'
-import TemplateEmptyPage from '../pages/TemplateEmptyPage.tsx'
+import PetOwnerProfilePage from '../pages/PetOwnerProfilePage.tsx'
 
 createRoot(document.getElementById('profile-petowner-root')!).render(
   <StrictMode>
-    <TemplateEmptyPage />
+    <PetOwnerProfilePage />
   </StrictMode>,
 )

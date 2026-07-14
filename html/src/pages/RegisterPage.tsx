@@ -443,12 +443,10 @@ export default function RegisterPage() {
       persistCurrentUser(payload?.data?.user ?? null)
 
       if (mode === 'social') {
-        if (role === 'pet_owner') {
-          setRoleStatus(role, 'Profilo Pet Owner temporaneamente disabilitato.', 'error')
-          return
-        }
-
-        window.location.assign('/profile/petassistant?entry=register')
+        const fallbackRedirect = role === 'pet_owner'
+          ? '/profile/petowner?entry=register'
+          : '/profile/petassistant?entry=register'
+        window.location.assign(sanitizeText(payload?.data?.redirect ?? '') || fallbackRedirect)
         return
       }
 

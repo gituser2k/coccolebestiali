@@ -182,6 +182,146 @@ class UserAccount extends Model
         return $user;
     }
 
+    public function switchCurrentUserToEmail(int $userId, string $email, string $password): array
+    {
+        $normalizedEmail = strtolower(trim($email));
+
+        if ($userId <= 0 || $normalizedEmail === '') {
+            throw new RuntimeException('INVALID_CURRENT_USER');
+        }
+
+        return DB::transaction(function () use ($userId, $normalizedEmail, $password) {
+            $existing = DB::table('users')
+                ->select(['id'])
+                ->where('email', $normalizedEmail)
+                ->where('id', '<>', $userId)
+                ->first();
+
+            if ($existing) {
+                throw new RuntimeException('EMAIL_ALREADY_EXISTS');
+            }
+
+            DB::table('users')
+                ->where('id', $userId)
+                ->update([
+                    'email' => $normalizedEmail,
+                    'email_verified' => 1,
+                    'password_hash' => Hash::make($password),
+                    'updated_at' => time(),
+                ]);
+
+            DB::table('social_accounts')
+                ->where('user_id', $userId)
+                ->delete();
+
+            return $this->getUserById($userId);
+        });
+    }
+
+    public function switchCurrentUserToSocial(
+        int $userId,
+        string $provider,
+        string $providerSub,
+        string $email,
+        bool $emailVerified,
+        string $name,
+        string $avatar,
+        bool $isPrivateEmail,
+        array $rawClaims
+    ): array {
+        if ($userId <= 0 || $providerSub === '') {
+            throw new RuntimeException('INVALID_CURRENT_USER');
+        }
+
+        return DB::transaction(function () use (
+            $userId,
+            $provider,
+            $providerSub,
+            $email,
+            $emailVerified,
+            $name,
+            $avatar,
+            $isPrivateEmail,
+            $rawClaims
+        ) {
+            $now = time();
+            $normalizedEmail = strtolower(trim($email));
+
+            $existingSocial = DB::table('social_accounts')
+                ->select(['id', 'user_id'])
+                ->where('provider', $provider)
+                ->where('provider_sub', $providerSub)
+                ->first();
+
+            if ($existingSocial && (int) $existingSocial->user_id !== $userId) {
+                throw new RuntimeException('SOCIAL_ACCOUNT_ALREADY_LINKED');
+            }
+
+            if ($normalizedEmail !== '') {
+                $existingEmailUser = DB::table('users')
+                    ->select(['id'])
+                    ->where('email', $normalizedEmail)
+                    ->where('id', '<>', $userId)
+                    ->first();
+
+                if ($existingEmailUser) {
+                    throw new RuntimeException('EMAIL_ALREADY_EXISTS');
+                }
+            }
+
+            DB::table('users')
+                ->where('id', $userId)
+                ->update([
+                    'name' => $name !== '' ? $name : DB::raw('name'),
+                    'email' => $normalizedEmail !== '' ? $normalizedEmail : DB::raw('email'),
+                    'email_verified' => $emailVerified ? 1 : DB::raw('email_verified'),
+                    'password_hash' => '',
+                    'avatar' => $avatar !== '' ? $avatar : DB::raw('avatar'),
+                    'updated_at' => $now,
+                ]);
+
+            DB::table('social_accounts')
+                ->where('user_id', $userId)
+                ->where(function ($query) use ($provider, $providerSub) {
+                    $query
+                        ->where('provider', '<>', $provider)
+                        ->orWhere('provider_sub', '<>', $providerSub);
+                })
+                ->delete();
+
+            $claimsJson = json_encode($rawClaims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (strlen((string) $claimsJson) > 4096) {
+                $claimsJson = substr((string) $claimsJson, 0, 4096);
+            }
+
+            if ($existingSocial) {
+                DB::table('social_accounts')
+                    ->where('id', $existingSocial->id)
+                    ->update([
+                        'provider_email' => $normalizedEmail,
+                        'provider_email_verified' => $emailVerified ? 1 : 0,
+                        'is_private_email' => $isPrivateEmail ? 1 : 0,
+                        'raw_claims' => (string) $claimsJson,
+                        'updated_at' => $now,
+                    ]);
+            } else {
+                DB::table('social_accounts')->insert([
+                    'user_id' => $userId,
+                    'provider' => $provider,
+                    'provider_sub' => $providerSub,
+                    'provider_email' => $normalizedEmail,
+                    'provider_email_verified' => $emailVerified ? 1 : 0,
+                    'is_private_email' => $isPrivateEmail ? 1 : 0,
+                    'raw_claims' => (string) $claimsJson,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            return $this->getUserById($userId);
+        });
+    }
+
     public function getUserById(int $userId): array
     {
         $row = DB::table('users')
@@ -193,6 +333,12 @@ class UserAccount extends Model
             return [];
         }
 
+        $provider = DB::table('social_accounts')
+            ->where('user_id', $userId)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->value('provider');
+
         return [
             'id' => (int) $row->id,
             'role' => (string) $row->role,
@@ -200,6 +346,7 @@ class UserAccount extends Model
             'email' => $row->email ? (string) $row->email : '',
             'emailVerified' => (bool) $row->email_verified,
             'avatar' => (string) $row->avatar,
+            'provider' => $provider ? (string) $provider : '',
         ];
     }
 

@@ -3,6 +3,8 @@ import type { ChangeEvent, FormEvent } from 'react'
 import logoImage from '../assets/logo.png'
 import '../css/profile.css'
 import { sanitizeText } from '../utility.js'
+import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
+import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
 
 type MenuKey = 'personal' | 'operator' | 'calendar'
 
@@ -130,6 +132,8 @@ type PasswordChecks = {
   symbol: boolean
   noSpaces: boolean
 }
+
+type AuthProvider = '' | 'google' | 'apple'
 
 const EMPTY_PROFILE: PersonalProfileData = {
   alias: '',
@@ -382,6 +386,8 @@ export default function ProfilePlaceholderPage() {
   const [geocodeResult, setGeocodeResult] = useState<GeocodeResult | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
+  const [authProvider, setAuthProvider] = useState<AuthProvider>('')
+  const [isAccountChangeModalOpen, setIsAccountChangeModalOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -475,6 +481,12 @@ export default function ProfilePlaceholderPage() {
   const passwordChecks = useMemo(() => getPasswordChecks(newPassword), [newPassword])
   const hasPasswordInput = newPassword.length > 0
   const isPasswordConfirmationValid = confirmPassword.length > 0 && confirmPassword === newPassword
+  const accountProviderLabel = authProvider === 'google'
+    ? 'Account Google'
+    : authProvider === 'apple'
+      ? 'Account Apple'
+      : 'Password'
+  const accountActionLabel = authProvider === '' ? 'Cambia Password' : 'Cambia Account'
 
   const availableCalendarServices = useMemo(() => {
     const selectedServiceIds = new Set(operatorProfile.services.map((service) => service.serviceId))
@@ -747,6 +759,9 @@ export default function ProfilePlaceholderPage() {
           setHouseFeatures(Array.isArray(operatorOptionsPayload?.data?.houseFeatures) ? operatorOptionsPayload.data.houseFeatures : [])
           setServiceOptions(Array.isArray(operatorOptionsPayload?.data?.services) ? operatorOptionsPayload.data.services : [])
         }
+
+        const provider = sanitizeText(userPayload?.data?.user?.provider ?? '').toLowerCase()
+        setAuthProvider(provider === 'google' || provider === 'apple' ? provider : '')
 
         setProfile({
           ...EMPTY_PROFILE,
@@ -1615,6 +1630,27 @@ export default function ProfilePlaceholderPage() {
     }
   }
 
+  function handleAccountAction() {
+    if (authProvider === '') {
+      setIsPasswordModalOpen(true)
+      return
+    }
+
+    setIsAccountChangeModalOpen(true)
+  }
+
+  function handleAccountChanged(user: Record<string, unknown>, message: string) {
+    const provider = sanitizeText(user.provider ?? '').toLowerCase()
+    setAuthProvider(provider === 'google' || provider === 'apple' ? provider : '')
+    setProfile((current) => ({
+      ...current,
+      alias: sanitizeText(user.name ?? current.alias),
+      email: sanitizeText(user.email ?? current.email),
+    }))
+    setIsAccountChangeModalOpen(false)
+    showProfileToast(message, 'success')
+  }
+
   async function handleSaveOperatorData(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -1819,7 +1855,10 @@ export default function ProfilePlaceholderPage() {
               {activeMenu === 'personal' ? (
                 <>
                   <p className="profile-stage-kicker">PROFILO PET ASSISTANT</p>
-                  <h1 className="profile-stage-title">Dati personali</h1>
+                  <div className="profile-stage-title-row">
+                    <h1 className="profile-stage-title">Dati personali</h1>
+                    <FieldLegend />
+                  </div>
 
                   {isLoading ? (
                     <div className="profile-loading-card">Caricamento dati personali in corso...</div>
@@ -1828,7 +1867,7 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section profile-photo-section">
                         <div className="profile-identity-grid">
                           <label className="profile-field">
-                            <span>Alias</span>
+                            <FieldLabel tone="required">Alias</FieldLabel>
                             <input
                               type="text"
                               value={profile.alias}
@@ -1836,9 +1875,7 @@ export default function ProfilePlaceholderPage() {
                             />
                           </label>
                           <label className="profile-field">
-                            <span>
-                              Nome e Cognome <em className="profile-required-mark">*</em>
-                            </span>
+                            <FieldLabel tone="private">Nome e Cognome</FieldLabel>
                             <input
                               type="text"
                               value={profile.name}
@@ -1846,7 +1883,7 @@ export default function ProfilePlaceholderPage() {
                             />
                           </label>
                           <label className="profile-field profile-email-field">
-                            <span>Email</span>
+                            <FieldLabel tone="required">Email</FieldLabel>
                             <input
                               type="email"
                               value={profile.email}
@@ -1854,13 +1891,13 @@ export default function ProfilePlaceholderPage() {
                             />
                           </label>
                           <div className="profile-field profile-password-action-field">
-                            <span>Password</span>
+                            <span>{accountProviderLabel}</span>
                             <button
                               type="button"
                               className="profile-password-button"
-                              onClick={() => setIsPasswordModalOpen(true)}
+                              onClick={handleAccountAction}
                             >
-                              Cambia Password
+                              {accountActionLabel}
                             </button>
                           </div>
                         </div>
@@ -1885,7 +1922,7 @@ export default function ProfilePlaceholderPage() {
                       </section>
                       <section className="profile-form-grid profile-form-section">
                         <label className="profile-field">
-                          <span>Et&agrave;</span>
+                          <FieldLabel>Età</FieldLabel>
                           <input
                             type="text"
                             list="profile-age-options"
@@ -1904,9 +1941,7 @@ export default function ProfilePlaceholderPage() {
                           </datalist>
                         </label>
                         <label className="profile-field">
-                          <span>
-                            Numero di Telefono <em className="profile-required-mark">*</em>
-                          </span>
+                          <FieldLabel tone="private">Numero di Telefono</FieldLabel>
                           <input
                             type="tel"
                             value={profile.phone}
@@ -1917,7 +1952,7 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section profile-location-section">
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">
-                            INDIRIZZO LOCAZIONE <em className="profile-required-mark">*</em>
+                           INDIRIZZO LOCAZIONE
                           </p>
                           <p className="profile-location-text">
                             L'indirizzo sar&agrave; mostrato solo ai clienti che effettuano una richiesta di assistenza.
@@ -1926,9 +1961,7 @@ export default function ProfilePlaceholderPage() {
                         <div className="profile-location-grid">
                           <div>
                             <label className="profile-field profile-field-gap">
-                              <span>
-                                Citt&agrave;
-                              </span>
+                              <FieldLabel tone="required">Città</FieldLabel>
                               <input
                                 type="text"
                                 value={profile.city}
@@ -1969,7 +2002,7 @@ export default function ProfilePlaceholderPage() {
                             </label>
                             <div className="profile-location-inline profile-field-gap">
                               <label className="profile-field">
-                                <span>Indirizzo</span>
+                                <FieldLabel tone="private">Indirizzo</FieldLabel>
                                 <input
                                   type="text"
                                   list="profile-address-suggestions"
@@ -1983,7 +2016,7 @@ export default function ProfilePlaceholderPage() {
                                 </datalist>
                               </label>
                               <label className="profile-field">
-                                <span>Numero civico</span>
+                                <FieldLabel tone="private">Numero civico</FieldLabel>
                                 <input
                                   type="text"
                                   value={profile.addressnumber}
@@ -2037,9 +2070,6 @@ export default function ProfilePlaceholderPage() {
                           </div>
                         </div>
                       </section>
-                      <p className="profile-form-footer-note">
-                        (*) Queste informazioni saranno visibili solo ai clienti che effettuano una richiesta di assistenza
-                      </p>
                     </form>
                   )}
                 </>
@@ -2727,6 +2757,18 @@ export default function ProfilePlaceholderPage() {
               <p className="profile-password-match-error">Le password inserite non coincidono.</p>
             ) : null}
 
+            <div className="password-social-switch">
+              <div className="register-divider" aria-hidden="true">
+                <span>oppure passa a</span>
+              </div>
+              <SocialAccountSwitchActions
+                role="pet_assistant"
+                buttonPrefix="Passa a"
+                onChanged={handleAccountChanged}
+                onError={(message) => showProfileToast(message, 'error')}
+              />
+            </div>
+
             <div className="profile-modal-actions">
               <button
                 type="button"
@@ -2746,6 +2788,15 @@ export default function ProfilePlaceholderPage() {
             </div>
           </form>
         </div>
+      ) : null}
+
+      {isAccountChangeModalOpen ? (
+        <AccountChangeModal
+          role="pet_assistant"
+          onClose={() => setIsAccountChangeModalOpen(false)}
+          onChanged={handleAccountChanged}
+          onError={(message) => showProfileToast(message, 'error')}
+        />
       ) : null}
 
       {toastMessage ? (
