@@ -546,34 +546,33 @@ export default function PetOwnerProfilePage() {
           <a href="/" className="register-brand-link" aria-label="Torna alla home">
             <img src={logoImage} className="register-logo" alt="Coccole Bestiali" />
           </a>
-          <header className="register-header profile-header">
-            <div className="profile-greeting-wrap">
-              {profileEntryMode === 'register' ? (
-                <p className="profile-greeting">Registrazione Profilo</p>
-              ) : (
-                <>
-                  <p className="profile-greeting">Ciao {compactAlias}</p>
-                  <div className="profile-completion-pill is-inline" aria-label={`Profilo completato al ${completionPercentage}%`}>
-                    <span className="profile-completion-ring" style={{ '--profile-completion': `${completionPercentage}%` } as React.CSSProperties}>
-                      {completionPercentage}%
-                    </span>
-                    <span>completato</span>
-                  </div>
-                </>
-              )}
+          <header className="register-header">
+            <div className="profile-header-main">
+              <div className="profile-header-copy" aria-live="polite">
+                {profileEntryMode === 'register' ? (
+                  <>
+                    <span className="profile-header-eyebrow">BENVENUTO NEL PORTALE</span>
+                    <strong className="profile-header-title">Registrazione Profilo</strong>
+                  </>
+                ) : (
+                  <>
+                    <span className="profile-header-eyebrow">AREA RISERVATA</span>
+                    <strong className="profile-header-title">Ciao {compactAlias}</strong>
+                  </>
+                )}
+              </div>
+              {profileEntryMode === 'login' ? (
+                <div className="profile-completion-chip profile-completion-chip-compact" aria-live="polite">
+                  <span className="profile-completion-pill">{completionPercentage}%</span>
+                  <span className="profile-completion-copy">Profilo completato</span>
+                </div>
+              ) : null}
             </div>
             <a className="register-home-link" href="/">
               Torna alla Home
             </a>
           </header>
         </div>
-
-        {profileEntryMode === 'register' ? (
-          <div className="profile-register-status">
-            <span>Completamento profilo</span>
-            <strong>{completionPercentage}%</strong>
-          </div>
-        ) : null}
 
         <section className="profile-layout" aria-label="Area profilo pet owner">
           <aside className="profile-sidebar" aria-label="Menu profilo">

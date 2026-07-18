@@ -190,6 +190,110 @@ class AuthController extends Controller
         }
     }
 
+    public function requestTemporaryPassword(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $validated = $request->validate([
+                'email' => ['required', 'email', 'max:255'],
+            ]);
+
+            $email = strtolower((string) $validated['email']);
+            $temporaryPassword = $this->generateTemporaryPassword();
+
+            $model = new UserAccount();
+            $user = $model->createTemporaryPassword($email, $temporaryPassword);
+
+            if ($user !== []) {
+                $this->sendTemporaryPasswordEmail($email, $temporaryPassword);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Password temporanea inviata',
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function completeTemporaryPassword(Request $request): JsonResponse
+    {
+        $validated = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Utente non autenticato.',
+                ], Response::HTTP_OK);
+            }
+
+            $validated = $request->validate([
+                'password' => [
+                    'required',
+                    'string',
+                    'min:10',
+                    'max:255',
+                    'regex:/[A-Z]/',
+                    'regex:/[a-z]/',
+                    'regex:/[0-9]/',
+                    'regex:/[^A-Za-z0-9\\s]/',
+                    'not_regex:/\\s/',
+                ],
+                'password_confirmation' => ['required', 'same:password'],
+            ], [
+                'password.min' => 'La password deve contenere almeno 10 caratteri.',
+                'password.regex' => 'La password deve contenere almeno una maiuscola, una minuscola, un numero e un simbolo.',
+                'password.not_regex' => 'La password non puo contenere spazi.',
+                'password_confirmation.same' => 'Le password inserite non coincidono.',
+            ]);
+
+            $model = new UserAccount();
+            $user = $model->completeTemporaryPasswordChange($userId, (string) $validated['password']);
+
+            return $this->withPortalUserCookies(response()->json([
+                'ok' => true,
+                'data' => [
+                    'user' => $user,
+                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                ],
+                'message' => 'Password aggiornata con successo.',
+            ], Response::HTTP_OK), $user);
+        } catch (RuntimeException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cambio password non completato.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function registerGoogle(Request $request): JsonResponse
     {
         $validated = [];
@@ -324,7 +428,7 @@ class AuthController extends Controller
                 return response()->json([
                     'ok' => false,
                     'message' => 'Utente non autenticato.',
-                ], Response::HTTP_UNAUTHORIZED);
+                ], Response::HTTP_OK);
             }
 
             $validated = $request->validate([
@@ -502,7 +606,7 @@ class AuthController extends Controller
                 return response()->json([
                     'ok' => false,
                     'message' => 'Utente non autenticato.',
-                ], Response::HTTP_UNAUTHORIZED);
+                ], Response::HTTP_OK);
             }
 
             $model = new UserAccount();
@@ -512,7 +616,7 @@ class AuthController extends Controller
                 return response()->json([
                     'ok' => false,
                     'message' => 'Utente non trovato.',
-                ], Response::HTTP_UNAUTHORIZED);
+                ], Response::HTTP_OK);
             }
 
             return response()->json([
@@ -1075,6 +1179,55 @@ class AuthController extends Controller
                 ->from('info@coccolebestiali.it', 'Coccole Bestiali')
                 ->to($email)
                 ->subject('Coccole Bestiali - Conferma indirizzo email');
+        });
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $symbols = '!@#$%&*?';
+        $password = [
+            $alphabet[random_int(0, 23)],
+            $alphabet[random_int(24, strlen($alphabet) - 1)],
+            (string) random_int(2, 9),
+            $symbols[random_int(0, strlen($symbols) - 1)],
+        ];
+
+        while (count($password) < 12) {
+            $password[] = $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+
+        shuffle($password);
+
+        return implode('', $password);
+    }
+
+    private function sendTemporaryPasswordEmail(string $email, string $temporaryPassword): void
+    {
+        $html = '<div style="margin:0;padding:28px 16px;background:#f3f5f6;font-family:Arial,sans-serif;color:#333333;">'
+            .'<div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #d7e2ea;box-shadow:0 18px 40px rgba(17,42,77,0.12);">'
+            .'<div style="padding:24px 28px;background:linear-gradient(120deg,#2F7A4A 0%,#1F5FA7 100%);">'
+            .'<div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.82);font-weight:700;">Coccole Bestiali</div>'
+            .'<div style="margin-top:8px;font-size:28px;line-height:1.15;color:#ffffff;font-weight:800;">La tua password temporanea</div>'
+            .'<div style="margin-top:10px;font-size:15px;line-height:1.55;color:rgba(255,255,255,0.88);">Usala per accedere e imposta subito una nuova password personale.</div>'
+            .'</div>'
+            .'<div style="padding:30px 28px 26px 28px;">'
+            .'<p style="margin:0 0 18px 0;font-size:15px;line-height:1.7;color:#425466;">Abbiamo generato una password temporanea per il tuo account Coccole Bestiali.</p>'
+            .'<div style="margin:0 0 20px 0;padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,rgba(47,122,74,0.08) 0%,rgba(31,95,167,0.08) 100%);border:1px solid rgba(31,95,167,0.14);">'
+            .'<div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#1F5FA7;font-weight:800;">Password temporanea</div>'
+            .'<div style="margin-top:8px;font-size:26px;color:#17324d;font-weight:800;letter-spacing:0.08em;">'.e($temporaryPassword).'</div>'
+            .'</div>'
+            .'<p style="margin:0 0 8px 0;font-size:13px;line-height:1.6;color:#64748b;">Dopo il login ti verra chiesto di scegliere una nuova password. Se non hai richiesto tu questa operazione, contattaci.</p>'
+            .'<p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;">Coccole Bestiali · Il tuo pet assistant di fiducia</p>'
+            .'</div>'
+            .'</div>'
+            .'</div>';
+
+        Mail::html($html, function ($message) use ($email) {
+            $message
+                ->from('info@coccolebestiali.it', 'Coccole Bestiali')
+                ->to($email)
+                ->subject('Coccole Bestiali - Password temporanea');
         });
     }
 

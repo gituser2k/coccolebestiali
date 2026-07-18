@@ -126,6 +126,8 @@ Route::middleware('api')
     Route::post('/auth/login/google', [AuthController::class, 'loginGoogle']);
     Route::post('/auth/login/apple', [AuthController::class, 'loginApple']);
     Route::post('/auth/login/apple/mock', [AuthController::class, 'loginAppleMock']);
+    Route::post('/auth/password/forgot', [AuthController::class, 'requestTemporaryPassword']);
+    Route::post('/auth/password/temporary', [AuthController::class, 'completeTemporaryPassword']);
     Route::post('/auth/register/email', [AuthController::class, 'registerEmail']);
     Route::post('/auth/register/google', [AuthController::class, 'registerGoogle']);
     Route::post('/auth/register/apple', [AuthController::class, 'registerApple']);

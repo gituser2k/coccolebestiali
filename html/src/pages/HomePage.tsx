@@ -1,6 +1,7 @@
 import '../css/home.css'
 import animaliImage from '../assets/animali.png'
 import logoImage from '../assets/logo.png'
+import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { areRequiredFieldsFilled, sanitizeText, validateEmail } from '../utility.js'
 
@@ -28,6 +29,16 @@ type PortalUser = {
   role: string
   name: string
   email: string
+  passwordResetRequired?: boolean
+}
+
+type PasswordChecks = {
+  minLength: boolean
+  uppercase: boolean
+  lowercase: boolean
+  number: boolean
+  symbol: boolean
+  noSpaces: boolean
 }
 
 declare global {
@@ -105,6 +116,21 @@ function AppleIcon() {
   )
 }
 
+function getPasswordChecks(password: string): PasswordChecks {
+  return {
+    minLength: password.length >= 10,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    symbol: /[^A-Za-z0-9\s]/.test(password),
+    noSpaces: !/\s/.test(password),
+  }
+}
+
+function isPasswordValid(password: string): boolean {
+  return Object.values(getPasswordChecks(password)).every(Boolean)
+}
+
 function HomePage() {
   const currentYear = new Date().getFullYear()
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig>({
@@ -118,6 +144,13 @@ function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoginBusy, setIsLoginBusy] = useState(false)
   const [isLogoutBusy, setIsLogoutBusy] = useState(false)
+  const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false)
+  const [isForgotPasswordBusy, setIsForgotPasswordBusy] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [isTemporaryPasswordModalOpen, setIsTemporaryPasswordModalOpen] = useState(false)
+  const [isTemporaryPasswordSaving, setIsTemporaryPasswordSaving] = useState(false)
+  const [temporaryNewPassword, setTemporaryNewPassword] = useState('')
+  const [temporaryConfirmPassword, setTemporaryConfirmPassword] = useState('')
   const [currentUser, setCurrentUser] = useState<PortalUser | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
@@ -132,6 +165,10 @@ function HomePage() {
   })
   const googleTokenClientRef = useRef<{ requestAccessToken: (params?: { prompt?: string }) => void } | null>(null)
   const googleIdInitializedRef = useRef(false)
+  const temporaryPasswordChecks = getPasswordChecks(temporaryNewPassword)
+  const hasTemporaryPasswordInput = temporaryNewPassword.length > 0
+  const isTemporaryPasswordConfirmationValid =
+    temporaryConfirmPassword.length > 0 && temporaryConfirmPassword === temporaryNewPassword
 
   useEffect(() => {
     if (!toastMessage) {
@@ -215,12 +252,13 @@ function HomePage() {
     const role = sanitizeText(candidate.role ?? '')
     const name = sanitizeText(candidate.name ?? '')
     const email = sanitizeText(candidate.email ?? '')
+    const passwordResetRequired = Boolean(candidate.passwordResetRequired)
 
     if (id <= 0) {
       return null
     }
 
-    return { id, role, name, email }
+    return { id, role, name, email, passwordResetRequired }
   }
 
   function persistCurrentUser(user: unknown) {
@@ -361,9 +399,20 @@ function HomePage() {
         throw new Error(payload?.message || 'Login non completato.')
       }
 
+      const user = normalizePortalUser(payload?.data?.user ?? null)
       persistCurrentUser(payload?.data?.user ?? null)
       setIsLoginPanelOpen(false)
       clearLoginStatus()
+
+      if (endpoint === '/api/auth/login/email' && user?.passwordResetRequired) {
+        setTemporaryNewPassword('')
+        setTemporaryConfirmPassword('')
+        setIsTemporaryPasswordModalOpen(true)
+        showToast('Imposta una nuova password per completare l accesso.', 'success')
+        setIsLoginBusy(false)
+        return
+      }
+
       showToast('Login completato. Reindirizzamento in corso...', 'success')
       window.setTimeout(() => {
         window.location.assign(payload?.data?.redirect || '/profile/petassistant')
@@ -377,6 +426,93 @@ function HomePage() {
         showToast(message, 'error')
       }
       setIsLoginBusy(false)
+    }
+  }
+
+  async function handleForgotPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const email = sanitizeText(forgotPasswordEmail)
+    if (!validateEmail(email)) {
+      showToast('Indirizzo email errato.', 'error')
+      return
+    }
+
+    try {
+      setIsForgotPasswordBusy(true)
+
+      const response = await fetch('/api/auth/password/forgot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Richiesta non completata.')
+      }
+
+      setIsForgotPasswordModalOpen(false)
+      setForgotPasswordEmail('')
+      setLoginData((current) => ({ ...current, email }))
+      showToast(payload?.message || 'Password temporanea inviata', 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Si è verificato un errore. Riprova più tardi.'
+      showToast(message, 'error')
+    } finally {
+      setIsForgotPasswordBusy(false)
+    }
+  }
+
+  async function handleTemporaryPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!isPasswordValid(temporaryNewPassword)) {
+      showToast('La password inserita non rispetta i criteri previsti.', 'error')
+      return
+    }
+
+    if (temporaryNewPassword !== temporaryConfirmPassword) {
+      showToast('Le password inserite non coincidono.', 'error')
+      return
+    }
+
+    try {
+      setIsTemporaryPasswordSaving(true)
+
+      const response = await fetch('/api/auth/password/temporary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          password: temporaryNewPassword,
+          password_confirmation: temporaryConfirmPassword,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Cambio password non completato.')
+      }
+
+      persistCurrentUser(payload?.data?.user ?? null)
+      setIsTemporaryPasswordModalOpen(false)
+      setTemporaryNewPassword('')
+      setTemporaryConfirmPassword('')
+      showToast('Password aggiornata. Accesso completato.', 'success')
+      window.setTimeout(() => {
+        window.location.assign(payload?.data?.redirect || '/profile/petassistant?entry=login')
+      }, 220)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Cambio password non completato.'
+      showToast(message, 'error')
+    } finally {
+      setIsTemporaryPasswordSaving(false)
     }
   }
 
@@ -593,13 +729,26 @@ function HomePage() {
             />
           </label>
 
-          <button
-            className="hero-login-action hero-login-primary"
-            type="submit"
-            disabled={isLoginBusy}
-          >
-            Login con credenziali
-          </button>
+          <div className="hero-login-submit-row">
+            <button
+              className="hero-login-action hero-login-primary"
+              type="submit"
+              disabled={isLoginBusy}
+            >
+              Login
+            </button>
+            <button
+              className="hero-forgot-password-link"
+              type="button"
+              disabled={isLoginBusy}
+              onClick={() => {
+                setForgotPasswordEmail(loginData.email)
+                setIsForgotPasswordModalOpen(true)
+              }}
+            >
+              Password dimenticata
+            </button>
+          </div>
         </form>
 
         <div className="hero-login-divider" aria-hidden="true">
@@ -843,6 +992,105 @@ function HomePage() {
               </div>
             </form>
           </div>
+        </div>
+      ) : null}
+
+      {isForgotPasswordModalOpen ? (
+        <div
+          className="info-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Password dimenticata"
+          onClick={() => setIsForgotPasswordModalOpen(false)}
+        >
+          <div className="info-modal forgot-password-modal" onClick={(event) => event.stopPropagation()}>
+            <h2 className="info-modal-title">Password dimenticata</h2>
+            <p className="info-modal-subtitle">
+              Inserisci la tua email: ti invieremo una password temporanea per accedere.
+            </p>
+            <form className="info-modal-form" noValidate onSubmit={handleForgotPasswordSubmit}>
+              <label className="info-field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  name="forgot-password-email"
+                  placeholder="nome@email.it"
+                  value={forgotPasswordEmail}
+                  onChange={(event) => setForgotPasswordEmail(event.target.value)}
+                />
+              </label>
+              <div className="info-modal-actions">
+                <button
+                  type="button"
+                  className="info-btn info-btn-cancel"
+                  disabled={isForgotPasswordBusy}
+                  onClick={() => setIsForgotPasswordModalOpen(false)}
+                >
+                  Annulla
+                </button>
+                <button type="submit" className="info-btn info-btn-submit" disabled={isForgotPasswordBusy}>
+                  {isForgotPasswordBusy ? 'Invio...' : 'Invia password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isTemporaryPasswordModalOpen ? (
+        <div
+          className="info-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Imposta nuova password"
+        >
+          <form className="info-modal temporary-password-modal" onSubmit={handleTemporaryPasswordSubmit}>
+            <h2 className="info-modal-title">Imposta nuova password</h2>
+            <p className="info-modal-subtitle">
+              Scegli la password definitiva per le tue credenziali di accesso.
+            </p>
+            <div className="temporary-password-grid">
+              <label className="info-field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  name="temporary-new-password"
+                  placeholder="Inserisci password"
+                  value={temporaryNewPassword}
+                  onChange={(event) => setTemporaryNewPassword(event.target.value)}
+                />
+              </label>
+              <label className="info-field">
+                <span>Conferma Password</span>
+                <input
+                  type="password"
+                  name="temporary-confirm-password"
+                  placeholder="Ripeti password"
+                  value={temporaryConfirmPassword}
+                  onChange={(event) => setTemporaryConfirmPassword(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="temporary-password-rules" aria-label="Criteri password">
+              <strong>La password deve contenere:</strong>
+              <div className="temporary-password-rule-list">
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.minLength ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>10+ caratteri</span>
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.uppercase ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>1 maiuscola</span>
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.lowercase ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>1 minuscola</span>
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.number ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>1 numero</span>
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.symbol ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>1 simbolo</span>
+                <span className={`temporary-password-rule ${temporaryPasswordChecks.noSpaces ? 'is-valid' : hasTemporaryPasswordInput ? 'is-invalid' : ''}`}>nessuno spazio</span>
+              </div>
+            </div>
+            {temporaryConfirmPassword.length > 0 && !isTemporaryPasswordConfirmationValid ? (
+              <p className="temporary-password-mismatch">Le password inserite non coincidono.</p>
+            ) : null}
+            <div className="info-modal-actions">
+              <button type="submit" className="info-btn info-btn-submit" disabled={isTemporaryPasswordSaving}>
+                {isTemporaryPasswordSaving ? 'Salvataggio...' : 'Salva password'}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
 

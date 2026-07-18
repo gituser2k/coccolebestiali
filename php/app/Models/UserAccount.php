@@ -5,16 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class UserAccount extends Model
 {
     public function authenticateEmailUser(string $email, string $password): array
     {
+        $this->ensurePasswordResetRequiredColumn();
         $normalizedEmail = strtolower(trim($email));
 
         $row = DB::table('users')
-            ->select(['id', 'password_hash', 'email_verified'])
+            ->select(['id', 'password_hash', 'email_verified', 'password_reset_required'])
             ->where('email', $normalizedEmail)
             ->first();
 
@@ -30,11 +32,15 @@ class UserAccount extends Model
             throw new RuntimeException('LOGIN_EMAIL_NOT_VERIFIED');
         }
 
-        return $this->getUserById((int) $row->id);
+        $user = $this->getUserById((int) $row->id);
+        $user['passwordResetRequired'] = (bool) $row->password_reset_required;
+
+        return $user;
     }
 
     public function registerEmailUser(string $role, string $email, string $password): array
     {
+        $this->ensurePasswordResetRequiredColumn();
         $existing = DB::table('users')
             ->select(['id'])
             ->where('email', $email)
@@ -52,6 +58,7 @@ class UserAccount extends Model
             'email' => $email,
             'email_verified' => 0,
             'password_hash' => Hash::make($password),
+            'password_reset_required' => 0,
             'avatar' => '',
             'created_at' => $now,
             'updated_at' => $now,
@@ -324,8 +331,9 @@ class UserAccount extends Model
 
     public function getUserById(int $userId): array
     {
+        $this->ensurePasswordResetRequiredColumn();
         $row = DB::table('users')
-            ->select(['id', 'role', 'name', 'email', 'email_verified', 'avatar'])
+            ->select(['id', 'role', 'name', 'email', 'email_verified', 'password_reset_required', 'avatar'])
             ->where('id', $userId)
             ->first();
 
@@ -345,6 +353,7 @@ class UserAccount extends Model
             'name' => (string) $row->name,
             'email' => $row->email ? (string) $row->email : '',
             'emailVerified' => (bool) $row->email_verified,
+            'passwordResetRequired' => (bool) $row->password_reset_required,
             'avatar' => (string) $row->avatar,
             'provider' => $provider ? (string) $provider : '',
         ];
@@ -372,5 +381,77 @@ class UserAccount extends Model
                 'email_verified' => 1,
                 'updated_at' => time(),
             ]);
+    }
+
+    public function createTemporaryPassword(string $email, string $temporaryPassword): array
+    {
+        $this->ensurePasswordResetRequiredColumn();
+        $normalizedEmail = strtolower(trim($email));
+
+        if ($normalizedEmail === '') {
+            throw new RuntimeException('PASSWORD_RESET_EMAIL_INVALID');
+        }
+
+        $row = DB::table('users')
+            ->select(['id', 'email_verified'])
+            ->where('email', $normalizedEmail)
+            ->first();
+
+        if (! $row || ! (bool) $row->email_verified) {
+            return [];
+        }
+
+        DB::table('users')
+            ->where('id', (int) $row->id)
+            ->update([
+                'password_hash' => Hash::make($temporaryPassword),
+                'password_reset_required' => 1,
+                'updated_at' => time(),
+            ]);
+
+        return $this->getUserById((int) $row->id);
+    }
+
+    public function completeTemporaryPasswordChange(int $userId, string $password): array
+    {
+        $this->ensurePasswordResetRequiredColumn();
+
+        if ($userId <= 0) {
+            throw new RuntimeException('INVALID_CURRENT_USER');
+        }
+
+        $row = DB::table('users')
+            ->select(['password_reset_required'])
+            ->where('id', $userId)
+            ->first();
+
+        if (! $row) {
+            throw new RuntimeException('LOGIN_USER_NOT_FOUND');
+        }
+
+        if (! (bool) $row->password_reset_required) {
+            throw new RuntimeException('TEMPORARY_PASSWORD_NOT_REQUIRED');
+        }
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'password_hash' => Hash::make($password),
+                'password_reset_required' => 0,
+                'updated_at' => time(),
+            ]);
+
+        return $this->getUserById($userId);
+    }
+
+    private function ensurePasswordResetRequiredColumn(): void
+    {
+        if (! Schema::hasTable('users') || Schema::hasColumn('users', 'password_reset_required')) {
+            return;
+        }
+
+        Schema::table('users', function ($table) {
+            $table->boolean('password_reset_required')->default(false)->after('password_hash');
+        });
     }
 }
