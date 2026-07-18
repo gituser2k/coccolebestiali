@@ -134,6 +134,13 @@ type PasswordChecks = {
 }
 
 type AuthProvider = '' | 'google' | 'apple'
+type FieldVisibilityTone = 'private' | 'public'
+type PersonalFieldVisibility = {
+  name: FieldVisibilityTone
+  phone: FieldVisibilityTone
+  address: FieldVisibilityTone
+  addressnumber: FieldVisibilityTone
+}
 
 const EMPTY_PROFILE: PersonalProfileData = {
   alias: '',
@@ -149,6 +156,13 @@ const EMPTY_PROFILE: PersonalProfileData = {
   addressnumber: '',
 }
 
+const DEFAULT_PERSONAL_FIELD_VISIBILITY: PersonalFieldVisibility = {
+  name: 'private',
+  phone: 'private',
+  address: 'private',
+  addressnumber: 'private',
+}
+
 const EMPTY_OPERATOR_PROFILE: OperatorProfileData = {
   bio: '',
   experienceYears: 0,
@@ -160,19 +174,6 @@ const EMPTY_OPERATOR_PROFILE: OperatorProfileData = {
   services: [],
   gallery: [],
 }
-
-const ADDRESS_SUGGESTIONS = [
-  'Via Roma',
-  'Via Giuseppe Garibaldi',
-  'Corso Italia',
-  'Viale Europa',
-  'Piazza Duomo',
-  'Via Dante Alighieri',
-  'Via Alessandro Manzoni',
-  'Via Guglielmo Marconi',
-  'Via Giuseppe Mazzini',
-  'Lungomare Cristoforo Colombo',
-]
 
 function PersonalDataIcon() {
   return (
@@ -365,6 +366,7 @@ function isPasswordValid(password: string): boolean {
 export default function ProfilePlaceholderPage() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('personal')
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
+  const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
   const [languages, setLanguages] = useState<LanguageOption[]>([])
   const [operatorTitles, setOperatorTitles] = useState<OperatorTitleOption[]>([])
@@ -386,9 +388,10 @@ export default function ProfilePlaceholderPage() {
   const [geocodeResult, setGeocodeResult] = useState<GeocodeResult | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
-  const [authProvider, setAuthProvider] = useState<AuthProvider>('')
+  const [, setAuthProvider] = useState<AuthProvider>('')
   const [isAccountChangeModalOpen, setIsAccountChangeModalOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [credentialEmail, setCredentialEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isPasswordSaving, setIsPasswordSaving] = useState(false)
@@ -481,12 +484,8 @@ export default function ProfilePlaceholderPage() {
   const passwordChecks = useMemo(() => getPasswordChecks(newPassword), [newPassword])
   const hasPasswordInput = newPassword.length > 0
   const isPasswordConfirmationValid = confirmPassword.length > 0 && confirmPassword === newPassword
-  const accountProviderLabel = authProvider === 'google'
-    ? 'Account Google'
-    : authProvider === 'apple'
-      ? 'Account Apple'
-      : 'Password'
-  const accountActionLabel = authProvider === '' ? 'Cambia Password' : 'Cambia Account'
+  const accountProviderLabel = 'Cambio Credenziali'
+  const accountActionLabel = 'Gestisci Credenziali'
 
   const availableCalendarServices = useMemo(() => {
     const selectedServiceIds = new Set(operatorProfile.services.map((service) => service.serviceId))
@@ -1588,12 +1587,20 @@ export default function ProfilePlaceholderPage() {
   async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!isPasswordValid(newPassword)) {
+    const normalizedEmail = sanitizeText(credentialEmail).toLowerCase()
+    const shouldChangePassword = newPassword.length > 0 || confirmPassword.length > 0
+
+    if (!normalizedEmail) {
+      showProfileToast('Attenzione, il campo Email e obbligatorio.', 'error')
+      return
+    }
+
+    if (shouldChangePassword && !isPasswordValid(newPassword)) {
       showProfileToast('La password inserita non rispetta i criteri previsti.', 'error')
       return
     }
 
-    if (newPassword !== confirmPassword) {
+    if (shouldChangePassword && newPassword !== confirmPassword) {
       showProfileToast('Le password inserite non coincidono.', 'error')
       return
     }
@@ -1608,22 +1615,27 @@ export default function ProfilePlaceholderPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          password: newPassword,
-          password_confirmation: confirmPassword,
+          email: normalizedEmail,
+          password: shouldChangePassword ? newPassword : null,
+          password_confirmation: shouldChangePassword ? confirmPassword : null,
         }),
       })
 
       const payload = await response.json().catch(() => ({}))
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.message || 'Cambio password non completato.')
+        throw new Error(payload?.message || 'Salvataggio credenziali non completato.')
       }
 
       setNewPassword('')
       setConfirmPassword('')
+      setProfile((current) => ({
+        ...current,
+        email: sanitizeText(payload?.data?.email ?? normalizedEmail),
+      }))
       setIsPasswordModalOpen(false)
-      showProfileToast(payload?.message || 'Password aggiornata con successo.', 'success')
+      showProfileToast(payload?.message || 'Credenziali aggiornate con successo.', 'success')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Cambio password non completato.'
+      const message = error instanceof Error ? error.message : 'Salvataggio credenziali non completato.'
       showProfileToast(message, 'error')
     } finally {
       setIsPasswordSaving(false)
@@ -1631,12 +1643,24 @@ export default function ProfilePlaceholderPage() {
   }
 
   function handleAccountAction() {
-    if (authProvider === '') {
-      setIsPasswordModalOpen(true)
-      return
-    }
+    setCredentialEmail(profile.email)
+    setIsPasswordModalOpen(true)
+  }
 
-    setIsAccountChangeModalOpen(true)
+  function toggleFieldVisibility(field: keyof PersonalFieldVisibility) {
+    setFieldVisibility((current) => {
+      const nextTone = current[field] === 'private' ? 'public' : 'private'
+      const nextVisibility = {
+        ...current,
+        [field]: nextTone,
+      }
+
+      if (field === 'addressnumber' && nextTone === 'public') {
+        nextVisibility.address = 'public'
+      }
+
+      return nextVisibility
+    })
   }
 
   function handleAccountChanged(user: Record<string, unknown>, message: string) {
@@ -1875,7 +1899,7 @@ export default function ProfilePlaceholderPage() {
                             />
                           </label>
                           <label className="profile-field">
-                            <FieldLabel tone="private">Nome e Cognome</FieldLabel>
+                            <FieldLabel tone={fieldVisibility.name} onToneToggle={() => toggleFieldVisibility('name')}>Nome e Cognome</FieldLabel>
                             <input
                               type="text"
                               value={profile.name}
@@ -1883,11 +1907,12 @@ export default function ProfilePlaceholderPage() {
                             />
                           </label>
                           <label className="profile-field profile-email-field">
-                            <FieldLabel tone="required">Email</FieldLabel>
+                            <FieldLabel>Email</FieldLabel>
                             <input
                               type="email"
                               value={profile.email}
-                              onChange={(event) => updateProfileField('email', event.target.value)}
+                              readOnly
+                              className="is-readonly"
                             />
                           </label>
                           <div className="profile-field profile-password-action-field">
@@ -1941,7 +1966,7 @@ export default function ProfilePlaceholderPage() {
                           </datalist>
                         </label>
                         <label className="profile-field">
-                          <FieldLabel tone="private">Numero di Telefono</FieldLabel>
+                          <FieldLabel tone={fieldVisibility.phone} onToneToggle={() => toggleFieldVisibility('phone')}>Numero di Telefono</FieldLabel>
                           <input
                             type="tel"
                             value={profile.phone}
@@ -1953,9 +1978,6 @@ export default function ProfilePlaceholderPage() {
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">
                            INDIRIZZO LOCAZIONE
-                          </p>
-                          <p className="profile-location-text">
-                            L'indirizzo sar&agrave; mostrato solo ai clienti che effettuano una richiesta di assistenza.
                           </p>
                         </div>
                         <div className="profile-location-grid">
@@ -2002,24 +2024,20 @@ export default function ProfilePlaceholderPage() {
                             </label>
                             <div className="profile-location-inline profile-field-gap">
                               <label className="profile-field">
-                                <FieldLabel tone="private">Indirizzo</FieldLabel>
+                                <FieldLabel tone={fieldVisibility.address} onToneToggle={() => toggleFieldVisibility('address')}>Indirizzo</FieldLabel>
                                 <input
                                   type="text"
-                                  list="profile-address-suggestions"
                                   value={profile.address}
+                                  placeholder="Indirizzo"
                                   onChange={(event) => updateProfileField('address', event.target.value)}
                                 />
-                                <datalist id="profile-address-suggestions">
-                                  {ADDRESS_SUGGESTIONS.map((item) => (
-                                    <option key={item} value={item} />
-                                  ))}
-                                </datalist>
                               </label>
                               <label className="profile-field">
-                                <FieldLabel tone="private">Numero civico</FieldLabel>
+                                <FieldLabel tone={fieldVisibility.addressnumber} onToneToggle={() => toggleFieldVisibility('addressnumber')}>Numero civico</FieldLabel>
                                 <input
                                   type="text"
                                   value={profile.addressnumber}
+                                  placeholder="Numero civico"
                                   onChange={(event) => updateProfileField('addressnumber', event.target.value)}
                                 />
                               </label>
@@ -2703,15 +2721,15 @@ export default function ProfilePlaceholderPage() {
           <form className="profile-password-modal" onSubmit={handleChangePassword}>
             <div className="profile-modal-head">
               <div>
-                <p className="profile-location-kicker">SICUREZZA ACCOUNT</p>
-                <h2 id="change-password-title" className="profile-modal-title">Cambia Password</h2>
+                <h2 id="change-password-title" className="profile-modal-title">Gestisci Credenziali</h2>
               </div>
               <button
                 type="button"
                 className="profile-modal-close"
-                aria-label="Chiudi modale cambio password"
+                aria-label="Chiudi modale gestione credenziali"
                 onClick={() => {
                   setIsPasswordModalOpen(false)
+                  setCredentialEmail('')
                   setNewPassword('')
                   setConfirmPassword('')
                 }}
@@ -2721,15 +2739,59 @@ export default function ProfilePlaceholderPage() {
             </div>
 
             <label className="profile-field profile-password-modal-field">
-              <span>Password</span>
+              <span>Email</span>
               <input
-                type="password"
-                placeholder="Inserisci password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                autoComplete="new-password"
+                type="email"
+                value={credentialEmail}
+                onChange={(event) => setCredentialEmail(event.target.value)}
+                autoComplete="email"
+                required
               />
             </label>
+
+            <div className="profile-credentials-row">
+              <label className="profile-field profile-password-modal-field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  placeholder="Inserisci password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                />
+              </label>
+
+              <div className="profile-confirm-credentials">
+                <label className="profile-field profile-password-modal-field">
+                  <span>Conferma Password</span>
+                  <input
+                    type="password"
+                    placeholder="Conferma password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    autoComplete="new-password"
+                  />
+                </label>
+                <div className="profile-modal-actions profile-modal-actions-inline">
+                  <button
+                    type="button"
+                    className="profile-modal-button is-secondary"
+                    disabled={isPasswordSaving}
+                    onClick={() => {
+                      setIsPasswordModalOpen(false)
+                      setCredentialEmail('')
+                      setNewPassword('')
+                      setConfirmPassword('')
+                    }}
+                  >
+                    Annulla
+                  </button>
+                  <button type="submit" className="profile-modal-button is-primary" disabled={isPasswordSaving}>
+                    {isPasswordSaving ? 'Salvataggio...' : 'Salva Credenziali'}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <div className="profile-password-guidance" aria-live="polite">
               <strong className="profile-password-guidance-title">La password deve contenere:</strong>
@@ -2743,16 +2805,6 @@ export default function ProfilePlaceholderPage() {
               </div>
             </div>
 
-            <label className="profile-field profile-password-modal-field">
-              <span>Conferma Password</span>
-              <input
-                type="password"
-                placeholder="Conferma password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                autoComplete="new-password"
-              />
-            </label>
             {confirmPassword.length > 0 && !isPasswordConfirmationValid ? (
               <p className="profile-password-match-error">Le password inserite non coincidono.</p>
             ) : null}
@@ -2767,24 +2819,6 @@ export default function ProfilePlaceholderPage() {
                 onChanged={handleAccountChanged}
                 onError={(message) => showProfileToast(message, 'error')}
               />
-            </div>
-
-            <div className="profile-modal-actions">
-              <button
-                type="button"
-                className="profile-modal-button is-secondary"
-                disabled={isPasswordSaving}
-                onClick={() => {
-                  setIsPasswordModalOpen(false)
-                  setNewPassword('')
-                  setConfirmPassword('')
-                }}
-              >
-                Annulla
-              </button>
-              <button type="submit" className="profile-modal-button is-primary" disabled={isPasswordSaving}>
-                {isPasswordSaving ? 'Salvataggio...' : 'Salva Password'}
-              </button>
             </div>
           </form>
         </div>

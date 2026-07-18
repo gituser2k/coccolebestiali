@@ -348,14 +348,41 @@ class Profile extends Model
         return $this->getPersonalProfile($userId);
     }
 
-    public function changeUserPassword(int $userId, string $password): void
+    public function updateUserCredentials(int $userId, string $email, ?string $password): array
     {
+        $normalizedEmail = strtolower(trim($email));
+
+        $existingEmailUser = DB::table('users')
+            ->select(['id'])
+            ->where('email', $normalizedEmail)
+            ->where('id', '<>', $userId)
+            ->first();
+
+        if ($existingEmailUser) {
+            throw new \RuntimeException('Email gia associata a un altro account.');
+        }
+
+        $updates = [
+            'email' => $normalizedEmail,
+            'updated_at' => time(),
+        ];
+
+        if ($password !== null && $password !== '') {
+            $updates['password_hash'] = Hash::make($password);
+        }
+
         DB::table('users')
             ->where('id', $userId)
-            ->update([
-                'password_hash' => Hash::make($password),
-                'updated_at' => time(),
-            ]);
+            ->update($updates);
+
+        return [
+            'email' => $normalizedEmail,
+        ];
+    }
+
+    public function changeUserPassword(int $userId, string $password): void
+    {
+        $this->updateUserCredentials($userId, $this->getPersonalProfile($userId)['email'] ?? '', $password);
     }
 
     public function saveOperatorProfile(int $userId, array $payload): array

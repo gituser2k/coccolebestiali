@@ -284,8 +284,9 @@ class ProfileController extends Controller
             }
 
             $validated = $request->validate([
+                'email' => ['required', 'email', 'max:255'],
                 'password' => [
-                    'required',
+                    'nullable',
                     'string',
                     'min:10',
                     'max:255',
@@ -295,7 +296,7 @@ class ProfileController extends Controller
                     'regex:/[^A-Za-z0-9\\s]/',
                     'not_regex:/\\s/',
                 ],
-                'password_confirmation' => ['required', 'same:password'],
+                'password_confirmation' => ['nullable', 'same:password'],
             ], [
                 'password.min' => 'La password deve contenere almeno 10 caratteri.',
                 'password.regex' => 'La password deve contenere almeno una maiuscola, una minuscola, un numero e un simbolo.',
@@ -304,11 +305,16 @@ class ProfileController extends Controller
             ]);
 
             $model = new Profile();
-            $model->changeUserPassword($userId, (string) $validated['password']);
+            $data = $model->updateUserCredentials(
+                $userId,
+                strtolower((string) $validated['email']),
+                isset($validated['password']) ? (string) $validated['password'] : null
+            );
 
             return response()->json([
                 'ok' => true,
-                'message' => 'Password aggiornata con successo.',
+                'message' => 'Credenziali aggiornate con successo.',
+                'data' => $data,
             ], Response::HTTP_OK);
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
@@ -321,7 +327,7 @@ class ProfileController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Cambio password non completato.',
+                'message' => 'Salvataggio credenziali non completato.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -413,8 +419,9 @@ class ProfileController extends Controller
             }
 
             $validated = $request->validate([
+                'email' => ['required', 'email', 'max:255'],
                 'password' => [
-                    'required',
+                    'nullable',
                     'string',
                     'min:10',
                     'max:255',
@@ -424,7 +431,7 @@ class ProfileController extends Controller
                     'regex:/[^A-Za-z0-9\\s]/',
                     'not_regex:/\\s/',
                 ],
-                'password_confirmation' => ['required', 'same:password'],
+                'password_confirmation' => ['nullable', 'same:password'],
             ], [
                 'password.min' => 'La password deve contenere almeno 10 caratteri.',
                 'password.regex' => 'La password deve contenere almeno una maiuscola, una minuscola, un numero e un simbolo.',
@@ -433,11 +440,16 @@ class ProfileController extends Controller
             ]);
 
             $model = new Profile();
-            $model->changeUserPassword($userId, (string) $validated['password']);
+            $data = $model->updateUserCredentials(
+                $userId,
+                strtolower((string) $validated['email']),
+                isset($validated['password']) ? (string) $validated['password'] : null
+            );
 
             return response()->json([
                 'ok' => true,
-                'message' => 'Password aggiornata con successo.',
+                'message' => 'Credenziali aggiornate con successo.',
+                'data' => $data,
             ], Response::HTTP_OK);
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
@@ -450,7 +462,7 @@ class ProfileController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Cambio password non completato.',
+                'message' => 'Salvataggio credenziali non completato.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

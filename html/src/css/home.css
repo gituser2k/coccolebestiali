@@ -448,6 +448,7 @@ a {
   color: var(--brand-blue);
   background: rgb(255 255 255 / 90%);
   border-color: rgb(31 95 167 / 50%);
+  cursor: pointer;
 }
 
 .info-modal-backdrop {
