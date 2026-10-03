@@ -210,9 +210,6 @@ function HomePage() {
     setToastType(type)
   }
 
-  function clearLoginStatus() {
-  }
-
   async function reportTechnicalAuthError(context: string, message: string, details: Record<string, unknown> = {}) {
     try {
       await fetch('/api/auth/frontend-error', {
@@ -237,7 +234,6 @@ function HomePage() {
     message: string,
     details: Record<string, unknown> = {}
   ) {
-    clearLoginStatus()
     showToast(GENERIC_AUTH_ERROR_MESSAGE, 'error')
     await reportTechnicalAuthError(context, message, details)
   }
@@ -367,7 +363,6 @@ function HomePage() {
         scope: 'openid email profile',
         callback: async (response) => {
           if (response?.error || !response?.access_token) {
-            clearLoginStatus()
             showToast('Autenticazione Google annullata o non riuscita.', 'error')
             setIsLoginBusy(false)
             return
@@ -402,7 +397,6 @@ function HomePage() {
       const user = normalizePortalUser(payload?.data?.user ?? null)
       persistCurrentUser(payload?.data?.user ?? null)
       setIsLoginPanelOpen(false)
-      clearLoginStatus()
 
       if (endpoint === '/api/auth/login/email' && user?.passwordResetRequired) {
         setTemporaryNewPassword('')
@@ -422,7 +416,6 @@ function HomePage() {
       if (TECHNICAL_AUTH_MESSAGES.has(message)) {
         await handleGenericAuthTechnicalError('HomePage.postLogin', message, { endpoint })
       } else {
-        clearLoginStatus()
         showToast(message, 'error')
       }
       setIsLoginBusy(false)
@@ -555,13 +548,11 @@ function HomePage() {
     const password = loginData.password
 
     if (!validateEmail(email)) {
-      clearLoginStatus()
       showToast('Indirizzo email errato.', 'error')
       return
     }
 
     if (!sanitizeText(password)) {
-      clearLoginStatus()
       showToast('Inserisci la password.', 'error')
       return
     }
@@ -590,7 +581,6 @@ function HomePage() {
     const mockEmail = sanitizeText(loginData.email).toLowerCase()
 
     if (!validateEmail(mockEmail)) {
-      clearLoginStatus()
       showToast('Per Apple in locale inserisci prima l email registrata.', 'error')
       return
     }
@@ -682,7 +672,6 @@ function HomePage() {
       if (message === 'Token Apple non disponibile.') {
         await handleGenericAuthTechnicalError('HomePage.handleAppleLogin', message)
       } else {
-        clearLoginStatus()
         showToast(message, 'error')
       }
       setIsLoginBusy(false)
@@ -837,7 +826,6 @@ function HomePage() {
                         type="button"
                         onClick={() => {
                           setIsLoginPanelOpen(true)
-                          clearLoginStatus()
                         }}
                       >
                         Accedi

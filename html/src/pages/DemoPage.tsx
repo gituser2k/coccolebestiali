@@ -18,31 +18,41 @@ export default function DemoPage({ ...initial }: DemoPageProps) {
     return () => window.clearTimeout(timeout)
   }, [error])
 
-  async function loadFromLaravel() {
-    setError(null)
-
-    try {
-      const response = await axios.get('/api/inertia-demo', {
-        headers: {
-          'X-Inertia': 'true',
-          'X-Requested-With': 'XMLHttpRequest',
-          Accept: 'application/json',
-        },
-      })
-
-      const nextProps = response.data?.props as DemoPageProps
-      if (nextProps.message) {
-        setMessage(nextProps.message)
-      } else {
-        setError('Messaggio non presente nel payload backend.')
-      }
-    } catch (error) {
-      setError('Errore nel caricamento dal backend.')
-    }
-  }
-
   useEffect(() => {
+    let isMounted = true
+
+    async function loadFromLaravel() {
+      try {
+        const response = await axios.get('/api/inertia-demo', {
+          headers: {
+            'X-Inertia': 'true',
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'application/json',
+          },
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        const nextProps = response.data?.props as DemoPageProps
+        if (nextProps.message) {
+          setMessage(nextProps.message)
+        } else {
+          setError('Messaggio non presente nel payload backend.')
+        }
+      } catch {
+        if (isMounted) {
+          setError('Errore nel caricamento dal backend.')
+        }
+      }
+    }
+
     void loadFromLaravel()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   return (

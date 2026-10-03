@@ -18,7 +18,7 @@ type OperatorTitleOption = {
   name: string
 }
 
-type DogBreedOption = {
+type PetBreedOption = {
   id: number
   name: string
 }
@@ -84,12 +84,33 @@ type OperatorGalleryItem = {
   file: File | null
 }
 
+type OperatorType = 'person' | 'association'
+
+type OperatorAssociateItem = {
+  id: string
+  firstName: string
+  lastName: string
+  fiscalCode: string
+}
+
+type OperatorLinkedAssociation = {
+  userId: number
+  businessName: string
+  vatNumber: string
+}
+
 type OperatorProfileData = {
+  operatorType: OperatorType
+  fiscalCode: string
+  businessName: string
+  vatNumber: string
+  associates: OperatorAssociateItem[]
+  linkedAssociations: OperatorLinkedAssociation[]
   bio: string
   experienceYears: number
   titleIds: number[]
-  dogWeightLimit: number
-  breedIds: number[]
+  petBreedIds: number[]
+  petSize: string
   petTypeIds: number[]
   houseFeatureIds: number[]
   services: OperatorServiceSelection[]
@@ -164,11 +185,17 @@ const DEFAULT_PERSONAL_FIELD_VISIBILITY: PersonalFieldVisibility = {
 }
 
 const EMPTY_OPERATOR_PROFILE: OperatorProfileData = {
+  operatorType: 'person',
+  fiscalCode: '',
+  businessName: '',
+  vatNumber: '',
+  associates: [],
+  linkedAssociations: [],
   bio: '',
   experienceYears: 0,
   titleIds: [],
-  dogWeightLimit: 0,
-  breedIds: [],
+  petBreedIds: [],
+  petSize: '',
   petTypeIds: [],
   houseFeatureIds: [],
   services: [],
@@ -232,7 +259,12 @@ function buildSequentialOptions(max: number) {
 }
 
 const EXPERIENCE_OPTIONS = buildSequentialOptions(50)
-const DOG_WEIGHT_OPTIONS = buildSequentialOptions(100)
+const PET_SIZE_OPTIONS = [
+  { value: 'small', label: 'Taglia piccola (0 - 7 Kg)' },
+  { value: 'medium', label: 'Taglia media (7 - 18 Kg)' },
+  { value: 'large', label: 'Taglia grande (18 - 45 kg)' },
+  { value: 'max', label: 'Taglia max (oltre 45 Kg)' },
+]
 const CALENDAR_MONTH_LABELS = [
   'Gennaio',
   'Febbraio',
@@ -370,7 +402,7 @@ export default function ProfilePlaceholderPage() {
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
   const [languages, setLanguages] = useState<LanguageOption[]>([])
   const [operatorTitles, setOperatorTitles] = useState<OperatorTitleOption[]>([])
-  const [dogBreeds, setDogBreeds] = useState<DogBreedOption[]>([])
+  const [petBreeds, setPetBreeds] = useState<PetBreedOption[]>([])
   const [petTypes, setPetTypes] = useState<PetTypeOption[]>([])
   const [houseFeatures, setHouseFeatures] = useState<HouseFeatureOption[]>([])
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([])
@@ -382,6 +414,7 @@ export default function ProfilePlaceholderPage() {
   const [cityOptions, setCityOptions] = useState<CityOption[]>([])
   const [isCityLoading, setIsCityLoading] = useState(false)
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false)
+  const [isPetBreedDropdownOpen, setIsPetBreedDropdownOpen] = useState(false)
   const [isPetTypeDropdownOpen, setIsPetTypeDropdownOpen] = useState(false)
   const [isHouseFeatureDropdownOpen, setIsHouseFeatureDropdownOpen] = useState(false)
   const [isMapLoading, setIsMapLoading] = useState(false)
@@ -404,17 +437,20 @@ export default function ProfilePlaceholderPage() {
   const [calendarDays, setCalendarDays] = useState<CalendarDaySummary[]>([])
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayCalendar.isoDate)
   const [calendarDayData, setCalendarDayData] = useState<CalendarDayData>(createEmptyCalendarDay(todayCalendar.isoDate))
-  const [isCalendarEditorOpen, setIsCalendarEditorOpen] = useState(true)
+  const [isCalendarEditorOpen, setIsCalendarEditorOpen] = useState(false)
   const [isCalendarMonthLoading, setIsCalendarMonthLoading] = useState(false)
   const [isCalendarDayLoading, setIsCalendarDayLoading] = useState(false)
   const [isCalendarSaving, setIsCalendarSaving] = useState(false)
   const [isCalendarCopying, setIsCalendarCopying] = useState(false)
   const [calendarCopySourceDate, setCalendarCopySourceDate] = useState<string | null>(null)
   const didAttemptInitialGeocodeRef = useRef(false)
+  const petBreedDropdownRef = useRef<HTMLDivElement | null>(null)
   const petTypeDropdownRef = useRef<HTMLDivElement | null>(null)
   const houseFeatureDropdownRef = useRef<HTMLDivElement | null>(null)
+  const petBreedTriggerRef = useRef<HTMLButtonElement | null>(null)
   const petTypeTriggerRef = useRef<HTMLButtonElement | null>(null)
   const houseFeatureTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const [petBreedTriggerWidth, setPetBreedTriggerWidth] = useState(0)
   const [petTypeTriggerWidth, setPetTypeTriggerWidth] = useState(0)
   const [houseFeatureTriggerWidth, setHouseFeatureTriggerWidth] = useState(0)
   const profileEntryMode = useMemo<'register' | 'login'>(() => {
@@ -436,11 +472,12 @@ export default function ProfilePlaceholderPage() {
       sanitizeText(profile.phone) !== '',
       sanitizeText(profile.address) !== '',
       sanitizeText(profile.addressnumber) !== '',
+      sanitizeText(operatorProfile.fiscalCode) !== '' || sanitizeText(operatorProfile.businessName) !== '',
       sanitizeText(operatorProfile.bio) !== '',
       operatorProfile.experienceYears > 0,
       operatorProfile.titleIds.length > 0,
-      operatorProfile.dogWeightLimit > 0,
-      operatorProfile.breedIds.length > 0,
+      operatorProfile.petBreedIds.length > 0,
+      sanitizeText(operatorProfile.petSize) !== '',
       operatorProfile.petTypeIds.length > 0,
       operatorProfile.services.length > 0,
       operatorProfile.gallery.length > 0,
@@ -459,9 +496,11 @@ export default function ProfilePlaceholderPage() {
     profile.phone,
     profile.photoUrl,
     operatorProfile.bio,
-    operatorProfile.breedIds,
-    operatorProfile.dogWeightLimit,
+    operatorProfile.businessName,
     operatorProfile.experienceYears,
+    operatorProfile.fiscalCode,
+    operatorProfile.petBreedIds.length,
+    operatorProfile.petSize,
     operatorProfile.services.length,
     operatorProfile.petTypeIds.length,
     operatorProfile.gallery.length,
@@ -559,6 +598,11 @@ export default function ProfilePlaceholderPage() {
       return 'Seleziona'
     }
 
+    const anyOption = options.find((option) => isAnyMultiselectOption(option))
+    if (anyOption && selectedIds.includes(anyOption.id)) {
+      return anyOption.name
+    }
+
     const selectedNames = options
       .filter((option) => selectedIds.includes(option.id))
       .map((option) => option.name)
@@ -603,9 +647,48 @@ export default function ProfilePlaceholderPage() {
     return buildMultiSelectSummary(operatorProfile.petTypeIds, petTypes, petTypeTriggerRef.current, petTypeTriggerWidth)
   }, [operatorProfile.petTypeIds, petTypes, petTypeTriggerWidth])
 
+  const petBreedSummary = useMemo(() => {
+    return buildMultiSelectSummary(operatorProfile.petBreedIds, petBreeds, petBreedTriggerRef.current, petBreedTriggerWidth)
+  }, [operatorProfile.petBreedIds, petBreeds, petBreedTriggerWidth])
+
   const houseFeatureSummary = useMemo(() => {
     return buildMultiSelectSummary(operatorProfile.houseFeatureIds, houseFeatures, houseFeatureTriggerRef.current, houseFeatureTriggerWidth)
   }, [operatorProfile.houseFeatureIds, houseFeatures, houseFeatureTriggerWidth])
+
+  useEffect(() => {
+    if (activeMenu !== 'operator' || isLoading || !petBreedTriggerRef.current) {
+      return
+    }
+
+    const syncWidth = () => {
+      if (petBreedTriggerRef.current) {
+        setPetBreedTriggerWidth(Math.round(petBreedTriggerRef.current.getBoundingClientRect().width))
+      }
+    }
+
+    syncWidth()
+    window.addEventListener('resize', syncWidth)
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        window.removeEventListener('resize', syncWidth)
+      }
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry) {
+        setPetBreedTriggerWidth(Math.round(entry.contentRect.width))
+      }
+    })
+
+    observer.observe(petBreedTriggerRef.current)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncWidth)
+    }
+  }, [activeMenu, isLoading, petBreeds.length])
 
   useEffect(() => {
     if (activeMenu !== 'operator' || isLoading || !petTypeTriggerRef.current) {
@@ -753,7 +836,7 @@ export default function ProfilePlaceholderPage() {
 
         if (operatorOptionsResponse.ok && operatorOptionsPayload?.ok) {
           setOperatorTitles(Array.isArray(operatorOptionsPayload?.data?.titles) ? operatorOptionsPayload.data.titles : [])
-          setDogBreeds(Array.isArray(operatorOptionsPayload?.data?.breeds) ? operatorOptionsPayload.data.breeds : [])
+          setPetBreeds(Array.isArray(operatorOptionsPayload?.data?.petBreeds) ? operatorOptionsPayload.data.petBreeds : [])
           setPetTypes(Array.isArray(operatorOptionsPayload?.data?.petTypes) ? operatorOptionsPayload.data.petTypes : [])
           setHouseFeatures(Array.isArray(operatorOptionsPayload?.data?.houseFeatures) ? operatorOptionsPayload.data.houseFeatures : [])
           setServiceOptions(Array.isArray(operatorOptionsPayload?.data?.services) ? operatorOptionsPayload.data.services : [])
@@ -775,12 +858,32 @@ export default function ProfilePlaceholderPage() {
         setOperatorProfile({
           ...EMPTY_OPERATOR_PROFILE,
           ...operatorProfilePayload?.data,
+          operatorType: operatorProfilePayload?.data?.operatorType === 'association' ? 'association' : 'person',
+          fiscalCode: sanitizeText(operatorProfilePayload?.data?.fiscalCode ?? ''),
+          businessName: sanitizeText(operatorProfilePayload?.data?.businessName ?? ''),
+          vatNumber: sanitizeText(operatorProfilePayload?.data?.vatNumber ?? ''),
+          associates: Array.isArray(operatorProfilePayload?.data?.associates)
+            ? operatorProfilePayload.data.associates.map((item: Record<string, unknown>, index: number) => ({
+                id: String(item.id ?? `associate-${index}`),
+                firstName: sanitizeText(item.firstName ?? ''),
+                lastName: sanitizeText(item.lastName ?? ''),
+                fiscalCode: sanitizeText(item.fiscalCode ?? ''),
+              }))
+            : [],
+          linkedAssociations: Array.isArray(operatorProfilePayload?.data?.linkedAssociations)
+            ? operatorProfilePayload.data.linkedAssociations.map((item: Record<string, unknown>) => ({
+                userId: Number(item.userId ?? 0),
+                businessName: sanitizeText(item.businessName ?? ''),
+                vatNumber: sanitizeText(item.vatNumber ?? ''),
+              })).filter((item: OperatorLinkedAssociation) => item.userId > 0)
+            : [],
           titleIds: Array.isArray(operatorProfilePayload?.data?.titleIds)
             ? operatorProfilePayload.data.titleIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
             : [],
-          breedIds: Array.isArray(operatorProfilePayload?.data?.breedIds)
-            ? operatorProfilePayload.data.breedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
+          petBreedIds: Array.isArray(operatorProfilePayload?.data?.petBreedIds)
+            ? operatorProfilePayload.data.petBreedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
             : [],
+          petSize: sanitizeText(operatorProfilePayload?.data?.petSize ?? ''),
           petTypeIds: Array.isArray(operatorProfilePayload?.data?.petTypeIds)
             ? operatorProfilePayload.data.petTypeIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
             : [],
@@ -971,9 +1074,89 @@ export default function ProfilePlaceholderPage() {
     }))
   }
 
-  function toggleOperatorSelection(field: 'titleIds' | 'breedIds' | 'petTypeIds' | 'houseFeatureIds', id: number) {
+  function updateOperatorType(operatorType: OperatorType) {
+    setOperatorProfile((current) => ({
+      ...current,
+      operatorType,
+      businessName: operatorType === 'association' ? current.businessName : '',
+      vatNumber: operatorType === 'association' ? current.vatNumber : '',
+      associates: operatorType === 'association' ? current.associates : [],
+    }))
+  }
+
+  function addOperatorAssociate() {
+    setOperatorProfile((current) => ({
+      ...current,
+      associates: [
+        ...current.associates,
+        {
+          id: `new-associate-${Date.now()}`,
+          firstName: '',
+          lastName: '',
+          fiscalCode: '',
+        },
+      ],
+    }))
+  }
+
+  function updateOperatorAssociate(index: number, field: keyof Omit<OperatorAssociateItem, 'id'>, value: string) {
+    setOperatorProfile((current) => ({
+      ...current,
+      associates: current.associates.map((associate, associateIndex) =>
+        associateIndex === index
+          ? {
+              ...associate,
+              [field]: value,
+            }
+          : associate
+      ),
+    }))
+  }
+
+  function removeOperatorAssociate(index: number) {
+    setOperatorProfile((current) => ({
+      ...current,
+      associates: current.associates.filter((_, associateIndex) => associateIndex !== index),
+    }))
+  }
+
+  function isAnyMultiselectOption(option: { name: string }) {
+    return sanitizeText(option.name).toLowerCase() === 'qualsiasi'
+  }
+
+  function toggleOperatorSelection(
+    field: 'titleIds' | 'petBreedIds' | 'petTypeIds' | 'houseFeatureIds',
+    id: number,
+    options: Array<{ id: number; name: string }> = []
+  ) {
     setOperatorProfile((current) => {
       const values = current[field]
+      const anyOption = options.find((option) => isAnyMultiselectOption(option))
+      const anyId = anyOption?.id ?? 0
+
+      if (anyId > 0 && id === anyId) {
+        return {
+          ...current,
+          [field]: values.includes(anyId) ? [] : options.map((option) => option.id),
+        }
+      }
+
+      if (anyId > 0) {
+        const valuesWithoutAny = values.filter((value) => value !== anyId)
+        const alreadySelected = valuesWithoutAny.includes(id)
+        const nextValues = alreadySelected
+          ? valuesWithoutAny.filter((value) => value !== id)
+          : [...valuesWithoutAny, id]
+        const regularOptionIds = options.filter((option) => option.id !== anyId).map((option) => option.id)
+        const allRegularOptionsSelected = regularOptionIds.length > 0
+          && regularOptionIds.every((optionId) => nextValues.includes(optionId))
+
+        return {
+          ...current,
+          [field]: allRegularOptionsSelected ? options.map((option) => option.id) : nextValues,
+        }
+      }
+
       const alreadySelected = values.includes(id)
       return {
         ...current,
@@ -1350,6 +1533,7 @@ export default function ProfilePlaceholderPage() {
     }
 
     setSelectedCalendarDate(date)
+    setIsCalendarDayLoading(true)
     setIsCalendarEditorOpen(true)
   }
 
@@ -1679,21 +1863,39 @@ export default function ProfilePlaceholderPage() {
     event.preventDefault()
 
     const body = new FormData()
+    body.append('operatorType', operatorProfile.operatorType)
+    if (sanitizeText(operatorProfile.fiscalCode) !== '') {
+      body.append('fiscalCode', sanitizeText(operatorProfile.fiscalCode).toUpperCase())
+    }
+    if (operatorProfile.operatorType === 'association') {
+      if (sanitizeText(operatorProfile.businessName) !== '') {
+        body.append('businessName', sanitizeText(operatorProfile.businessName))
+      }
+      if (sanitizeText(operatorProfile.vatNumber) !== '') {
+        body.append('vatNumber', sanitizeText(operatorProfile.vatNumber).toUpperCase())
+      }
+      operatorProfile.associates.forEach((associate, index) => {
+        body.append(`associates[${index}][firstName]`, sanitizeText(associate.firstName))
+        body.append(`associates[${index}][lastName]`, sanitizeText(associate.lastName))
+        body.append(`associates[${index}][fiscalCode]`, sanitizeText(associate.fiscalCode).toUpperCase())
+      })
+    }
+
     if (sanitizeText(operatorProfile.bio) !== '') {
       body.append('bio', sanitizeText(operatorProfile.bio))
     }
     if (operatorProfile.experienceYears > 0) {
       body.append('experienceYears', String(operatorProfile.experienceYears))
     }
-    if (operatorProfile.dogWeightLimit > 0) {
-      body.append('dogWeightLimit', String(operatorProfile.dogWeightLimit))
+    if (sanitizeText(operatorProfile.petSize) !== '') {
+      body.append('petSize', sanitizeText(operatorProfile.petSize))
     }
 
     operatorProfile.titleIds.forEach((titleId) => {
       body.append('titleIds[]', String(titleId))
     })
-    operatorProfile.breedIds.forEach((breedId) => {
-      body.append('breedIds[]', String(breedId))
+    operatorProfile.petBreedIds.forEach((petBreedId) => {
+      body.append('petBreedIds[]', String(petBreedId))
     })
     operatorProfile.petTypeIds.forEach((petTypeId) => {
       body.append('petTypeIds[]', String(petTypeId))
@@ -1749,8 +1951,28 @@ export default function ProfilePlaceholderPage() {
       setOperatorProfile({
         ...EMPTY_OPERATOR_PROFILE,
         ...payload.data,
+        operatorType: payload?.data?.operatorType === 'association' ? 'association' : 'person',
+        fiscalCode: sanitizeText(payload?.data?.fiscalCode ?? ''),
+        businessName: sanitizeText(payload?.data?.businessName ?? ''),
+        vatNumber: sanitizeText(payload?.data?.vatNumber ?? ''),
+        associates: Array.isArray(payload?.data?.associates)
+          ? payload.data.associates.map((item: Record<string, unknown>, index: number) => ({
+              id: String(item.id ?? `associate-${index}`),
+              firstName: sanitizeText(item.firstName ?? ''),
+              lastName: sanitizeText(item.lastName ?? ''),
+              fiscalCode: sanitizeText(item.fiscalCode ?? ''),
+            }))
+          : [],
+        linkedAssociations: Array.isArray(payload?.data?.linkedAssociations)
+          ? payload.data.linkedAssociations.map((item: Record<string, unknown>) => ({
+              userId: Number(item.userId ?? 0),
+              businessName: sanitizeText(item.businessName ?? ''),
+              vatNumber: sanitizeText(item.vatNumber ?? ''),
+            })).filter((item: OperatorLinkedAssociation) => item.userId > 0)
+          : [],
         titleIds: Array.isArray(payload?.data?.titleIds) ? payload.data.titleIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
-        breedIds: Array.isArray(payload?.data?.breedIds) ? payload.data.breedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
+        petBreedIds: Array.isArray(payload?.data?.petBreedIds) ? payload.data.petBreedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
+        petSize: sanitizeText(payload?.data?.petSize ?? ''),
         services: Array.isArray(payload?.data?.services)
           ? payload.data.services.map((item: Record<string, unknown>) => ({
               serviceId: Number(item.serviceId ?? 0),
@@ -2100,6 +2322,142 @@ export default function ProfilePlaceholderPage() {
                     <div className="profile-loading-card">Caricamento dati operatore in corso...</div>
                   ) : (
                     <form id="profile-operator-form" className="profile-form" onSubmit={handleSaveOperatorData}>
+                      <section className="profile-form-section profile-operator-identity-section">
+                        <div className="profile-location-copy">
+                          <p className="profile-location-kicker">TIPO OPERATORE</p>
+                          <p className="profile-location-text">
+                            Indica se operi come persona fisica oppure come associazione.
+                          </p>
+                        </div>
+                        <div className="profile-operator-type-choice" role="radiogroup" aria-label="Tipo operatore">
+                          <label className={`profile-radio-card ${operatorProfile.operatorType === 'person' ? 'is-selected' : ''}`}>
+                            <input
+                              type="radio"
+                              name="operatorType"
+                              value="person"
+                              checked={operatorProfile.operatorType === 'person'}
+                              onChange={() => updateOperatorType('person')}
+                            />
+                            <span>
+                              <strong>Persona fisica</strong>
+                              <small>Operatore individuale con codice fiscale.</small>
+                            </span>
+                          </label>
+                          <label className={`profile-radio-card ${operatorProfile.operatorType === 'association' ? 'is-selected' : ''}`}>
+                            <input
+                              type="radio"
+                              name="operatorType"
+                              value="association"
+                              checked={operatorProfile.operatorType === 'association'}
+                              onChange={() => updateOperatorType('association')}
+                            />
+                            <span>
+                              <strong>Associazione</strong>
+                              <small>Ente o ragione sociale con P.IVA e associati.</small>
+                            </span>
+                          </label>
+                        </div>
+
+                        {operatorProfile.operatorType === 'association' ? (
+                          <>
+                            <div className="profile-form-grid profile-form-section-compact">
+                              <label className="profile-field">
+                                <span>Ragione sociale</span>
+                                <input
+                                  type="text"
+                                  value={operatorProfile.businessName}
+                                  placeholder="Nome associazione"
+                                  onChange={(event) => updateOperatorField('businessName', event.target.value)}
+                                />
+                              </label>
+                              <label className="profile-field">
+                                <span>P.IVA</span>
+                                <input
+                                  type="text"
+                                  value={operatorProfile.vatNumber}
+                                  placeholder="Partita IVA"
+                                  onChange={(event) => updateOperatorField('vatNumber', event.target.value)}
+                                />
+                              </label>
+                            </div>
+                            <div className="profile-associates-panel">
+                              <div className="profile-associates-head">
+                                <div>
+                                  <p className="profile-location-kicker">ASSOCIATI</p>
+                                  <p className="profile-location-text">Inserisci nome, cognome e codice fiscale degli associati.</p>
+                                </div>
+                                <button className="profile-inline-action" type="button" onClick={addOperatorAssociate}>
+                                  Aggiungi associato
+                                </button>
+                              </div>
+                              {operatorProfile.associates.length > 0 ? (
+                                <div className="profile-associates-list">
+                                  {operatorProfile.associates.map((associate, index) => (
+                                    <div className="profile-associate-row" key={associate.id}>
+                                      <label className="profile-field">
+                                        <span>Nome</span>
+                                        <input
+                                          type="text"
+                                          value={associate.firstName}
+                                          onChange={(event) => updateOperatorAssociate(index, 'firstName', event.target.value)}
+                                        />
+                                      </label>
+                                      <label className="profile-field">
+                                        <span>Cognome</span>
+                                        <input
+                                          type="text"
+                                          value={associate.lastName}
+                                          onChange={(event) => updateOperatorAssociate(index, 'lastName', event.target.value)}
+                                        />
+                                      </label>
+                                      <label className="profile-field">
+                                        <span>Codice fiscale</span>
+                                        <input
+                                          type="text"
+                                          value={associate.fiscalCode}
+                                          onChange={(event) => updateOperatorAssociate(index, 'fiscalCode', event.target.value.toUpperCase())}
+                                        />
+                                      </label>
+                                      <button className="profile-inline-action is-danger" type="button" onClick={() => removeOperatorAssociate(index)}>
+                                        Rimuovi
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="profile-empty-note">Nessun associato inserito.</p>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <label className="profile-field profile-fiscal-code-field">
+                              <span>Codice fiscale</span>
+                              <input
+                                type="text"
+                                value={operatorProfile.fiscalCode}
+                                placeholder="Codice fiscale"
+                                onChange={(event) => updateOperatorField('fiscalCode', event.target.value.toUpperCase())}
+                              />
+                            </label>
+                            <div className="profile-linked-associations">
+                              <p className="profile-location-kicker">ASSOCIAZIONI COLLEGATE</p>
+                              {operatorProfile.linkedAssociations.length > 0 ? (
+                                <div className="profile-linked-associations-list">
+                                  {operatorProfile.linkedAssociations.map((association) => (
+                                    <span key={association.userId} className="profile-linked-association-pill">
+                                      {association.businessName || 'Associazione'}{association.vatNumber ? ` · P.IVA ${association.vatNumber}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="profile-empty-note">Nessuna associazione collegata al codice fiscale indicato.</p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </section>
+
                       <section className="profile-form-section">
                         <label className="profile-field">
                           <span>Presentazione (bio)</span>
@@ -2112,85 +2470,127 @@ export default function ProfilePlaceholderPage() {
                         </label>
                       </section>
 
-                      <section className="profile-form-grid profile-form-grid-operator-three profile-form-section">
-                        <label className="profile-field">
-                          <span>Anni esperienza</span>
-                          <input
-                            type="text"
-                            list="profile-experience-options"
-                            value={operatorProfile.experienceYears ? String(operatorProfile.experienceYears) : ''}
-                            placeholder="Seleziona"
-                            inputMode="numeric"
-                            onChange={(event) => {
-                              const rawValue = event.target.value.replace(/[^\d]/g, '')
-                              updateOperatorField('experienceYears', rawValue ? Number(rawValue) : 0)
-                            }}
-                          />
-                          <datalist id="profile-experience-options">
-                            {EXPERIENCE_OPTIONS.map((years) => (
-                              <option key={years} value={String(years)} />
-                            ))}
-                          </datalist>
-                        </label>
-                        <label className="profile-field">
-                          <span>Limite peso pet (kg)</span>
-                          <input
-                            type="text"
-                            list="profile-weight-options"
-                            value={operatorProfile.dogWeightLimit ? String(operatorProfile.dogWeightLimit) : ''}
-                            placeholder="Seleziona"
-                            inputMode="numeric"
-                            onChange={(event) => {
-                              const rawValue = event.target.value.replace(/[^\d]/g, '')
-                              updateOperatorField('dogWeightLimit', rawValue ? Number(rawValue) : 0)
-                            }}
-                          />
-                          <datalist id="profile-weight-options">
-                            {DOG_WEIGHT_OPTIONS.map((weight) => (
-                              <option key={weight} value={String(weight)} />
-                            ))}
-                          </datalist>
-                        </label>
-                        <div className="profile-field profile-multiselect-field" ref={petTypeDropdownRef}>
-                          <span>Tipo di pet</span>
-                          <button
-                            type="button"
-                            className={`profile-multiselect-trigger ${isPetTypeDropdownOpen ? 'is-open' : ''}`}
-                            ref={petTypeTriggerRef}
-                            onClick={() => setIsPetTypeDropdownOpen((current) => !current)}
-                            aria-haspopup="listbox"
-                            aria-expanded={isPetTypeDropdownOpen}
-                          >
-                            <span className={`profile-multiselect-value ${operatorProfile.petTypeIds.length > 0 ? 'is-selected' : ''}`}>
-                              {petTypeSummary}
-                            </span>
-                          </button>
-                          {isPetTypeDropdownOpen ? (
-                            <div className="profile-city-dropdown profile-multiselect-dropdown" role="listbox" aria-multiselectable="true">
-                              {petTypes.length > 0 ? (
-                                petTypes.map((petType) => (
-                                  <label key={petType.id} className="profile-multiselect-option">
-                                    <input
-                                      type="checkbox"
-                                      checked={operatorProfile.petTypeIds.includes(petType.id)}
-                                      onChange={() => toggleOperatorSelection('petTypeIds', petType.id)}
-                                    />
-                                    <span>{petType.name}</span>
-                                  </label>
-                                ))
-                              ) : (
-                                <div className="profile-city-state">Nessuna tipologia disponibile.</div>
-                              )}
-                            </div>
-                          ) : null}
+                      <section className="profile-form-section profile-pet-scope-section">
+                        <div className="profile-location-copy">
+                          <p className="profile-location-kicker">PET GESTITI</p>
+                          <p className="profile-location-text">
+                            Definisci razze, taglie, tipologie e anni di esperienza maturati.
+                          </p>
+                        </div>
+                        <div className="profile-form-grid profile-form-grid-operator-four">
+                          <div className="profile-field profile-multiselect-field" ref={petBreedDropdownRef}>
+                            <span>Razza pet</span>
+                            <button
+                              type="button"
+                              className={`profile-multiselect-trigger ${isPetBreedDropdownOpen ? 'is-open' : ''}`}
+                              ref={petBreedTriggerRef}
+                              onClick={() => setIsPetBreedDropdownOpen((current) => !current)}
+                              aria-haspopup="listbox"
+                              aria-expanded={isPetBreedDropdownOpen}
+                            >
+                              <span className={`profile-multiselect-value ${operatorProfile.petBreedIds.length > 0 ? 'is-selected' : ''}`}>
+                                {petBreedSummary}
+                              </span>
+                            </button>
+                            {isPetBreedDropdownOpen ? (
+                              <div className="profile-city-dropdown profile-multiselect-dropdown" role="listbox" aria-multiselectable="true">
+                                {petBreeds.length > 0 ? (
+                                  petBreeds.map((petBreed) => (
+                                    <label
+                                      key={petBreed.id}
+                                      className={`profile-multiselect-option ${isAnyMultiselectOption(petBreed) ? 'is-any-option' : ''}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={operatorProfile.petBreedIds.includes(petBreed.id)}
+                                        onChange={() => toggleOperatorSelection('petBreedIds', petBreed.id, petBreeds)}
+                                      />
+                                      <span>{petBreed.name}</span>
+                                    </label>
+                                  ))
+                                ) : (
+                                  <div className="profile-city-state">Nessuna razza disponibile.</div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                          <label className="profile-field">
+                            <span>Taglia</span>
+                            <select
+                              value={operatorProfile.petSize}
+                              onChange={(event) => updateOperatorField('petSize', event.target.value)}
+                            >
+                              <option value="">Seleziona</option>
+                              {PET_SIZE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="profile-field profile-multiselect-field" ref={petTypeDropdownRef}>
+                            <span>Tipo di pet</span>
+                            <button
+                              type="button"
+                              className={`profile-multiselect-trigger ${isPetTypeDropdownOpen ? 'is-open' : ''}`}
+                              ref={petTypeTriggerRef}
+                              onClick={() => setIsPetTypeDropdownOpen((current) => !current)}
+                              aria-haspopup="listbox"
+                              aria-expanded={isPetTypeDropdownOpen}
+                            >
+                              <span className={`profile-multiselect-value ${operatorProfile.petTypeIds.length > 0 ? 'is-selected' : ''}`}>
+                                {petTypeSummary}
+                              </span>
+                            </button>
+                            {isPetTypeDropdownOpen ? (
+                              <div className="profile-city-dropdown profile-multiselect-dropdown" role="listbox" aria-multiselectable="true">
+                                {petTypes.length > 0 ? (
+                                  petTypes.map((petType) => (
+                                    <label
+                                      key={petType.id}
+                                      className={`profile-multiselect-option ${isAnyMultiselectOption(petType) ? 'is-any-option' : ''}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={operatorProfile.petTypeIds.includes(petType.id)}
+                                        onChange={() => toggleOperatorSelection('petTypeIds', petType.id, petTypes)}
+                                      />
+                                      <span>{petType.name}</span>
+                                    </label>
+                                  ))
+                                ) : (
+                                  <div className="profile-city-state">Nessuna tipologia disponibile.</div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                          <label className="profile-field">
+                            <span>Anni esperienza</span>
+                            <input
+                              type="text"
+                              list="profile-experience-options"
+                              value={operatorProfile.experienceYears ? String(operatorProfile.experienceYears) : ''}
+                              placeholder="Seleziona"
+                              inputMode="numeric"
+                              onChange={(event) => {
+                                const rawValue = event.target.value.replace(/[^\d]/g, '')
+                                updateOperatorField('experienceYears', rawValue ? Number(rawValue) : 0)
+                              }}
+                            />
+                            <datalist id="profile-experience-options">
+                              {EXPERIENCE_OPTIONS.map((years) => (
+                                <option key={years} value={String(years)} />
+                              ))}
+                            </datalist>
+                          </label>
                         </div>
                       </section>
 
                       <section className="profile-form-section">
                         <div className="profile-location-copy">
-                          <p className="profile-location-kicker">ELENCO TITOLI</p>
+                          <p className="profile-location-kicker">QUALIFICA</p>
                           <p className="profile-location-text">
-                            Seleziona uno o più ruoli professionali che rappresentano la tua attività.
+                            Seleziona una o più qualifiche professionali che ti rappresentano come operatore
                           </p>
                         </div>
                         <div className="profile-field">
@@ -2203,29 +2603,6 @@ export default function ProfilePlaceholderPage() {
                                   onChange={() => toggleOperatorSelection('titleIds', title.id)}
                                 />
                                 <span>{title.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </section>
-
-                      <section className="profile-form-section">
-                        <div className="profile-location-copy">
-                          <p className="profile-location-kicker">ELENCO RAZZE</p>
-                          <p className="profile-location-text">
-                            Indica le razze con cui puoi lavorare, aggiornabili nel tempo anche da sezione admin.
-                          </p>
-                        </div>
-                        <div className="profile-field">
-                          <div className="profile-language-grid">
-                            {dogBreeds.map((breed) => (
-                              <label key={breed.id} className="profile-language-option">
-                                <input
-                                  type="checkbox"
-                                  checked={operatorProfile.breedIds.includes(breed.id)}
-                                  onChange={() => toggleOperatorSelection('breedIds', breed.id)}
-                                />
-                                <span>{breed.name}</span>
                               </label>
                             ))}
                           </div>
@@ -2454,7 +2831,7 @@ export default function ProfilePlaceholderPage() {
                 </>
               ) : (
                 <>
-                  <p className="profile-stage-kicker">DISPONIBILITA PRENOTABILE</p>
+                  <p className="profile-stage-kicker">IMPOSTA LA DISPONIBILITA DEI GIORNI PRENOTABILI</p>
                   <h1 className="profile-stage-title">Calendario</h1>
                   <div className="profile-calendar-shell">
                     <section className="profile-form-section profile-calendar-toolbar">
@@ -2468,7 +2845,7 @@ export default function ProfilePlaceholderPage() {
                         </button>
                       </div>
                       <p className="profile-location-text">
-                        Attiva i giorni, definisci una o piu fasce orarie e scegli per ogni fascia quali servizi possono essere prenotati.
+                        Clicca sul giorno da impostare, definisci una o piu fasce orarie e scegli per ogni fascia quali servizi possono essere prenotati.
                       </p>
                     </section>
 
@@ -2489,32 +2866,46 @@ export default function ProfilePlaceholderPage() {
                               <span>Attivo</span>
                             </label>
                           </div>
-
-                          {availableCalendarServices.length === 0 ? (
-                            <div className="profile-gallery-empty">
-                              Seleziona prima almeno un servizio nella sezione DATI OPERATORE per poter configurare il calendario.
-                            </div>
-                          ) : isCalendarDayLoading ? (
+                          {isCalendarDayLoading ? (
                             <div className="profile-loading-card">Caricamento giornata in corso...</div>
                           ) : (
                             <>
                               <div className="profile-calendar-actions">
-                                <button type="button" className="profile-calendar-action-btn" onClick={addCalendarSlot}>
-                                  + Aggiungi fascia
-                                </button>
-                                {calendarDayData.slots.length > 0 ? (
-                                  <>
-                                    <button type="button" className="profile-calendar-action-btn" onClick={enableCalendarCopyMode} disabled={isCalendarSaving || isCalendarCopying}>
-                                      {isCalendarCopying ? 'Copia...' : 'Avvia copia'}
+                                <div className="profile-calendar-actions-left">
+                                  <div className="profile-calendar-actions-group">
+                                    <button type="button" className="profile-calendar-action-btn" onClick={addCalendarSlot}>
+                                      <svg className="profile-calendar-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                                        <path d="M12 7.6v4.9l3.25 1.95" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
+                                      <span>Aggiungi Fascia</span>
                                     </button>
-                                    <button type="button" className="profile-calendar-action-btn" onClick={exitCalendarEditor}>
-                                      Esci
+                                    <button
+                                      type="button"
+                                      className="profile-calendar-action-btn"
+                                      onClick={enableCalendarCopyMode}
+                                      disabled={calendarDayData.slots.length === 0 || isCalendarSaving || isCalendarCopying}
+                                    >
+                                      <svg className="profile-calendar-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <rect x="8" y="8" width="10" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                                        <path d="M6 15.5H5.8A2.8 2.8 0 0 1 3 12.7V5.8A2.8 2.8 0 0 1 5.8 3h6.9A2.8 2.8 0 0 1 15.5 5.8V6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                      </svg>
+                                      <span>{isCalendarCopying ? 'Copia...' : 'Avvia Copia'}</span>
                                     </button>
-                                  </>
-                                ) : null}
-                                <button type="button" className="profile-calendar-action-btn is-primary" onClick={saveCalendarDay} disabled={isCalendarSaving}>
-                                  {isCalendarSaving ? 'Salvataggio...' : 'Salva dati'}
-                                </button>
+                                  </div>
+                                  <div className="profile-calendar-copy-hint">
+                                    <strong>Avvia Copia</strong>
+                                    <span>Attiva la Copia del GIORNO SELEZIONATO come modello e poi clicca uno o piu giorni del calendario per replicarlo. Successivamente clicca su Termina Copia per uscire dalla modalit&agrave; di copia.</span>
+                                  </div>
+                                </div>
+                                <div className="profile-calendar-actions-group profile-calendar-actions-right">
+                                  <button type="button" className="profile-calendar-action-btn is-close" onClick={exitCalendarEditor}>
+                                    Chiudi
+                                  </button>
+                                  <button type="button" className="profile-calendar-action-btn is-primary" onClick={saveCalendarDay} disabled={calendarDayData.slots.length === 0 || isCalendarSaving}>
+                                    {isCalendarSaving ? 'Salvataggio...' : 'Salva dati'}
+                                  </button>
+                                </div>
                               </div>
 
                               <div className="profile-calendar-slots">
@@ -2566,7 +2957,11 @@ export default function ProfilePlaceholderPage() {
                                       </div>
 
                                       <div className="profile-calendar-service-grid">
-                                        {availableCalendarServices.map((service) => {
+                                        {availableCalendarServices.length === 0 ? (
+                                          <div className="profile-gallery-empty">
+                                            Nessun servizio disponibile: seleziona almeno un servizio nella sezione DATI OPERATORE prima di salvare la fascia.
+                                          </div>
+                                        ) : availableCalendarServices.map((service) => {
                                           const serviceSelection = slot.services.find((entry) => entry.serviceId === service.id)
                                           const serviceSelected = Boolean(serviceSelection)
 
@@ -2606,7 +3001,7 @@ export default function ProfilePlaceholderPage() {
                                   ))
                                 ) : (
                                   <div className="profile-gallery-empty">
-                                    Nessuna fascia configurata per questo giorno. Usa il pulsante Aggiungi fascia per iniziare.
+                                    Nessuna fascia configurata per questo giorno. Usa il pulsante Aggiungi Fascia per iniziare.
                                   </div>
                                 )}
                               </div>
@@ -2616,20 +3011,20 @@ export default function ProfilePlaceholderPage() {
                       ) : (
                         <section className="profile-form-section profile-calendar-day-card profile-calendar-day-card-closed">
                           <div className="profile-calendar-day-header">
-                            <div className="profile-location-copy">
-                              <p className="profile-location-kicker">
-                                {calendarCopySourceDate ? 'MODALITA COPIA ATTIVA' : 'MODALITA VISUALIZZAZIONE'}
-                              </p>
-                              <h2 className="profile-location-title">
-                                {calendarCopySourceDate
-                                  ? `Copia dal giorno ${calendarCopySourceDate}`
-                                  : 'Clicca un giorno di calendario per modificare'}
-                              </h2>
-                            </div>
-                            <div className="profile-calendar-actions">
+                            <div className="profile-location-copy profile-calendar-copy-heading">
+                              <div>
+                                <p className="profile-location-kicker">
+                                  {calendarCopySourceDate ? 'MODALITA COPIA ATTIVA' : 'MODALITA VISUALIZZAZIONE'}
+                                </p>
+                                <h2 className="profile-location-title">
+                                  {calendarCopySourceDate
+                                    ? `Giorno Sorgente: ${calendarCopySourceDate}`
+                                    : 'Clicca su un giorno di calendario per programmare la giornata'}
+                                </h2>
+                              </div>
                               {calendarCopySourceDate ? (
                                 <button type="button" className="profile-calendar-action-btn" onClick={() => setCalendarCopySourceDate(null)}>
-                                  Termina copia
+                                  Termina Copia
                                 </button>
                               ) : null}
                             </div>
@@ -2637,7 +3032,7 @@ export default function ProfilePlaceholderPage() {
                           <p className="profile-location-text">
                             {calendarCopySourceDate
                               ? 'Clicca uno o più giorni del calendario per copiare su ciascuno la configurazione del giorno sorgente.'
-                              : 'Seleziona un giorno per aprire il form di editing.'}
+                              : 'Apri un giorno, aggiungi le fasce orarie e salva la disponibilita. Usa Avvia Copia quando vuoi replicare una giornata gia impostata su altri giorni.'}
                           </p>
                         </section>
                       )}
@@ -2657,16 +3052,18 @@ export default function ProfilePlaceholderPage() {
                             const daySummary = calendarDayMap[cell.date]
                             const isSelected = cell.date === selectedCalendarDate
                             const isToday = cell.date === todayCalendar.isoDate
+                            const isCopySource = cell.date === calendarCopySourceDate
                             const hasActiveAvailability = (daySummary?.totalMinutes ?? 0) > 0
-                            const isConfiguredInactive = hasActiveAvailability && !Boolean(daySummary?.enabled)
+                            const isConfiguredInactive = hasActiveAvailability && !daySummary?.enabled
                             const durationParts = formatCalendarDurationParts(daySummary?.totalMinutes ?? 0)
 
                             return (
                               <button
                                 key={cell.date}
                                 type="button"
-                                className={`profile-calendar-cell ${isSelected ? 'is-selected' : ''} ${daySummary?.enabled ? 'is-enabled' : ''} ${hasActiveAvailability ? 'is-occupied' : ''} ${isConfiguredInactive ? 'is-configured-inactive' : ''} ${isToday ? 'is-today' : ''}`}
+                                className={`profile-calendar-cell ${isSelected ? 'is-selected' : ''} ${daySummary?.enabled ? 'is-enabled' : ''} ${hasActiveAvailability ? 'is-occupied' : ''} ${isConfiguredInactive ? 'is-configured-inactive' : ''} ${isToday ? 'is-today' : ''} ${isCopySource ? 'is-copy-source' : ''} ${calendarCopySourceDate && !isCopySource ? 'is-copy-target' : ''}`}
                                 onClick={() => handleCalendarCellClick(cell.date!)}
+                                title={isCopySource ? 'Giorno sorgente della copia' : undefined}
                               >
                                 <strong>{cell.day}</strong>
                                 {hasActiveAvailability ? (

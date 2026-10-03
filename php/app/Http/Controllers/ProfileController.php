@@ -141,7 +141,6 @@ class ProfileController extends Controller
                 'ok' => false,
                 'data' => [
                     'titles' => [],
-                    'breeds' => [],
                     'petTypes' => [],
                     'houseFeatures' => [],
                     'services' => [],
@@ -154,7 +153,6 @@ class ProfileController extends Controller
                 'ok' => false,
                 'data' => [
                     'titles' => [],
-                    'breeds' => [],
                     'petTypes' => [],
                     'houseFeatures' => [],
                     'services' => [],
@@ -481,13 +479,21 @@ class ProfileController extends Controller
             }
 
             $validated = $request->validate([
+                'operatorType' => ['nullable', 'string', 'in:person,association'],
+                'fiscalCode' => ['nullable', 'string', 'max:32'],
+                'businessName' => ['nullable', 'string', 'max:255'],
+                'vatNumber' => ['nullable', 'string', 'max:32'],
+                'associates' => ['nullable', 'array'],
+                'associates.*.firstName' => ['nullable', 'string', 'max:255'],
+                'associates.*.lastName' => ['nullable', 'string', 'max:255'],
+                'associates.*.fiscalCode' => ['nullable', 'string', 'max:32'],
                 'bio' => ['nullable', 'string', 'max:4096'],
                 'experienceYears' => ['nullable', 'integer', 'min:0', 'max:80'],
                 'titleIds' => ['nullable', 'array'],
                 'titleIds.*' => ['required', 'integer', 'min:1'],
-                'dogWeightLimit' => ['nullable', 'integer', 'min:0', 'max:120'],
-                'breedIds' => ['nullable', 'array'],
-                'breedIds.*' => ['required', 'integer', 'min:1'],
+                'petBreedIds' => ['nullable', 'array'],
+                'petBreedIds.*' => ['required', 'integer', 'min:1'],
+                'petSize' => ['nullable', 'string', 'in:small,medium,large,max'],
                 'petTypeIds' => ['nullable', 'array'],
                 'petTypeIds.*' => ['required', 'integer', 'min:1'],
                 'houseFeatureIds' => ['nullable', 'array'],
@@ -553,11 +559,16 @@ class ProfileController extends Controller
 
             $model = new Profile();
             $profile = $model->saveOperatorProfile($userId, [
+                'operatorType' => $validated['operatorType'] ?? 'person',
+                'fiscalCode' => $validated['fiscalCode'] ?? '',
+                'businessName' => $validated['businessName'] ?? '',
+                'vatNumber' => $validated['vatNumber'] ?? '',
+                'associates' => $validated['associates'] ?? [],
                 'bio' => (string) ($validated['bio'] ?? ''),
                 'experienceYears' => isset($validated['experienceYears']) ? (int) $validated['experienceYears'] : 0,
                 'titleIds' => $validated['titleIds'] ?? [],
-                'dogWeightLimit' => isset($validated['dogWeightLimit']) ? (int) $validated['dogWeightLimit'] : 0,
-                'breedIds' => $validated['breedIds'] ?? [],
+                'petBreedIds' => $validated['petBreedIds'] ?? [],
+                'petSize' => $validated['petSize'] ?? '',
                 'petTypeIds' => $validated['petTypeIds'] ?? [],
                 'houseFeatureIds' => $validated['houseFeatureIds'] ?? [],
                 'services' => $validated['services'] ?? [],

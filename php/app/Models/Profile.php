@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 class Profile extends Model
 {
@@ -79,6 +80,7 @@ class Profile extends Model
 
     public function getOperatorOptions(): array
     {
+        $this->ensureOperatorIdentitySchema();
         $this->ensureOperatorMetadataSeeded();
 
         $services = DB::table('service as s')
@@ -136,7 +138,7 @@ class Profile extends Model
                     'name' => (string) $row->name,
                 ])
                 ->all(),
-            'breeds' => DB::table('dogbreed')
+            'petBreeds' => DB::table('petbreed')
                 ->select(['id', 'name'])
                 ->orderBy('sortorder')
                 ->orderBy('name')
@@ -172,12 +174,58 @@ class Profile extends Model
 
     public function getOperatorProfile(int $userId): array
     {
+        $this->ensureOperatorIdentitySchema();
         $this->ensureOperatorMetadataSeeded();
 
         $row = DB::table('operatordata')
-            ->select(['bio', 'experience_years', 'dog_weight_limit', 'service_hour_price'])
+            ->select([
+                'operator_type',
+                'fiscal_code',
+                'business_name',
+                'vat_number',
+                'bio',
+                'experience_years',
+                'pet_size',
+                'service_hour_price',
+            ])
             ->where('user_id', $userId)
             ->first();
+
+        $operatorType = (string) ($row->operator_type ?? 'person');
+        if (! in_array($operatorType, ['person', 'association'], true)) {
+            $operatorType = 'person';
+        }
+
+        $associates = DB::table('operatorassociatedata')
+            ->select(['id', 'first_name', 'last_name', 'fiscal_code'])
+            ->where('user_id', $userId)
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'firstName' => (string) $row->first_name,
+                'lastName' => (string) $row->last_name,
+                'fiscalCode' => (string) $row->fiscal_code,
+            ])
+            ->all();
+
+        $linkedAssociations = [];
+        $fiscalCode = strtoupper(trim((string) ($row->fiscal_code ?? '')));
+        if ($operatorType === 'person' && $fiscalCode !== '') {
+            $linkedAssociations = DB::table('operatorassociatedata')
+                ->join('operatordata', 'operatordata.user_id', '=', 'operatorassociatedata.user_id')
+                ->select(['operatordata.user_id', 'operatordata.business_name', 'operatordata.vat_number'])
+                ->where('operatorassociatedata.fiscal_code', $fiscalCode)
+                ->where('operatordata.operator_type', 'association')
+                ->orderBy('operatordata.business_name')
+                ->get()
+                ->map(fn ($row) => [
+                    'userId' => (int) $row->user_id,
+                    'businessName' => (string) $row->business_name,
+                    'vatNumber' => (string) $row->vat_number,
+                ])
+                ->all();
+        }
 
         $titleIds = DB::table('operatortitledata')
             ->where('user_id', $userId)
@@ -187,18 +235,18 @@ class Profile extends Model
             ->values()
             ->all();
 
-        $breedIds = DB::table('dogbreeddata')
-            ->where('user_id', $userId)
-            ->orderBy('breed_id')
-            ->pluck('breed_id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-
         $petTypeIds = DB::table('pettypedata')
             ->where('user_id', $userId)
             ->orderBy('pettype_id')
             ->pluck('pettype_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $petBreedIds = DB::table('petbreeddata')
+            ->where('user_id', $userId)
+            ->orderBy('petbreed_id')
+            ->pluck('petbreed_id')
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
@@ -262,11 +310,17 @@ class Profile extends Model
             ->all();
 
         return [
+            'operatorType' => $operatorType,
+            'fiscalCode' => (string) ($row->fiscal_code ?? ''),
+            'businessName' => (string) ($row->business_name ?? ''),
+            'vatNumber' => (string) ($row->vat_number ?? ''),
+            'associates' => $associates,
+            'linkedAssociations' => $linkedAssociations,
             'bio' => (string) ($row->bio ?? ''),
             'experienceYears' => (int) ($row->experience_years ?? 0),
             'titleIds' => $titleIds,
-            'dogWeightLimit' => (int) ($row->dog_weight_limit ?? 0),
-            'breedIds' => $breedIds,
+            'petBreedIds' => $petBreedIds,
+            'petSize' => (string) ($row->pet_size ?? ''),
             'petTypeIds' => $petTypeIds,
             'houseFeatureIds' => $houseFeatureIds,
             'services' => $services,
@@ -385,8 +439,69 @@ class Profile extends Model
         $this->updateUserCredentials($userId, $this->getPersonalProfile($userId)['email'] ?? '', $password);
     }
 
+    private function ensureOperatorIdentitySchema(): void
+    {
+        if (Schema::hasTable('operatordata')) {
+            Schema::table('operatordata', function ($table) {
+                if (! Schema::hasColumn('operatordata', 'operator_type')) {
+                    $table->string('operator_type', 32)->default('person')->after('user_id');
+                }
+                if (! Schema::hasColumn('operatordata', 'fiscal_code')) {
+                    $table->string('fiscal_code', 32)->default('')->after('operator_type');
+                }
+                if (! Schema::hasColumn('operatordata', 'business_name')) {
+                    $table->string('business_name', 255)->default('')->after('fiscal_code');
+                }
+                if (! Schema::hasColumn('operatordata', 'vat_number')) {
+                    $table->string('vat_number', 32)->default('')->after('business_name');
+                }
+                if (! Schema::hasColumn('operatordata', 'pet_size')) {
+                    $table->string('pet_size', 32)->default('')->after('experience_years');
+                }
+            });
+        }
+
+        if (! Schema::hasTable('operatorassociatedata')) {
+            Schema::create('operatorassociatedata', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('user_id')->default(0);
+                $table->string('first_name', 255)->default('');
+                $table->string('last_name', 255)->default('');
+                $table->string('fiscal_code', 32)->default('');
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->index('user_id', 'idx_operatorassociatedata_user_id');
+                $table->index('fiscal_code', 'idx_operatorassociatedata_fiscal_code');
+            });
+        }
+
+        if (! Schema::hasTable('petbreed')) {
+            Schema::create('petbreed', function ($table) {
+                $table->increments('id');
+                $table->string('name', 160)->default('');
+                $table->integer('sortorder')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+            });
+        }
+
+        if (! Schema::hasTable('petbreeddata')) {
+            Schema::create('petbreeddata', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('user_id')->default(0);
+                $table->unsignedInteger('petbreed_id')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->unique(['user_id', 'petbreed_id'], 'uk_petbreeddata_user_breed');
+                $table->index('user_id', 'idx_petbreeddata_user_id');
+                $table->index('petbreed_id', 'idx_petbreeddata_breed_id');
+            });
+        }
+    }
+
     public function saveOperatorProfile(int $userId, array $payload): array
     {
+        $this->ensureOperatorIdentitySchema();
         $this->ensureOperatorMetadataSeeded();
 
         $now = time();
@@ -399,11 +514,20 @@ class Profile extends Model
 
             $operatorData = [
                 'user_id' => $userId,
+                'operator_type' => (string) ($payload['operatorType'] ?? 'person') === 'association' ? 'association' : 'person',
+                'fiscal_code' => strtoupper(trim((string) ($payload['fiscalCode'] ?? ''))),
+                'business_name' => (string) ($payload['businessName'] ?? ''),
+                'vat_number' => strtoupper(trim((string) ($payload['vatNumber'] ?? ''))),
                 'bio' => (string) ($payload['bio'] ?? ''),
                 'experience_years' => (int) ($payload['experienceYears'] ?? 0),
-                'dog_weight_limit' => (int) ($payload['dogWeightLimit'] ?? 0),
+                'pet_size' => (string) ($payload['petSize'] ?? ''),
                 'updated_at' => $now,
             ];
+
+            if ($operatorData['operator_type'] === 'person') {
+                $operatorData['business_name'] = '';
+                $operatorData['vat_number'] = '';
+            }
 
             if ($existing) {
                 DB::table('operatordata')
@@ -412,6 +536,33 @@ class Profile extends Model
             } else {
                 $operatorData['created_at'] = $now;
                 DB::table('operatordata')->insert($operatorData);
+            }
+
+            DB::table('operatorassociatedata')->where('user_id', $userId)->delete();
+            if ($operatorData['operator_type'] === 'association') {
+                $associates = is_array($payload['associates'] ?? null) ? $payload['associates'] : [];
+                foreach ($associates as $associate) {
+                    if (! is_array($associate)) {
+                        continue;
+                    }
+
+                    $firstName = trim((string) ($associate['firstName'] ?? ''));
+                    $lastName = trim((string) ($associate['lastName'] ?? ''));
+                    $fiscalCode = strtoupper(trim((string) ($associate['fiscalCode'] ?? '')));
+
+                    if ($firstName === '' && $lastName === '' && $fiscalCode === '') {
+                        continue;
+                    }
+
+                    DB::table('operatorassociatedata')->insert([
+                        'user_id' => $userId,
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'fiscal_code' => $fiscalCode,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
             }
 
             DB::table('operatortitledata')->where('user_id', $userId)->delete();
@@ -429,16 +580,16 @@ class Profile extends Model
                 ]);
             }
 
-            DB::table('dogbreeddata')->where('user_id', $userId)->delete();
-            $breedIds = array_values(array_unique(array_map('intval', $payload['breedIds'] ?? [])));
-            foreach ($breedIds as $breedId) {
-                if ($breedId <= 0) {
+            DB::table('petbreeddata')->where('user_id', $userId)->delete();
+            $petBreedIds = array_values(array_unique(array_map('intval', $payload['petBreedIds'] ?? [])));
+            foreach ($petBreedIds as $petBreedId) {
+                if ($petBreedId <= 0) {
                     continue;
                 }
 
-                DB::table('dogbreeddata')->insert([
+                DB::table('petbreeddata')->insert([
                     'user_id' => $userId,
-                    'breed_id' => $breedId,
+                    'petbreed_id' => $petBreedId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
@@ -791,48 +942,65 @@ class Profile extends Model
             );
         }
 
-        $breeds = [
-            ['id' => 1, 'name' => 'Labrador Retriever', 'sortorder' => 10],
-            ['id' => 2, 'name' => 'Golden Retriever', 'sortorder' => 20],
-            ['id' => 3, 'name' => 'Pastore Tedesco', 'sortorder' => 30],
-            ['id' => 4, 'name' => 'Bulldog Francese', 'sortorder' => 40],
-            ['id' => 5, 'name' => 'Barboncino', 'sortorder' => 50],
-            ['id' => 6, 'name' => 'Beagle', 'sortorder' => 60],
-            ['id' => 7, 'name' => 'Carlino', 'sortorder' => 70],
+        $petBreeds = [
+            ['id' => 18, 'name' => 'Qualsiasi', 'sortorder' => 0],
+            ['id' => 1, 'name' => 'Meticcio / Misto', 'sortorder' => 10],
+            ['id' => 2, 'name' => 'Labrador Retriever', 'sortorder' => 20],
+            ['id' => 3, 'name' => 'Golden Retriever', 'sortorder' => 30],
+            ['id' => 4, 'name' => 'Pastore Tedesco', 'sortorder' => 40],
+            ['id' => 5, 'name' => 'Bulldog Francese', 'sortorder' => 50],
+            ['id' => 6, 'name' => 'Barboncino', 'sortorder' => 60],
+            ['id' => 7, 'name' => 'Beagle', 'sortorder' => 70],
             ['id' => 8, 'name' => 'Border Collie', 'sortorder' => 80],
             ['id' => 9, 'name' => 'Chihuahua', 'sortorder' => 90],
             ['id' => 10, 'name' => 'Jack Russell Terrier', 'sortorder' => 100],
             ['id' => 11, 'name' => 'Maltese', 'sortorder' => 110],
-            ['id' => 12, 'name' => 'Rottweiler', 'sortorder' => 120],
-            ['id' => 13, 'name' => 'Setter Inglese', 'sortorder' => 130],
-            ['id' => 14, 'name' => 'Cocker Spaniel', 'sortorder' => 140],
-            ['id' => 15, 'name' => 'Meticcio', 'sortorder' => 150],
+            ['id' => 12, 'name' => 'Cocker Spaniel', 'sortorder' => 120],
+            ['id' => 13, 'name' => 'Gatto Europeo', 'sortorder' => 130],
+            ['id' => 14, 'name' => 'Maine Coon', 'sortorder' => 140],
+            ['id' => 15, 'name' => 'Siamese', 'sortorder' => 150],
+            ['id' => 16, 'name' => 'Persiano', 'sortorder' => 160],
+            ['id' => 17, 'name' => 'Altro', 'sortorder' => 170],
         ];
 
-        foreach ($breeds as $breed) {
-            DB::table('dogbreed')->updateOrInsert(
-                ['id' => $breed['id']],
+        if (! DB::table('petbreed')->exists()) {
+            foreach ($petBreeds as $petBreed) {
+                DB::table('petbreed')->updateOrInsert(
+                    ['id' => $petBreed['id']],
+                    [
+                        'name' => $petBreed['name'],
+                        'sortorder' => $petBreed['sortorder'],
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+            }
+        } else {
+            $anyPetBreed = $petBreeds[0];
+            DB::table('petbreed')->updateOrInsert(
+                ['id' => $anyPetBreed['id']],
                 [
-                    'name' => $breed['name'],
-                    'sortorder' => $breed['sortorder'],
+                    'name' => $anyPetBreed['name'],
+                    'sortorder' => $anyPetBreed['sortorder'],
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]
             );
         }
 
-        if (! DB::table('pettype')->exists()) {
-            $petTypes = [
-                ['id' => 1, 'name' => 'Docile', 'sortorder' => 10],
-                ['id' => 2, 'name' => 'Aggressivo con persone', 'sortorder' => 20],
-                ['id' => 3, 'name' => 'Aggressivo con pet', 'sortorder' => 30],
-                ['id' => 4, 'name' => 'Ansioso', 'sortorder' => 40],
-                ['id' => 5, 'name' => 'Iperattivo', 'sortorder' => 50],
-                ['id' => 6, 'name' => 'Anziano', 'sortorder' => 60],
-                ['id' => 7, 'name' => 'Cucciolo', 'sortorder' => 70],
-                ['id' => 8, 'name' => 'Con esigenze speciali', 'sortorder' => 80],
-            ];
+        $petTypes = [
+            ['id' => 9, 'name' => 'Qualsiasi', 'sortorder' => 0],
+            ['id' => 1, 'name' => 'Docile', 'sortorder' => 10],
+            ['id' => 2, 'name' => 'Aggressivo con persone', 'sortorder' => 20],
+            ['id' => 3, 'name' => 'Aggressivo con pet', 'sortorder' => 30],
+            ['id' => 4, 'name' => 'Ansioso', 'sortorder' => 40],
+            ['id' => 5, 'name' => 'Iperattivo', 'sortorder' => 50],
+            ['id' => 6, 'name' => 'Anziano', 'sortorder' => 60],
+            ['id' => 7, 'name' => 'Cucciolo', 'sortorder' => 70],
+            ['id' => 8, 'name' => 'Con esigenze speciali', 'sortorder' => 80],
+        ];
 
+        if (! DB::table('pettype')->exists()) {
             foreach ($petTypes as $petType) {
                 DB::table('pettype')->updateOrInsert(
                     ['id' => $petType['id']],
@@ -844,6 +1012,17 @@ class Profile extends Model
                     ]
                 );
             }
+        } else {
+            $anyPetType = $petTypes[0];
+            DB::table('pettype')->updateOrInsert(
+                ['id' => $anyPetType['id']],
+                [
+                    'name' => $anyPetType['name'],
+                    'sortorder' => $anyPetType['sortorder'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
         }
 
         if (! DB::table('housefeature')->exists()) {
