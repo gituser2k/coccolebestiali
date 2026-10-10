@@ -12,6 +12,7 @@ class Profile extends Model
     public function getPersonalProfile(int $userId): array
     {
         $this->ensureLanguageSeeded();
+        $this->ensurePersonalLocationSchema();
 
         $row = DB::table('users')
             ->leftJoin('personaldata', 'personaldata.user_id', '=', 'users.id')
@@ -27,6 +28,9 @@ class Profile extends Model
                 'personaldata.phone',
                 'personaldata.address',
                 'personaldata.addressnumber',
+                'personaldata.location_lat',
+                'personaldata.location_lng',
+                'personaldata.service_radius_km',
             ])
             ->where('users.id', $userId)
             ->first();
@@ -58,6 +62,9 @@ class Profile extends Model
             'phone' => (string) ($row->phone ?? ''),
             'address' => (string) ($row->address ?? ''),
             'addressnumber' => (string) ($row->addressnumber ?? ''),
+            'locationLat' => (float) ($row->location_lat ?? 0),
+            'locationLng' => (float) ($row->location_lng ?? 0),
+            'serviceRadiusKm' => (int) ($row->service_radius_km ?? 5),
             'languageIds' => $languageIds,
         ];
     }
@@ -330,6 +337,8 @@ class Profile extends Model
 
     public function savePersonalProfile(int $userId, array $payload): array
     {
+        $this->ensurePersonalLocationSchema();
+
         $now = time();
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
 
@@ -368,6 +377,9 @@ class Profile extends Model
                 'phone' => (string) ($payload['phone'] ?? ''),
                 'address' => (string) ($payload['address'] ?? ''),
                 'addressnumber' => (string) ($payload['addressnumber'] ?? ''),
+                'location_lat' => (float) ($payload['locationLat'] ?? 0),
+                'location_lng' => (float) ($payload['locationLng'] ?? 0),
+                'service_radius_km' => max((int) ($payload['serviceRadiusKm'] ?? 5), 1),
                 'updated_at' => $now,
             ];
 
@@ -437,6 +449,25 @@ class Profile extends Model
     public function changeUserPassword(int $userId, string $password): void
     {
         $this->updateUserCredentials($userId, $this->getPersonalProfile($userId)['email'] ?? '', $password);
+    }
+
+    private function ensurePersonalLocationSchema(): void
+    {
+        if (! Schema::hasTable('personaldata')) {
+            return;
+        }
+
+        Schema::table('personaldata', function ($table) {
+            if (! Schema::hasColumn('personaldata', 'location_lat')) {
+                $table->decimal('location_lat', 10, 7)->default(0)->after('addressnumber');
+            }
+            if (! Schema::hasColumn('personaldata', 'location_lng')) {
+                $table->decimal('location_lng', 10, 7)->default(0)->after('location_lat');
+            }
+            if (! Schema::hasColumn('personaldata', 'service_radius_km')) {
+                $table->unsignedSmallInteger('service_radius_km')->default(5)->after('location_lng');
+            }
+        });
     }
 
     private function ensureOperatorIdentitySchema(): void

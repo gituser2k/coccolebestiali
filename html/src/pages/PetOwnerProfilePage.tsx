@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import logoImage from '../assets/logo.png'
 import '../css/profile.css'
 import { sanitizeText } from '../utility.js'
@@ -10,12 +12,6 @@ type CityOption = {
   name: string
   province: string
   region: string
-  label: string
-}
-
-type GeocodeResult = {
-  lat: number
-  lng: number
   label: string
 }
 
@@ -30,6 +26,8 @@ type PersonalProfileData = {
   email: string
   address: string
   addressnumber: string
+  locationLat: number
+  locationLng: number
 }
 
 type PasswordChecks = {
@@ -61,6 +59,8 @@ const EMPTY_PROFILE: PersonalProfileData = {
   email: '',
   address: '',
   addressnumber: '',
+  locationLat: 0,
+  locationLng: 0,
 }
 
 const DEFAULT_PERSONAL_FIELD_VISIBILITY: PersonalFieldVisibility = {
@@ -109,7 +109,9 @@ export default function PetOwnerProfilePage() {
   const [isCityLoading, setIsCityLoading] = useState(false)
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false)
   const [isMapLoading, setIsMapLoading] = useState(false)
-  const [geocodeResult, setGeocodeResult] = useState<GeocodeResult | null>(null)
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const leafletMapRef = useRef<L.Map | null>(null)
+  const locationMarkerRef = useRef<L.Marker | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
   const [, setAuthProvider] = useState<AuthProvider>('')
@@ -180,6 +182,17 @@ export default function PetOwnerProfilePage() {
     setToastType(type)
   }
 
+  function setManualMapPosition(lat: number, lng: number) {
+    const nextLat = Number(lat.toFixed(7))
+    const nextLng = Number(lng.toFixed(7))
+
+    setProfile((current) => ({
+      ...current,
+      locationLat: nextLat,
+      locationLng: nextLng,
+    }))
+  }
+
   useEffect(() => {
     if (!toastMessage) {
       return
@@ -196,6 +209,74 @@ export default function PetOwnerProfilePage() {
       }
     }
   }, [previewPhotoUrl, selectedPhotoFile])
+
+  useEffect(() => {
+    if (isLoading || !mapContainerRef.current || leafletMapRef.current) {
+      return
+    }
+
+    const fallbackPosition: [number, number] = [41.9028, 12.4964]
+    const initialPosition: [number, number] =
+      profile.locationLat !== 0 && profile.locationLng !== 0
+        ? [profile.locationLat, profile.locationLng]
+        : fallbackPosition
+
+    const map = L.map(mapContainerRef.current, {
+      center: initialPosition,
+      zoom: profile.locationLat !== 0 && profile.locationLng !== 0 ? 15 : 6,
+      scrollWheelZoom: false,
+    })
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map)
+
+    const markerIcon = L.divIcon({
+      className: 'profile-leaflet-marker',
+      html: '<span></span>',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    })
+
+    const marker = L.marker(initialPosition, {
+      draggable: true,
+      icon: markerIcon,
+    }).addTo(map)
+
+    marker.on('dragend', () => {
+      const nextPosition = marker.getLatLng()
+      setManualMapPosition(nextPosition.lat, nextPosition.lng)
+    })
+
+    leafletMapRef.current = map
+    locationMarkerRef.current = marker
+
+    window.setTimeout(() => map.invalidateSize(), 100)
+
+    return () => {
+      map.remove()
+      leafletMapRef.current = null
+      locationMarkerRef.current = null
+    }
+    // Leaflet must be mounted once after the profile form becomes visible; marker updates are handled separately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading])
+
+  useEffect(() => {
+    const map = leafletMapRef.current
+    const marker = locationMarkerRef.current
+
+    if (!map || !marker || profile.locationLat === 0 || profile.locationLng === 0) {
+      return
+    }
+
+    const position = L.latLng(profile.locationLat, profile.locationLng)
+    marker.setLatLng(position)
+
+    if (!map.getBounds().contains(position)) {
+      map.setView(position, Math.max(map.getZoom(), 14))
+    }
+  }, [profile.locationLat, profile.locationLng])
 
   useEffect(() => {
     async function loadProfileData() {
@@ -226,6 +307,8 @@ export default function PetOwnerProfilePage() {
           ...profilePayload.data,
           alias: sanitizeText(profilePayload?.data?.alias ?? userPayload?.data?.user?.name ?? ''),
           email: sanitizeText(profilePayload?.data?.email ?? userPayload?.data?.user?.email ?? ''),
+          locationLat: Number(profilePayload?.data?.locationLat ?? 0),
+          locationLng: Number(profilePayload?.data?.locationLng ?? 0),
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Profilo non disponibile.'
@@ -292,7 +375,6 @@ export default function PetOwnerProfilePage() {
   function updateProfileField<K extends keyof PersonalProfileData>(field: K, value: PersonalProfileData[K]) {
     if (field === 'city' || field === 'address' || field === 'addressnumber') {
       didAttemptInitialGeocodeRef.current = true
-      setGeocodeResult(null)
     }
 
     setProfile((current) => ({
@@ -313,7 +395,6 @@ export default function PetOwnerProfilePage() {
 
   async function updateMapPosition() {
     if (!sanitizeText(profile.city) || !sanitizeText(profile.address) || !sanitizeText(profile.addressnumber)) {
-      setGeocodeResult(null)
       showProfileToast('Inserisci citta, indirizzo e numero civico per visualizzare la posizione.', 'error')
       return
     }
@@ -337,34 +418,66 @@ export default function PetOwnerProfilePage() {
         throw new Error(payload?.message || 'Posizione non trovata.')
       }
 
-      setGeocodeResult({
-        lat: Number(payload.data.lat),
-        lng: Number(payload.data.lng),
-        label: sanitizeText(payload.data.label ?? ''),
-      })
+      const nextLat = Number(payload.data.lat)
+      const nextLng = Number(payload.data.lng)
+      setProfile((current) => ({
+        ...current,
+        locationLat: nextLat,
+        locationLng: nextLng,
+      }))
+
+      const map = leafletMapRef.current
+      const marker = locationMarkerRef.current
+      if (map) {
+        const position = L.latLng(nextLat, nextLng)
+        marker?.setLatLng(position)
+        map.setView(position, payload?.data?.precision === 'civico' ? 16 : 15, {
+          animate: true,
+        })
+      }
+
       showProfileToast(payload?.data?.label || 'Posizione aggiornata correttamente.', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Geolocalizzazione non disponibile.'
-      setGeocodeResult(null)
-      showProfileToast(message, 'error')
+      showProfileToast(`${message}. Puoi trascinare il puntino GPS sul punto corretto.`, 'error')
     } finally {
       setIsMapLoading(false)
     }
   }
 
-  const mapEmbedUrl = useMemo(() => {
-    if (!geocodeResult) {
-      return ''
+  function centerMapOnMarker() {
+    const map = leafletMapRef.current
+    if (!map) {
+      showProfileToast('Mappa non ancora pronta.', 'error')
+      return
     }
 
-    const delta = 0.0045
-    const left = geocodeResult.lng - delta
-    const right = geocodeResult.lng + delta
-    const top = geocodeResult.lat + delta
-    const bottom = geocodeResult.lat - delta
+    if (profile.locationLat === 0 || profile.locationLng === 0) {
+      showProfileToast('Imposta prima il punto GPS con Aggiorna Mappa.', 'error')
+      return
+    }
 
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${geocodeResult.lat}%2C${geocodeResult.lng}`
-  }, [geocodeResult])
+    map.panTo([profile.locationLat, profile.locationLng], {
+      animate: true,
+    })
+  }
+
+  function zoomMapOnMarker() {
+    const map = leafletMapRef.current
+    if (!map) {
+      showProfileToast('Mappa non ancora pronta.', 'error')
+      return
+    }
+
+    if (profile.locationLat === 0 || profile.locationLng === 0) {
+      showProfileToast('Imposta prima il punto GPS con Aggiorna Mappa.', 'error')
+      return
+    }
+
+    map.setView([profile.locationLat, profile.locationLng], 17, {
+      animate: true,
+    })
+  }
 
   function validateForm() {
     const hasAlias = sanitizeText(profile.alias) !== ''
@@ -413,6 +526,10 @@ export default function PetOwnerProfilePage() {
     }
     if (sanitizeText(profile.addressnumber) !== '') {
       body.append('addressnumber', sanitizeText(profile.addressnumber))
+    }
+    if (profile.locationLat !== 0 && profile.locationLng !== 0) {
+      body.append('locationLat', String(profile.locationLat))
+      body.append('locationLng', String(profile.locationLng))
     }
     if (selectedPhotoFile) {
       body.append('photo', selectedPhotoFile)
@@ -694,6 +811,31 @@ export default function PetOwnerProfilePage() {
                       <p className="profile-location-kicker">
                        INDIRIZZO LOCAZIONE
                       </p>
+                      <div className="profile-map-toolbar" aria-label="Controlli mappa">
+                        <button
+                          type="button"
+                          className="profile-map-button is-secondary is-compact"
+                          onClick={centerMapOnMarker}
+                        >
+                          <svg className="profile-map-button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <circle cx="12" cy="12" r="4.6" fill="none" stroke="currentColor" strokeWidth="2" />
+                            <circle cx="12" cy="12" r="1.35" fill="currentColor" />
+                          </svg>
+                          <span>Centra</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="profile-map-button is-secondary is-compact"
+                          onClick={zoomMapOnMarker}
+                        >
+                          <svg className="profile-map-button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M5 10V5h5M19 14v5h-5M5 5l6 6M19 19l-6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx="12" cy="12" r="2.4" fill="currentColor" />
+                          </svg>
+                          <span>Zoom</span>
+                        </button>
+                      </div>
                     </div>
                     <div className="profile-location-grid">
                       <div>
@@ -764,23 +906,29 @@ export default function PetOwnerProfilePage() {
                             onClick={() => void updateMapPosition()}
                             disabled={isMapLoading}
                           >
-                            {isMapLoading ? 'Aggiornamento mappa...' : 'Aggiorna mappa'}
+                            {isMapLoading ? 'Aggiornamento Mappa...' : 'Aggiorna Mappa'}
                           </button>
                         </div>
                       </div>
                       <div className="profile-map-card">
-                        {mapEmbedUrl ? (
-                          <iframe
-                            className="profile-map-frame"
-                            src={mapEmbedUrl}
-                            title="Mappa posizione indirizzo"
-                            referrerPolicy="no-referrer-when-downgrade"
-                          />
-                        ) : (
-                          <div className="profile-map-placeholder">
-                            La mappa verra visualizzata qui dopo il calcolo della posizione.
-                          </div>
-                        )}
+                        <div
+                          ref={mapContainerRef}
+                          className="profile-map-frame"
+                          aria-label="Mappa interattiva posizione pet owner"
+                        />
+                        <div className="profile-map-readout">
+                          {profile.locationLat !== 0 && profile.locationLng !== 0 ? (
+                            <>
+                              <strong>Punto GPS impostato</strong>
+                              <span>{profile.locationLat.toFixed(6)}, {profile.locationLng.toFixed(6)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <strong>Punto GPS non ancora impostato</strong>
+                              <span>Usa Aggiorna Mappa oppure trascina il puntino GPS dopo aver individuato la zona corretta.</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </section>

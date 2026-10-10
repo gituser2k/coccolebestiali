@@ -182,6 +182,8 @@ function HomePage() {
   useEffect(() => {
     void loadAuthConfig()
     void loadCurrentUser()
+    // Initial auth bootstrap must run once on page load; the functions use current module state intentionally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -203,6 +205,8 @@ function HomePage() {
     }, 250)
 
     return () => window.clearInterval(timer)
+    // Google SDK bootstrap is driven only by the public client id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authConfig.googleClientId])
 
   function showToast(message: string, type: 'error' | 'success') {

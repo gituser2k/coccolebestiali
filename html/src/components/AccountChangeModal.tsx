@@ -202,6 +202,8 @@ export function SocialAccountSwitchActions({
     }
 
     ensureGoogleClientsInitialized()
+    // Google SDK bootstrap is driven only by the public client id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authConfig.googleClientId])
 
   async function postSocialAccountChange(endpoint: string, body: Record<string, unknown>) {
@@ -423,6 +425,8 @@ export default function AccountChangeModal({
     }
 
     ensureGoogleClientsInitialized()
+    // Google SDK bootstrap is driven only by the public client id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authConfig.googleClientId])
 
   async function postAccountChange(endpoint: string, body: Record<string, unknown>) {

@@ -346,6 +346,8 @@ export default function RegisterPage() {
 
   useEffect(() => {
     void loadAuthConfig()
+    // Auth provider configuration is loaded once when the registration page mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function ensureGoogleClientsInitialized() {
@@ -411,6 +413,8 @@ export default function RegisterPage() {
     }, 250)
 
     return () => window.clearInterval(timer)
+    // Google SDK bootstrap is driven only by the public client id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authConfig.googleClientId])
 
   async function postRegistration(

@@ -215,6 +215,9 @@ class ProfileController extends Controller
                 'phone' => ['nullable', 'string', 'max:64'],
                 'address' => ['nullable', 'string', 'max:255'],
                 'addressnumber' => ['nullable', 'string', 'max:64'],
+                'locationLat' => ['nullable', 'numeric', 'between:-90,90'],
+                'locationLng' => ['nullable', 'numeric', 'between:-180,180'],
+                'serviceRadiusKm' => ['nullable', 'integer', 'min:1', 'max:200'],
                 'languageIds' => ['nullable', 'array'],
                 'languageIds.*' => ['required', 'integer', 'min:1'],
                 'photo' => ['nullable', 'image', 'max:4096'],
@@ -243,6 +246,9 @@ class ProfileController extends Controller
                 'phone' => (string) ($validated['phone'] ?? ''),
                 'address' => (string) ($validated['address'] ?? ''),
                 'addressnumber' => (string) ($validated['addressnumber'] ?? ''),
+                'locationLat' => isset($validated['locationLat']) ? (float) $validated['locationLat'] : 0,
+                'locationLng' => isset($validated['locationLng']) ? (float) $validated['locationLng'] : 0,
+                'serviceRadiusKm' => isset($validated['serviceRadiusKm']) ? (int) $validated['serviceRadiusKm'] : 5,
                 'languageIds' => $validated['languageIds'] ?? [],
                 'photo' => $photoPath,
             ]);
@@ -863,7 +869,7 @@ class ProfileController extends Controller
             $city = trim((string) $validated['city']);
             $address = trim((string) $validated['address']);
             $addressNumber = trim((string) $validated['addressnumber']);
-            $cacheKey = 'cb_geocode_v2_'.md5($city.'|'.$address.'|'.$addressNumber);
+            $cacheKey = 'cb_geocode_v4_'.md5($city.'|'.$address.'|'.$addressNumber);
 
             $result = Cache::remember($cacheKey, 60 * 60 * 24 * 7, function () use ($city, $address, $addressNumber) {
                 $street = trim($address.' '.$addressNumber);
@@ -873,58 +879,12 @@ class ProfileController extends Controller
                     'Referer' => rtrim((string) config('app.url', 'http://localhost'), '/'),
                 ];
 
-                $candidateFeatures = [];
-                $candidateFeatures = array_merge(
-                    $candidateFeatures,
-                    $this->fetchNominatimCandidates(
-                        [
-                            'format' => 'geocodejson',
-                            'addressdetails' => 1,
-                            'limit' => 5,
-                            'countrycodes' => 'it',
-                            'email' => 'info@coccolebestiali.it',
-                            'city' => $city,
-                            'street' => $street,
-                            'state' => (string) ($cityContext['region'] ?? ''),
-                        ],
-                        $headers
-                    )
-                );
-
-                $fullTextQuery = trim($street.', '.$city.(isset($cityContext['region']) ? ', '.$cityContext['region'] : '').', Italia');
-                $candidateFeatures = array_merge(
-                    $candidateFeatures,
-                    $this->fetchNominatimCandidates(
-                        [
-                            'format' => 'geocodejson',
-                            'addressdetails' => 1,
-                            'limit' => 5,
-                            'countrycodes' => 'it',
-                            'email' => 'info@coccolebestiali.it',
-                            'q' => $fullTextQuery,
-                        ],
-                        $headers
-                    )
-                );
-
-                foreach ($candidateFeatures as $feature) {
-                    if (! is_array($feature)) {
-                        continue;
-                    }
-
-                    $normalized = $this->normalizeGeocodeFeature($feature);
-                    if (! $this->isMatchingGeocodeCandidate($normalized, $city, $address, $addressNumber)) {
-                        continue;
-                    }
-
-                    return [
-                        'lat' => (float) ($normalized['lat'] ?? 0),
-                        'lng' => (float) ($normalized['lng'] ?? 0),
-                        'label' => (string) ($normalized['label'] ?? ''),
-                    ];
+                $exactResult = $this->findGeocodeResult($city, $address, $addressNumber, $street, $cityContext, $headers, true);
+                if ($exactResult !== []) {
+                    return $exactResult;
                 }
 
-                return [];
+                return $this->findGeocodeResult($city, $address, '', $address, $cityContext, $headers, false);
             });
 
             if ($result === [] || ! isset($result['lat'], $result['lng']) || $result['lat'] === 0.0 || $result['lng'] === 0.0) {
@@ -1009,6 +969,65 @@ class ProfileController extends Controller
         return [];
     }
 
+    private function findGeocodeResult(
+        string $city,
+        string $address,
+        string $addressNumber,
+        string $street,
+        array $cityContext,
+        array $headers,
+        bool $requiresHouseNumber
+    ): array {
+        $region = (string) ($cityContext['region'] ?? '');
+        $candidateFeatures = [];
+
+        $candidateFeatures = array_merge($candidateFeatures, $this->fetchNominatimCandidates([
+            'format' => 'geocodejson',
+            'addressdetails' => 1,
+            'limit' => 5,
+            'countrycodes' => 'it',
+            'email' => 'info@coccolebestiali.it',
+            'city' => $city,
+            'street' => $street,
+            'state' => $region,
+        ], $headers));
+
+        $fullTextQuery = trim($street.', '.$city.($region !== '' ? ', '.$region : '').', Italia');
+        $candidateFeatures = array_merge($candidateFeatures, $this->fetchNominatimCandidates([
+            'format' => 'geocodejson',
+            'addressdetails' => 1,
+            'limit' => 5,
+            'countrycodes' => 'it',
+            'email' => 'info@coccolebestiali.it',
+            'q' => $fullTextQuery,
+        ], $headers));
+
+        foreach ($candidateFeatures as $feature) {
+            if (! is_array($feature)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeGeocodeFeature($feature);
+            if (! $this->isMatchingGeocodeCandidate($normalized, $city, $address, $requiresHouseNumber ? $addressNumber : '')) {
+                continue;
+            }
+
+            $label = (string) ($normalized['label'] ?? '');
+            if (! $requiresHouseNumber && $label !== '') {
+                $label .= ' (posizione approssimata sulla via)';
+            }
+
+            return [
+                'lat' => (float) ($normalized['lat'] ?? 0),
+                'lng' => (float) ($normalized['lng'] ?? 0),
+                'label' => $label,
+                'precision' => $requiresHouseNumber ? 'civico' : 'indirizzo',
+            ];
+        }
+
+        return [];
+    }
+
     private function normalizeGeocodeFeature(array $feature): array
     {
         $geocoding = $feature['properties']['geocoding'] ?? [];
@@ -1018,7 +1037,7 @@ class ProfileController extends Controller
             'lat' => isset($coordinates[1]) ? (float) $coordinates[1] : 0,
             'lng' => isset($coordinates[0]) ? (float) $coordinates[0] : 0,
             'label' => (string) ($geocoding['label'] ?? ''),
-            'street' => (string) ($geocoding['street'] ?? ''),
+            'street' => (string) ($geocoding['street'] ?? $geocoding['name'] ?? ''),
             'housenumber' => (string) ($geocoding['housenumber'] ?? ''),
             'city' => (string) ($geocoding['city'] ?? ''),
             'town' => (string) ($geocoding['town'] ?? ''),
@@ -1062,7 +1081,7 @@ class ProfileController extends Controller
             return false;
         }
 
-        if ($this->normalizeCompactText((string) ($candidate['housenumber'] ?? '')) !== $selectedNumber) {
+        if ($selectedNumber !== '' && $this->normalizeCompactText((string) ($candidate['housenumber'] ?? '')) !== $selectedNumber) {
             return false;
         }
 
