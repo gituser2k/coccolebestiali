@@ -10,11 +10,6 @@ import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
 
 type MenuKey = 'personal' | 'operator' | 'calendar'
 
-type LanguageOption = {
-  id: number
-  name: string
-}
-
 type OperatorTitleOption = {
   id: number
   name: string
@@ -65,7 +60,6 @@ type PersonalProfileData = {
   photoUrl: string
   age: number
   city: string
-  languageIds: number[]
   phone: string
   email: string
   address: string
@@ -169,7 +163,6 @@ const EMPTY_PROFILE: PersonalProfileData = {
   photoUrl: '',
   age: 0,
   city: '',
-  languageIds: [],
   phone: '',
   email: '',
   address: '',
@@ -402,7 +395,6 @@ export default function ProfilePlaceholderPage() {
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
-  const [languages, setLanguages] = useState<LanguageOption[]>([])
   const [operatorTitles, setOperatorTitles] = useState<OperatorTitleOption[]>([])
   const [petBreeds, setPetBreeds] = useState<PetBreedOption[]>([])
   const [petTypes, setPetTypes] = useState<PetTypeOption[]>([])
@@ -440,7 +432,7 @@ export default function ProfilePlaceholderPage() {
   const [calendarYear, setCalendarYear] = useState(todayCalendar.year)
   const [calendarMonth, setCalendarMonth] = useState(todayCalendar.month)
   const [calendarDays, setCalendarDays] = useState<CalendarDaySummary[]>([])
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState(todayCalendar.isoDate)
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [calendarDayData, setCalendarDayData] = useState<CalendarDayData>(createEmptyCalendarDay(todayCalendar.isoDate))
   const [isCalendarEditorOpen, setIsCalendarEditorOpen] = useState(false)
   const [isCalendarMonthLoading, setIsCalendarMonthLoading] = useState(false)
@@ -473,7 +465,6 @@ export default function ProfilePlaceholderPage() {
       Boolean(selectedPhotoFile || profile.photoUrl),
       profile.age > 0,
       sanitizeText(profile.city) !== '',
-      profile.languageIds.length > 0,
       sanitizeText(profile.phone) !== '',
       sanitizeText(profile.address) !== '',
       sanitizeText(profile.addressnumber) !== '',
@@ -496,7 +487,6 @@ export default function ProfilePlaceholderPage() {
     profile.age,
     profile.alias,
     profile.city,
-    profile.languageIds,
     profile.name,
     profile.phone,
     profile.photoUrl,
@@ -911,17 +901,15 @@ export default function ProfilePlaceholderPage() {
       setIsLoading(true)
 
       try {
-        const [userResponse, profileResponse, languagesResponse, operatorProfileResponse, operatorOptionsResponse] = await Promise.all([
+        const [userResponse, profileResponse, operatorProfileResponse, operatorOptionsResponse] = await Promise.all([
           fetch('/api/auth/me', { headers: { Accept: 'application/json' } }),
           fetch('/api/profile/petassistant/personal', { headers: { Accept: 'application/json' } }),
-          fetch('/api/profile/languages', { headers: { Accept: 'application/json' } }),
           fetch('/api/profile/petassistant/operator', { headers: { Accept: 'application/json' } }),
           fetch('/api/profile/operator/options', { headers: { Accept: 'application/json' } }),
         ])
 
         const userPayload = await userResponse.json().catch(() => ({}))
         const profilePayload = await profileResponse.json().catch(() => ({}))
-        const languagesPayload = await languagesResponse.json().catch(() => ({}))
         const operatorProfilePayload = await operatorProfileResponse.json().catch(() => ({}))
         const operatorOptionsPayload = await operatorOptionsResponse.json().catch(() => ({}))
 
@@ -931,10 +919,6 @@ export default function ProfilePlaceholderPage() {
 
         if (!profileResponse.ok || !profilePayload?.ok) {
           throw new Error(profilePayload?.message || 'Profilo non disponibile.')
-        }
-
-        if (languagesResponse.ok && languagesPayload?.ok && Array.isArray(languagesPayload?.data)) {
-          setLanguages(languagesPayload.data)
         }
 
         if (operatorOptionsResponse.ok && operatorOptionsPayload?.ok) {
@@ -956,9 +940,6 @@ export default function ProfilePlaceholderPage() {
           locationLat: Number(profilePayload?.data?.locationLat ?? 0),
           locationLng: Number(profilePayload?.data?.locationLng ?? 0),
           serviceRadiusKm: Math.max(Number(profilePayload?.data?.serviceRadiusKm ?? 5), 1),
-          languageIds: Array.isArray(profilePayload?.data?.languageIds)
-            ? profilePayload.data.languageIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
-            : [],
         })
 
         setOperatorProfile({
@@ -1155,18 +1136,6 @@ export default function ProfilePlaceholderPage() {
       ...current,
       [field]: value,
     }))
-  }
-
-  function toggleLanguage(languageId: number) {
-    setProfile((current) => {
-      const alreadySelected = current.languageIds.includes(languageId)
-      return {
-        ...current,
-        languageIds: alreadySelected
-          ? current.languageIds.filter((id) => id !== languageId)
-          : [...current.languageIds, languageId],
-      }
-    })
   }
 
   function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
@@ -1407,10 +1376,10 @@ export default function ProfilePlaceholderPage() {
     const nextDate = new Date(calendarYear, calendarMonth - 1 + delta, 1)
     const nextYear = nextDate.getFullYear()
     const nextMonth = nextDate.getMonth() + 1
-    const nextSelectedDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
     setCalendarYear(nextYear)
     setCalendarMonth(nextMonth)
-    setSelectedCalendarDate(nextSelectedDate)
+    setSelectedCalendarDate('')
+    setIsCalendarEditorOpen(false)
   }
 
   function updateCalendarDayField<K extends keyof CalendarDayData>(field: K, value: CalendarDayData[K]) {
@@ -1877,10 +1846,6 @@ export default function ProfilePlaceholderPage() {
       body.append('locationLng', String(profile.locationLng))
     }
     body.append('serviceRadiusKm', String(Math.max(profile.serviceRadiusKm, 1)))
-    profile.languageIds.forEach((languageId) => {
-      body.append('languageIds[]', String(languageId))
-    })
-
     if (selectedPhotoFile) {
       body.append('photo', selectedPhotoFile)
     }
@@ -2485,25 +2450,6 @@ export default function ProfilePlaceholderPage() {
                           </div>
                         </div>
                       </section>
-                      <section className="profile-form-section">
-                        <div className="profile-location-copy">
-                          <p className="profile-location-kicker">LINGUE PARLATE</p>
-                        </div>
-                        <div className="profile-field">
-                          <div className="profile-language-grid">
-                            {languages.map((language) => (
-                              <label key={language.id} className="profile-language-option">
-                                <input
-                                  type="checkbox"
-                                  checked={profile.languageIds.includes(language.id)}
-                                  onChange={() => toggleLanguage(language.id)}
-                                />
-                                <span>{language.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </section>
                     </form>
                   )}
                 </>
@@ -2519,9 +2465,6 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section profile-operator-identity-section">
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">TIPO OPERATORE</p>
-                          <p className="profile-location-text">
-                            Indica se operi come persona fisica oppure come associazione.
-                          </p>
                         </div>
                         <div className="profile-operator-type-choice" role="radiogroup" aria-label="Tipo operatore">
                           <label className={`profile-radio-card ${operatorProfile.operatorType === 'person' ? 'is-selected' : ''}`}>
@@ -2534,7 +2477,6 @@ export default function ProfilePlaceholderPage() {
                             />
                             <span>
                               <strong>Persona fisica</strong>
-                              <small>Operatore individuale con codice fiscale.</small>
                             </span>
                           </label>
                           <label className={`profile-radio-card ${operatorProfile.operatorType === 'association' ? 'is-selected' : ''}`}>
@@ -2547,7 +2489,6 @@ export default function ProfilePlaceholderPage() {
                             />
                             <span>
                               <strong>Associazione</strong>
-                              <small>Ente o ragione sociale con P.IVA e associati.</small>
                             </span>
                           </label>
                         </div>
@@ -2578,7 +2519,6 @@ export default function ProfilePlaceholderPage() {
                               <div className="profile-associates-head">
                                 <div>
                                   <p className="profile-location-kicker">ASSOCIATI</p>
-                                  <p className="profile-location-text">Inserisci nome, cognome e codice fiscale degli associati.</p>
                                 </div>
                                 <button className="profile-inline-action" type="button" onClick={addOperatorAssociate}>
                                   Aggiungi associato
@@ -2666,12 +2606,9 @@ export default function ProfilePlaceholderPage() {
 
                       <section className="profile-form-section profile-pet-scope-section">
                         <div className="profile-location-copy">
-                          <p className="profile-location-kicker">PET GESTITI</p>
-                          <p className="profile-location-text">
-                            Definisci razze, taglie, tipologie e anni di esperienza maturati.
-                          </p>
+                          <p className="profile-location-kicker">CARATTERISTICHE PET</p>
                         </div>
-                        <div className="profile-form-grid profile-form-grid-operator-four">
+                        <div className="profile-form-grid profile-pet-characteristics-grid">
                           <div className="profile-field profile-multiselect-field" ref={petBreedDropdownRef}>
                             <span>Razza pet</span>
                             <button
@@ -2783,14 +2720,11 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section">
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">QUALIFICA</p>
-                          <p className="profile-location-text">
-                            Seleziona una o più qualifiche professionali che ti rappresentano come operatore
-                          </p>
                         </div>
                         <div className="profile-field">
-                          <div className="profile-language-grid">
+                          <div className="profile-checkbox-grid">
                             {operatorTitles.map((title) => (
-                              <label key={title.id} className="profile-language-option">
+                              <label key={title.id} className="profile-checkbox-option">
                                 <input
                                   type="checkbox"
                                   checked={operatorProfile.titleIds.includes(title.id)}
@@ -2806,9 +2740,6 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section">
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">SERVIZI</p>
-                          <p className="profile-location-text">
-                            Seleziona i servizi disponibili dal CRM e, per ciascuno, indica se puo essere svolto in esclusiva.
-                          </p>
                         </div>
                         <div className="profile-services-grid">
                           {serviceOptions.map((service) => {
@@ -2827,7 +2758,6 @@ export default function ProfilePlaceholderPage() {
                                   </span>
                                   <span className="profile-service-copy">
                                     <strong>{service.name}</strong>
-                                    <small>{service.description}</small>
                                   </span>
                                 </label>
 
@@ -2867,9 +2797,6 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-section">
                         <div className="profile-location-copy">
                           <p className="profile-location-kicker">CARATTERISTICHE CASA</p>
-                          <p className="profile-location-text">
-                            Seleziona le caratteristiche dell'ambiente domestico che descrivono al meglio lo spazio disponibile.
-                          </p>
                         </div>
                         <div className="profile-field profile-multiselect-field" ref={houseFeatureDropdownRef}>
                           <button
@@ -2909,9 +2836,6 @@ export default function ProfilePlaceholderPage() {
                         <div className="profile-gallery-header">
                           <div className="profile-location-copy">
                             <p className="profile-location-kicker">GALLERY FOTO CASA</p>
-                            <p className="profile-location-text">
-                              Carica immagini degli ambienti e abbina a ciascuna foto una breve descrizione.
-                            </p>
                           </div>
                           <button type="button" className="profile-gallery-add" onClick={addOperatorGalleryItem}>
                             + Aggiungi
@@ -3047,9 +2971,11 @@ export default function ProfilePlaceholderPage() {
                       {isCalendarEditorOpen ? (
                         <section className="profile-form-section profile-calendar-day-card">
                           <div className="profile-calendar-day-header">
-                            <div className="profile-location-copy">
+                            <div className="profile-calendar-selected-heading">
                               <p className="profile-location-kicker">GIORNO SELEZIONATO</p>
-                              <h2 className="profile-location-title">{selectedCalendarDate}</h2>
+                              <time className="profile-calendar-selected-date" dateTime={selectedCalendarDate}>
+                                {selectedCalendarDate}
+                              </time>
                             </div>
                             <label className="profile-calendar-toggle">
                               <input
@@ -3244,7 +3170,7 @@ export default function ProfilePlaceholderPage() {
                             }
 
                             const daySummary = calendarDayMap[cell.date]
-                            const isSelected = cell.date === selectedCalendarDate
+                            const isSelected = isCalendarEditorOpen && cell.date === selectedCalendarDate
                             const isToday = cell.date === todayCalendar.isoDate
                             const isCopySource = cell.date === calendarCopySourceDate
                             const hasActiveAvailability = (daySummary?.totalMinutes ?? 0) > 0
@@ -3258,8 +3184,12 @@ export default function ProfilePlaceholderPage() {
                                 className={`profile-calendar-cell ${isSelected ? 'is-selected' : ''} ${daySummary?.enabled ? 'is-enabled' : ''} ${hasActiveAvailability ? 'is-occupied' : ''} ${isConfiguredInactive ? 'is-configured-inactive' : ''} ${isToday ? 'is-today' : ''} ${isCopySource ? 'is-copy-source' : ''} ${calendarCopySourceDate && !isCopySource ? 'is-copy-target' : ''}`}
                                 onClick={() => handleCalendarCellClick(cell.date!)}
                                 title={isCopySource ? 'Giorno sorgente della copia' : undefined}
+                                aria-pressed={isSelected}
                               >
                                 <strong>{cell.day}</strong>
+                                {isSelected && !isCopySource ? (
+                                  <span className="profile-calendar-selected-marker" aria-hidden="true">✓</span>
+                                ) : null}
                                 {hasActiveAvailability ? (
                                   <small className="profile-calendar-duration">
                                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

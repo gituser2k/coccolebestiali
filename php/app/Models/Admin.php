@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Admin extends Model
 {
@@ -137,7 +137,7 @@ class Admin extends Model
                     ->update([
                         'sortorder' => ($index + 1) * 10,
                         'updated_at' => $now,
-                ]);
+                    ]);
             }
         });
     }

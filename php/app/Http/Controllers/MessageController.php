@@ -14,7 +14,7 @@ class MessageController extends Controller
 {
     public function saveMessage(Request $request): JsonResponse
     {
-        $m = new Message();
+        $m = new Message;
         $validated = [];
 
         try {
@@ -29,15 +29,13 @@ class MessageController extends Controller
             return response()->json([
                 'ok' => true,
             ], 200);
-        }
-        catch (QueryException $e) {
+        } catch (QueryException $e) {
             Utility::saveError($validated, $e->getMessage(), __METHOD__);
-            
+
             return response()->json([
                 'ok' => false,
             ], 500);
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
             Utility::saveError($validated, $e->getMessage(), __METHOD__);
 
             return response()->json([
@@ -49,35 +47,8 @@ class MessageController extends Controller
     public function getAdminMessages(): JsonResponse
     {
         try {
-            $m = new Message();
+            $m = new Message;
             $rows = $m->getAdminMessages();
-
-            return response()->json([
-                'ok' => true,
-                'data' => $rows,
-            ], 200);
-        } catch (QueryException $e) {
-            Utility::saveError([], $e->getMessage(), __METHOD__);
-
-            return response()->json([
-                'ok' => false,
-                'data' => [],
-            ], 500);
-        } catch (Exception $e) {
-            Utility::saveError([], $e->getMessage(), __METHOD__);
-
-            return response()->json([
-                'ok' => false,
-                'data' => [],
-            ], 500);
-        }
-    }
-
-    public function getAdminErrors(): JsonResponse
-    {
-        try {
-            $m = new Message();
-            $rows = $m->getAdminErrors();
 
             return response()->json([
                 'ok' => true,
@@ -110,7 +81,7 @@ class MessageController extends Controller
                 'ids.*' => ['required', 'integer', 'min:1'],
             ]);
 
-            $m = new Message();
+            $m = new Message;
             $deleted = $m->deleteAdminMessagesByIds($validated['ids']);
 
             return response()->json([
@@ -143,7 +114,7 @@ class MessageController extends Controller
                 'reply' => ['required', 'string', 'max:4096'],
             ]);
 
-            $m = new Message();
+            $m = new Message;
             $sourceMessage = $m->getMessageById((int) $validated['messageid']);
             $requestText = $sourceMessage ? (string) $sourceMessage->msg : '';
             $mailBody = "Risposta:\n".$validated['reply'];
@@ -177,7 +148,7 @@ class MessageController extends Controller
     public function getLastAdminMessageReply(int $messageId): JsonResponse
     {
         try {
-            $m = new Message();
+            $m = new Message;
             $reply = $m->getLastMessageBackByMessageId($messageId);
 
             return response()->json([

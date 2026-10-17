@@ -11,7 +11,6 @@ class Profile extends Model
 {
     public function getPersonalProfile(int $userId): array
     {
-        $this->ensureLanguageSeeded();
         $this->ensurePersonalLocationSchema();
 
         $row = DB::table('users')
@@ -39,14 +38,6 @@ class Profile extends Model
             return [];
         }
 
-        $languageIds = DB::table('languagedata')
-            ->where('user_id', $userId)
-            ->orderBy('language_id')
-            ->pluck('language_id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-
         $photo = (string) ($row->photo ?? '');
         $avatar = (string) ($row->avatar ?? '');
         $photoPath = $photo !== '' ? $photo : $avatar;
@@ -65,24 +56,7 @@ class Profile extends Model
             'locationLat' => (float) ($row->location_lat ?? 0),
             'locationLng' => (float) ($row->location_lng ?? 0),
             'serviceRadiusKm' => (int) ($row->service_radius_km ?? 5),
-            'languageIds' => $languageIds,
         ];
-    }
-
-    public function getLanguages(): array
-    {
-        $this->ensureLanguageSeeded();
-
-        return DB::table('language')
-            ->select(['id', 'name'])
-            ->orderBy('sortorder')
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($row) => [
-                'id' => (int) $row->id,
-                'name' => (string) $row->name,
-            ])
-            ->all();
     }
 
     public function getOperatorOptions(): array
@@ -179,6 +153,260 @@ class Profile extends Model
         ];
     }
 
+    public function getPetOwnerPetOptions(): array
+    {
+        $this->ensureOperatorIdentitySchema();
+        $this->ensureOperatorMetadataSeeded();
+
+        return [
+            'petBreeds' => DB::table('petbreed')
+                ->select(['id', 'name'])
+                ->orderBy('sortorder')
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($row) => [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                ])
+                ->all(),
+            'petTypes' => DB::table('pettype')
+                ->select(['id', 'name'])
+                ->orderBy('sortorder')
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($row) => [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                ])
+                ->all(),
+        ];
+    }
+
+    public function getPetOwnerPets(int $userId): array
+    {
+        $this->ensurePetOwnerPetsSchema();
+
+        $pets = DB::table('ownerpet')
+            ->select([
+                'id', 'name', 'sex', 'birth_date', 'microchip_code',
+                'general_notes', 'pet_size', 'sortorder',
+            ])
+            ->where('user_id', $userId)
+            ->orderBy('sortorder')
+            ->orderBy('id')
+            ->get();
+
+        if ($pets->isEmpty()) {
+            return [];
+        }
+
+        $petIds = $pets->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $breedIds = DB::table('ownerpetbreeddata')
+            ->whereIn('pet_id', $petIds)
+            ->orderBy('petbreed_id')
+            ->get(['pet_id', 'petbreed_id'])
+            ->groupBy('pet_id');
+        $typeIds = DB::table('ownerpettypedata')
+            ->whereIn('pet_id', $petIds)
+            ->orderBy('pettype_id')
+            ->get(['pet_id', 'pettype_id'])
+            ->groupBy('pet_id');
+        $gallery = DB::table('ownerpetgallery')
+            ->whereIn('pet_id', $petIds)
+            ->orderBy('sortorder')
+            ->orderBy('id')
+            ->get(['id', 'pet_id', 'photo', 'caption', 'sortorder'])
+            ->groupBy('pet_id');
+        $documents = DB::table('ownerpetdocument')
+            ->whereIn('pet_id', $petIds)
+            ->orderBy('sortorder')
+            ->orderBy('id')
+            ->get([
+                'id', 'pet_id', 'document_type', 'title', 'issued_at', 'expires_at',
+                'notes', 'file_path', 'original_name', 'mime_type', 'file_size', 'sortorder',
+            ])
+            ->groupBy('pet_id');
+
+        return $pets->map(function ($pet) use ($breedIds, $typeIds, $gallery, $documents) {
+            $petId = (int) $pet->id;
+
+            return [
+                'id' => $petId,
+                'name' => (string) $pet->name,
+                'sex' => (string) $pet->sex,
+                'birthDate' => $pet->birth_date ? (string) $pet->birth_date : '',
+                'microchipCode' => (string) $pet->microchip_code,
+                'generalNotes' => (string) $pet->general_notes,
+                'petSize' => (string) $pet->pet_size,
+                'petBreedIds' => collect($breedIds->get($petId, []))
+                    ->pluck('petbreed_id')->map(fn ($id) => (int) $id)->values()->all(),
+                'petTypeIds' => collect($typeIds->get($petId, []))
+                    ->pluck('pettype_id')->map(fn ($id) => (int) $id)->values()->all(),
+                'gallery' => collect($gallery->get($petId, []))->map(fn ($item) => [
+                    'id' => (int) $item->id,
+                    'photo' => (string) $item->photo,
+                    'photoUrl' => $this->normalizePhotoUrl((string) $item->photo),
+                    'caption' => (string) $item->caption,
+                    'sortorder' => (int) $item->sortorder,
+                ])->values()->all(),
+                'documents' => collect($documents->get($petId, []))->map(fn ($item) => [
+                    'id' => (int) $item->id,
+                    'documentType' => (string) $item->document_type,
+                    'title' => (string) $item->title,
+                    'issuedAt' => $item->issued_at ? (string) $item->issued_at : '',
+                    'expiresAt' => $item->expires_at ? (string) $item->expires_at : '',
+                    'notes' => (string) $item->notes,
+                    'filePath' => (string) $item->file_path,
+                    'originalName' => (string) $item->original_name,
+                    'mimeType' => (string) $item->mime_type,
+                    'fileSize' => (int) $item->file_size,
+                    'downloadUrl' => '/api/profile/petowner/pets/documents/'.(int) $item->id,
+                    'sortorder' => (int) $item->sortorder,
+                ])->values()->all(),
+            ];
+        })->values()->all();
+    }
+
+    public function getPetOwnerGalleryPaths(int $userId): array
+    {
+        $this->ensurePetOwnerPetsSchema();
+
+        return DB::table('ownerpetgallery as gallery')
+            ->join('ownerpet as pet', 'pet.id', '=', 'gallery.pet_id')
+            ->where('pet.user_id', $userId)
+            ->pluck('gallery.photo')
+            ->map(fn ($photo) => (string) $photo)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public function getPetOwnerDocumentPaths(int $userId): array
+    {
+        $this->ensurePetOwnerPetsSchema();
+
+        return DB::table('ownerpetdocument as document')
+            ->join('ownerpet as pet', 'pet.id', '=', 'document.pet_id')
+            ->where('pet.user_id', $userId)
+            ->pluck('document.file_path')
+            ->map(fn ($path) => (string) $path)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public function getPetOwnerDocument(int $userId, int $documentId): ?object
+    {
+        $this->ensurePetOwnerPetsSchema();
+
+        return DB::table('ownerpetdocument as document')
+            ->join('ownerpet as pet', 'pet.id', '=', 'document.pet_id')
+            ->where('pet.user_id', $userId)
+            ->where('document.id', $documentId)
+            ->first([
+                'document.file_path',
+                'document.original_name',
+                'document.mime_type',
+            ]);
+    }
+
+    public function savePetOwnerPets(int $userId, array $pets): array
+    {
+        $this->ensurePetOwnerPetsSchema();
+        $now = time();
+
+        DB::transaction(function () use ($userId, $pets, $now) {
+            $existingPetIds = DB::table('ownerpet')->where('user_id', $userId)->pluck('id')->all();
+            if ($existingPetIds !== []) {
+                DB::table('ownerpetbreeddata')->whereIn('pet_id', $existingPetIds)->delete();
+                DB::table('ownerpettypedata')->whereIn('pet_id', $existingPetIds)->delete();
+                DB::table('ownerpetgallery')->whereIn('pet_id', $existingPetIds)->delete();
+                DB::table('ownerpetdocument')->whereIn('pet_id', $existingPetIds)->delete();
+            }
+            DB::table('ownerpet')->where('user_id', $userId)->delete();
+
+            foreach ($pets as $petIndex => $pet) {
+                if (! is_array($pet)) {
+                    continue;
+                }
+
+                $petId = (int) DB::table('ownerpet')->insertGetId([
+                    'user_id' => $userId,
+                    'name' => trim((string) ($pet['name'] ?? '')),
+                    'sex' => (string) ($pet['sex'] ?? ''),
+                    'birth_date' => ($pet['birthDate'] ?? '') !== '' ? $pet['birthDate'] : null,
+                    'microchip_code' => strtoupper(trim((string) ($pet['microchipCode'] ?? ''))),
+                    'general_notes' => trim((string) ($pet['generalNotes'] ?? '')),
+                    'pet_size' => (string) ($pet['petSize'] ?? ''),
+                    'sortorder' => $petIndex + 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                foreach (array_values(array_unique(array_map('intval', $pet['petBreedIds'] ?? []))) as $breedId) {
+                    if ($breedId > 0) {
+                        DB::table('ownerpetbreeddata')->insert([
+                            'pet_id' => $petId,
+                            'petbreed_id' => $breedId,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                }
+
+                foreach (array_values(array_unique(array_map('intval', $pet['petTypeIds'] ?? []))) as $typeId) {
+                    if ($typeId > 0) {
+                        DB::table('ownerpettypedata')->insert([
+                            'pet_id' => $petId,
+                            'pettype_id' => $typeId,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                }
+
+                foreach (($pet['gallery'] ?? []) as $galleryIndex => $item) {
+                    if (! is_array($item) || trim((string) ($item['photo'] ?? '')) === '') {
+                        continue;
+                    }
+
+                    DB::table('ownerpetgallery')->insert([
+                        'pet_id' => $petId,
+                        'photo' => trim((string) $item['photo']),
+                        'caption' => trim((string) ($item['caption'] ?? '')),
+                        'sortorder' => $galleryIndex + 1,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+
+                foreach (($pet['documents'] ?? []) as $documentIndex => $item) {
+                    if (! is_array($item) || trim((string) ($item['filePath'] ?? '')) === '') {
+                        continue;
+                    }
+
+                    DB::table('ownerpetdocument')->insert([
+                        'pet_id' => $petId,
+                        'document_type' => trim((string) ($item['documentType'] ?? 'other')),
+                        'title' => trim((string) ($item['title'] ?? '')),
+                        'issued_at' => ($item['issuedAt'] ?? '') !== '' ? $item['issuedAt'] : null,
+                        'expires_at' => ($item['expiresAt'] ?? '') !== '' ? $item['expiresAt'] : null,
+                        'notes' => trim((string) ($item['notes'] ?? '')),
+                        'file_path' => trim((string) $item['filePath']),
+                        'original_name' => trim((string) ($item['originalName'] ?? 'documento')),
+                        'mime_type' => trim((string) ($item['mimeType'] ?? 'application/octet-stream')),
+                        'file_size' => max(0, (int) ($item['fileSize'] ?? 0)),
+                        'sortorder' => $documentIndex + 1,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+            }
+        });
+
+        return $this->getPetOwnerPets($userId);
+    }
+
     public function getOperatorProfile(int $userId): array
     {
         $this->ensureOperatorIdentitySchema();
@@ -193,7 +421,6 @@ class Profile extends Model
                 'bio',
                 'experience_years',
                 'pet_size',
-                'service_hour_price',
             ])
             ->where('user_id', $userId)
             ->first();
@@ -392,23 +619,6 @@ class Profile extends Model
                 DB::table('personaldata')->insert($personalData);
             }
 
-            DB::table('languagedata')
-                ->where('user_id', $userId)
-                ->delete();
-
-            $languageIds = array_values(array_unique(array_map('intval', $payload['languageIds'] ?? [])));
-            foreach ($languageIds as $languageId) {
-                if ($languageId <= 0) {
-                    continue;
-                }
-
-                DB::table('languagedata')->insert([
-                    'user_id' => $userId,
-                    'language_id' => $languageId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
         });
 
         return $this->getPersonalProfile($userId);
@@ -444,11 +654,6 @@ class Profile extends Model
         return [
             'email' => $normalizedEmail,
         ];
-    }
-
-    public function changeUserPassword(int $userId, string $password): void
-    {
-        $this->updateUserCredentials($userId, $this->getPersonalProfile($userId)['email'] ?? '', $password);
     }
 
     private function ensurePersonalLocationSchema(): void
@@ -526,6 +731,98 @@ class Profile extends Model
                 $table->unique(['user_id', 'petbreed_id'], 'uk_petbreeddata_user_breed');
                 $table->index('user_id', 'idx_petbreeddata_user_id');
                 $table->index('petbreed_id', 'idx_petbreeddata_breed_id');
+            });
+        }
+    }
+
+    private function ensurePetOwnerPetsSchema(): void
+    {
+        if (! Schema::hasTable('ownerpet')) {
+            Schema::create('ownerpet', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('user_id')->default(0);
+                $table->string('name', 255)->default('');
+                $table->string('sex', 16)->default('');
+                $table->date('birth_date')->nullable();
+                $table->string('microchip_code', 64)->default('');
+                $table->string('general_notes', 4096)->default('');
+                $table->string('pet_size', 32)->default('');
+                $table->integer('sortorder')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->index('user_id', 'idx_ownerpet_user_id');
+            });
+        }
+
+        if (! Schema::hasColumn('ownerpet', 'sex')) {
+            Schema::table('ownerpet', fn ($table) => $table->string('sex', 16)->default('')->after('name'));
+        }
+        if (! Schema::hasColumn('ownerpet', 'birth_date')) {
+            Schema::table('ownerpet', fn ($table) => $table->date('birth_date')->nullable()->after('sex'));
+        }
+        if (! Schema::hasColumn('ownerpet', 'microchip_code')) {
+            Schema::table('ownerpet', fn ($table) => $table->string('microchip_code', 64)->default('')->after('birth_date'));
+        }
+        if (! Schema::hasColumn('ownerpet', 'general_notes')) {
+            Schema::table('ownerpet', fn ($table) => $table->string('general_notes', 4096)->default('')->after('microchip_code'));
+        }
+
+        if (! Schema::hasTable('ownerpetbreeddata')) {
+            Schema::create('ownerpetbreeddata', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('pet_id')->default(0);
+                $table->unsignedInteger('petbreed_id')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->unique(['pet_id', 'petbreed_id'], 'uk_ownerpetbreeddata_pet_breed');
+                $table->index('pet_id', 'idx_ownerpetbreeddata_pet_id');
+                $table->index('petbreed_id', 'idx_ownerpetbreeddata_breed_id');
+            });
+        }
+
+        if (! Schema::hasTable('ownerpettypedata')) {
+            Schema::create('ownerpettypedata', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('pet_id')->default(0);
+                $table->unsignedInteger('pettype_id')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->unique(['pet_id', 'pettype_id'], 'uk_ownerpettypedata_pet_type');
+                $table->index('pet_id', 'idx_ownerpettypedata_pet_id');
+                $table->index('pettype_id', 'idx_ownerpettypedata_type_id');
+            });
+        }
+
+        if (! Schema::hasTable('ownerpetgallery')) {
+            Schema::create('ownerpetgallery', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('pet_id')->default(0);
+                $table->string('photo', 1024)->default('');
+                $table->string('caption', 255)->default('');
+                $table->integer('sortorder')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->index('pet_id', 'idx_ownerpetgallery_pet_id');
+            });
+        }
+
+        if (! Schema::hasTable('ownerpetdocument')) {
+            Schema::create('ownerpetdocument', function ($table) {
+                $table->increments('id');
+                $table->unsignedInteger('pet_id')->default(0);
+                $table->string('document_type', 64)->default('');
+                $table->string('title', 255)->default('');
+                $table->date('issued_at')->nullable();
+                $table->date('expires_at')->nullable();
+                $table->string('notes', 2048)->default('');
+                $table->string('file_path', 1024)->default('');
+                $table->string('original_name', 255)->default('');
+                $table->string('mime_type', 120)->default('');
+                $table->unsignedBigInteger('file_size')->default(0);
+                $table->integer('sortorder')->default(0);
+                $table->integer('created_at')->default(0);
+                $table->integer('updated_at')->default(0);
+                $table->index('pet_id', 'idx_ownerpetdocument_pet_id');
             });
         }
     }
@@ -673,7 +970,6 @@ class Profile extends Model
                     'user_id' => $userId,
                     'service_id' => $serviceId,
                     'hour_price' => round((float) ($service['hourlyRate'] ?? 0), 2),
-                    'is_exclusive' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
@@ -919,34 +1215,6 @@ class Profile extends Model
             'sourceDate' => $sourceDate,
             'copiedCount' => $copied,
         ];
-    }
-
-    private function ensureLanguageSeeded(): void
-    {
-        if (DB::table('language')->count() > 0) {
-            return;
-        }
-
-        $now = time();
-        $languages = [
-            ['id' => 1, 'name' => 'Italiano', 'sortorder' => 10],
-            ['id' => 2, 'name' => 'English', 'sortorder' => 20],
-            ['id' => 3, 'name' => 'Francais', 'sortorder' => 30],
-            ['id' => 4, 'name' => 'Espanol', 'sortorder' => 40],
-            ['id' => 5, 'name' => 'Deutsch', 'sortorder' => 50],
-        ];
-
-        foreach ($languages as $language) {
-            DB::table('language')->updateOrInsert(
-                ['id' => $language['id']],
-                [
-                    'name' => $language['name'],
-                    'sortorder' => $language['sortorder'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-        }
     }
 
     private function ensureOperatorMetadataSeeded(): void

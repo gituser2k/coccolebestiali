@@ -10,40 +10,30 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
     private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
 
-    public function getLanguages(): JsonResponse
-    {
-        try {
-            $model = new Profile();
-
-            return response()->json([
-                'ok' => true,
-                'data' => $model->getLanguages(),
-            ], Response::HTTP_OK);
-        } catch (QueryException $e) {
-            Utility::saveError([], $e->getMessage(), __METHOD__);
-
-            return response()->json([
-                'ok' => false,
-                'data' => [],
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        } catch (Exception $e) {
-            Utility::saveError([], $e->getMessage(), __METHOD__);
-
-            return response()->json([
-                'ok' => false,
-                'data' => [],
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
+    private const PET_DOCUMENT_TYPES = [
+        'health_booklet',
+        'registry_microchip',
+        'eu_passport',
+        'vaccinations',
+        'medical_certificate',
+        'clinical_reports',
+        'prescriptions',
+        'sterilization',
+        'insurance',
+        'adoption_ownership',
+        'pedigree',
+        'other',
+    ];
 
     public function getPetAssistantPersonalProfile(Request $request): JsonResponse
     {
@@ -56,7 +46,7 @@ class ProfileController extends Controller
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            $model = new Profile();
+            $model = new Profile;
             $profile = $model->getPersonalProfile($userId);
 
             if ($profile === []) {
@@ -96,7 +86,7 @@ class ProfileController extends Controller
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            $model = new Profile();
+            $model = new Profile;
             $profile = $model->getPersonalProfile($userId);
 
             if ($profile === []) {
@@ -125,10 +115,315 @@ class ProfileController extends Controller
         }
     }
 
+    public function getPetOwnerPetOptions(): JsonResponse
+    {
+        try {
+            $model = new Profile;
+
+            return response()->json([
+                'ok' => true,
+                'data' => $model->getPetOwnerPetOptions(),
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function getPetOwnerPets(Request $request): JsonResponse
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $model = new Profile;
+
+            return response()->json([
+                'ok' => true,
+                'data' => $model->getPetOwnerPets($userId),
+            ], Response::HTTP_OK);
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function savePetOwnerPets(Request $request): JsonResponse
+    {
+        $validated = [];
+        $storedPhotos = [];
+        $storedDocuments = [];
+
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'pets' => ['nullable', 'array', 'max:20'],
+                'pets.*.name' => ['required', 'string', 'max:255'],
+                'pets.*.sex' => ['nullable', 'string', 'in:male,female,unknown'],
+                'pets.*.birthDate' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+                'pets.*.microchipCode' => ['nullable', 'string', 'max:64'],
+                'pets.*.generalNotes' => ['nullable', 'string', 'max:4096'],
+                'pets.*.petSize' => ['nullable', 'string', 'in:small,medium,large,max'],
+                'pets.*.petBreedIds' => ['nullable', 'array'],
+                'pets.*.petBreedIds.*' => ['required', 'integer', 'min:1'],
+                'pets.*.petTypeIds' => ['nullable', 'array'],
+                'pets.*.petTypeIds.*' => ['required', 'integer', 'min:1'],
+                'pets.*.gallery' => ['nullable', 'array', 'max:20'],
+                'pets.*.gallery.*.photo' => ['nullable', 'string', 'max:1024'],
+                'pets.*.gallery.*.caption' => ['nullable', 'string', 'max:255'],
+                'pets.*.documents' => ['nullable', 'array', 'max:30'],
+                'pets.*.documents.*.documentType' => ['required', 'string', 'in:'.implode(',', self::PET_DOCUMENT_TYPES)],
+                'pets.*.documents.*.title' => ['required', 'string', 'max:255'],
+                'pets.*.documents.*.issuedAt' => ['nullable', 'date_format:Y-m-d'],
+                'pets.*.documents.*.expiresAt' => ['nullable', 'date_format:Y-m-d'],
+                'pets.*.documents.*.notes' => ['nullable', 'string', 'max:2048'],
+                'pets.*.documents.*.filePath' => ['nullable', 'string', 'max:1024'],
+                'pets.*.documents.*.originalName' => ['nullable', 'string', 'max:255'],
+                'pets.*.documents.*.mimeType' => ['nullable', 'string', 'max:120'],
+                'pets.*.documents.*.fileSize' => ['nullable', 'integer', 'min:0', 'max:10485760'],
+                'petGalleryPhotos' => ['nullable', 'array'],
+                'petGalleryPhotos.*' => ['nullable', 'array'],
+                'petGalleryPhotos.*.*' => ['nullable', 'image', 'max:4096'],
+                'petDocumentFiles' => ['nullable', 'array'],
+                'petDocumentFiles.*' => ['nullable', 'array'],
+                'petDocumentFiles.*.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            ]);
+
+            $model = new Profile;
+            $existingPhotos = $model->getPetOwnerGalleryPaths($userId);
+            $allowedExistingPhotos = array_fill_keys($existingPhotos, true);
+            $existingDocuments = $model->getPetOwnerDocumentPaths($userId);
+            $allowedExistingDocuments = array_fill_keys($existingDocuments, true);
+            $pets = [];
+
+            foreach (($validated['pets'] ?? []) as $petIndex => $pet) {
+                if (! is_array($pet)) {
+                    continue;
+                }
+
+                $gallery = [];
+                foreach (($pet['gallery'] ?? []) as $galleryIndex => $item) {
+                    if (! is_array($item)) {
+                        continue;
+                    }
+
+                    $caption = trim((string) ($item['caption'] ?? ''));
+                    $photo = trim((string) ($item['photo'] ?? ''));
+                    $uploadedPhoto = $request->file("petGalleryPhotos.$petIndex.$galleryIndex");
+
+                    if ($uploadedPhoto) {
+                        $filename = 'petowner-'.$userId.'-'.Str::uuid().'.'.$uploadedPhoto->getClientOriginalExtension();
+                        $photo = $uploadedPhoto->storeAs('owner-pet-gallery', $filename, 'public');
+                        $storedPhotos[] = $photo;
+                    } elseif ($photo === '' || ! isset($allowedExistingPhotos[$photo])) {
+                        continue;
+                    }
+
+                    $gallery[] = [
+                        'photo' => $photo,
+                        'caption' => $caption,
+                    ];
+                }
+
+                $documents = [];
+                foreach (($pet['documents'] ?? []) as $documentIndex => $item) {
+                    if (! is_array($item)) {
+                        continue;
+                    }
+
+                    $issuedAt = (string) ($item['issuedAt'] ?? '');
+                    $expiresAt = (string) ($item['expiresAt'] ?? '');
+                    if ($issuedAt !== '' && $expiresAt !== '' && $expiresAt < $issuedAt) {
+                        throw ValidationException::withMessages([
+                            "pets.$petIndex.documents.$documentIndex.expiresAt" => 'La scadenza non può precedere la data del documento.',
+                        ]);
+                    }
+
+                    $filePath = trim((string) ($item['filePath'] ?? ''));
+                    $originalName = trim((string) ($item['originalName'] ?? ''));
+                    $mimeType = trim((string) ($item['mimeType'] ?? ''));
+                    $fileSize = max(0, (int) ($item['fileSize'] ?? 0));
+                    $uploadedDocument = $request->file("petDocumentFiles.$petIndex.$documentIndex");
+
+                    if ($uploadedDocument) {
+                        $extension = strtolower($uploadedDocument->getClientOriginalExtension());
+                        $filename = 'document-'.Str::uuid().($extension !== '' ? '.'.$extension : '');
+                        $filePath = $uploadedDocument->storeAs('owner-pet-documents/user-'.$userId, $filename, 'local');
+                        if (! $filePath) {
+                            throw new Exception('Archiviazione del documento non completata.');
+                        }
+                        $storedDocuments[] = $filePath;
+                        $originalName = basename($uploadedDocument->getClientOriginalName());
+                        $mimeType = (string) ($uploadedDocument->getMimeType() ?: 'application/octet-stream');
+                        $fileSize = (int) $uploadedDocument->getSize();
+                    } elseif ($filePath === '' || ! isset($allowedExistingDocuments[$filePath])) {
+                        continue;
+                    }
+
+                    $documents[] = [
+                        'documentType' => (string) ($item['documentType'] ?? 'other'),
+                        'title' => trim((string) ($item['title'] ?? '')),
+                        'issuedAt' => $issuedAt,
+                        'expiresAt' => $expiresAt,
+                        'notes' => trim((string) ($item['notes'] ?? '')),
+                        'filePath' => $filePath,
+                        'originalName' => $originalName,
+                        'mimeType' => $mimeType,
+                        'fileSize' => $fileSize,
+                    ];
+                }
+
+                $pets[] = [
+                    'name' => trim((string) ($pet['name'] ?? '')),
+                    'sex' => (string) ($pet['sex'] ?? ''),
+                    'birthDate' => (string) ($pet['birthDate'] ?? ''),
+                    'microchipCode' => strtoupper(trim((string) ($pet['microchipCode'] ?? ''))),
+                    'generalNotes' => trim((string) ($pet['generalNotes'] ?? '')),
+                    'petSize' => (string) ($pet['petSize'] ?? ''),
+                    'petBreedIds' => $pet['petBreedIds'] ?? [],
+                    'petTypeIds' => $pet['petTypeIds'] ?? [],
+                    'gallery' => $gallery,
+                    'documents' => $documents,
+                ];
+            }
+
+            $savedPets = $model->savePetOwnerPets($userId, $pets);
+            $retainedPhotos = [];
+            foreach ($savedPets as $pet) {
+                foreach (($pet['gallery'] ?? []) as $item) {
+                    $photo = trim((string) ($item['photo'] ?? ''));
+                    if ($photo !== '') {
+                        $retainedPhotos[$photo] = true;
+                    }
+                }
+            }
+
+            foreach ($existingPhotos as $existingPhoto) {
+                if (! isset($retainedPhotos[$existingPhoto]) && str_starts_with($existingPhoto, 'owner-pet-gallery/')) {
+                    Storage::disk('public')->delete($existingPhoto);
+                }
+            }
+
+            $retainedDocuments = [];
+            foreach ($savedPets as $pet) {
+                foreach (($pet['documents'] ?? []) as $document) {
+                    $filePath = trim((string) ($document['filePath'] ?? ''));
+                    if ($filePath !== '') {
+                        $retainedDocuments[$filePath] = true;
+                    }
+                }
+            }
+
+            foreach ($existingDocuments as $existingDocument) {
+                if (! isset($retainedDocuments[$existingDocument]) && str_starts_with($existingDocument, 'owner-pet-documents/')) {
+                    Storage::disk('local')->delete($existingDocument);
+                }
+            }
+
+            return response()->json([
+                'ok' => true,
+                'data' => $savedPets,
+                'message' => 'I tuoi pet sono stati salvati con successo.',
+            ], Response::HTTP_OK);
+        } catch (ValidationException $e) {
+            foreach ($storedPhotos as $photo) {
+                Storage::disk('public')->delete($photo);
+            }
+            foreach ($storedDocuments as $document) {
+                Storage::disk('local')->delete($document);
+            }
+
+            return response()->json([
+                'ok' => false,
+                'message' => $e->validator->errors()->first(),
+                'errors' => $e->errors(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            foreach ($storedPhotos as $photo) {
+                Storage::disk('public')->delete($photo);
+            }
+            foreach ($storedDocuments as $document) {
+                Storage::disk('local')->delete($document);
+            }
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            foreach ($storedPhotos as $photo) {
+                Storage::disk('public')->delete($photo);
+            }
+            foreach ($storedDocuments as $document) {
+                Storage::disk('local')->delete($document);
+            }
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Salvataggio dei pet non completato.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function downloadPetOwnerDocument(Request $request, int $documentId)
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $document = (new Profile)->getPetOwnerDocument($userId, $documentId);
+            if (! $document || ! Storage::disk('local')->exists((string) $document->file_path)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Documento non trovato.',
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return Storage::disk('local')->download(
+                (string) $document->file_path,
+                (string) ($document->original_name ?: 'documento'),
+                ['Content-Type' => (string) ($document->mime_type ?: 'application/octet-stream')]
+            );
+        } catch (Exception $e) {
+            Utility::saveError(['documentId' => $documentId], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Download del documento non disponibile.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function getOperatorOptions(): JsonResponse
     {
         try {
-            $model = new Profile();
+            $model = new Profile;
 
             return response()->json([
                 'ok' => true,
@@ -172,7 +467,7 @@ class ProfileController extends Controller
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            $model = new Profile();
+            $model = new Profile;
 
             return response()->json([
                 'ok' => true,
@@ -218,12 +513,10 @@ class ProfileController extends Controller
                 'locationLat' => ['nullable', 'numeric', 'between:-90,90'],
                 'locationLng' => ['nullable', 'numeric', 'between:-180,180'],
                 'serviceRadiusKm' => ['nullable', 'integer', 'min:1', 'max:200'],
-                'languageIds' => ['nullable', 'array'],
-                'languageIds.*' => ['required', 'integer', 'min:1'],
                 'photo' => ['nullable', 'image', 'max:4096'],
             ]);
 
-            $model = new Profile();
+            $model = new Profile;
             $current = $model->getPersonalProfile($userId);
             $photoPath = (string) ($current['photo'] ?? '');
 
@@ -249,7 +542,6 @@ class ProfileController extends Controller
                 'locationLat' => isset($validated['locationLat']) ? (float) $validated['locationLat'] : 0,
                 'locationLng' => isset($validated['locationLng']) ? (float) $validated['locationLng'] : 0,
                 'serviceRadiusKm' => isset($validated['serviceRadiusKm']) ? (int) $validated['serviceRadiusKm'] : 5,
-                'languageIds' => $validated['languageIds'] ?? [],
                 'photo' => $photoPath,
             ]);
 
@@ -308,7 +600,7 @@ class ProfileController extends Controller
                 'password_confirmation.same' => 'Le password inserite non coincidono.',
             ]);
 
-            $model = new Profile();
+            $model = new Profile;
             $data = $model->updateUserCredentials(
                 $userId,
                 strtolower((string) $validated['email']),
@@ -361,7 +653,7 @@ class ProfileController extends Controller
                 'photo' => ['nullable', 'image', 'max:4096'],
             ]);
 
-            $model = new Profile();
+            $model = new Profile;
             $current = $model->getPersonalProfile($userId);
             $photoPath = (string) ($current['photo'] ?? '');
 
@@ -384,7 +676,6 @@ class ProfileController extends Controller
                 'phone' => (string) ($validated['phone'] ?? ''),
                 'address' => (string) ($validated['address'] ?? ''),
                 'addressnumber' => (string) ($validated['addressnumber'] ?? ''),
-                'languageIds' => [],
                 'photo' => $photoPath,
             ]);
 
@@ -443,7 +734,7 @@ class ProfileController extends Controller
                 'password_confirmation.same' => 'Le password inserite non coincidono.',
             ]);
 
-            $model = new Profile();
+            $model = new Profile;
             $data = $model->updateUserCredentials(
                 $userId,
                 strtolower((string) $validated['email']),
@@ -563,7 +854,7 @@ class ProfileController extends Controller
                 }
             }
 
-            $model = new Profile();
+            $model = new Profile;
             $profile = $model->saveOperatorProfile($userId, [
                 'operatorType' => $validated['operatorType'] ?? 'person',
                 'fiscalCode' => $validated['fiscalCode'] ?? '',
@@ -613,7 +904,7 @@ class ProfileController extends Controller
             $year = max(2024, min(2100, (int) $request->query('year', date('Y'))));
             $month = max(1, min(12, (int) $request->query('month', date('n'))));
 
-            $model = new Profile();
+            $model = new Profile;
 
             return response()->json([
                 'ok' => true,
@@ -643,7 +934,7 @@ class ProfileController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Data non valida.'], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            $model = new Profile();
+            $model = new Profile;
 
             return response()->json([
                 'ok' => true,
@@ -693,7 +984,7 @@ class ProfileController extends Controller
                 return response()->json(['ok' => false, 'message' => $calendarValidationError], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            $model = new Profile();
+            $model = new Profile;
             $day = $model->saveCalendarDay($userId, [
                 'date' => (string) $validated['date'],
                 'enabled' => (bool) $validated['enabled'],
@@ -746,7 +1037,7 @@ class ProfileController extends Controller
                 $targetDates[] = $targetDate;
             }
 
-            $model = new Profile();
+            $model = new Profile;
             $result = $model->copyCalendarDay($userId, $sourceDate, $targetDates);
 
             return response()->json([

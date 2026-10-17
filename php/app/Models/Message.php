@@ -9,22 +9,11 @@ class Message extends Model
 {
     public function saveMessage(array $params): void
     {
-        if (isset($params["id"])) {
-            DB::table('message')
-                ->where('id', $params['id'])
-                ->update([
-                    'name' => $params['name'],
-                    'email' => $params['email'],
-                    'msg' => $params['msg'],
-                ]);
-        }
-        else {
-            $id = DB::table('message')->insertGetId([
-                'name' => $params['name'],
-                'email' => $params['email'],
-                'msg' => $params['msg'],
-            ]);
-        }
+        DB::table('message')->insert([
+            'name' => $params['name'],
+            'email' => $params['email'],
+            'msg' => $params['msg'],
+        ]);
     }
 
     public function getAdminMessages()

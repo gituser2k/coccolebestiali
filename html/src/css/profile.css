@@ -620,6 +620,11 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.profile-form-grid.profile-pet-characteristics-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
 .profile-field {
   display: grid;
   gap: 0.46rem;
@@ -1301,6 +1306,324 @@
   font-weight: 700;
 }
 
+.owner-pets-section,
+.owner-pet-editor {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.owner-pets-header,
+.owner-pet-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.owner-pets-header .profile-gallery-add,
+.owner-pet-gallery-header .profile-gallery-add {
+  white-space: nowrap;
+}
+
+.owner-pets-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding-bottom: 0.2rem;
+}
+
+.owner-pet-tab {
+  min-height: 3.15rem;
+  border: 1px solid rgb(31 95 167 / 22%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+  color: #234465;
+  padding: 0.45rem 1rem 0.45rem 0.48rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.owner-pet-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgb(31 95 167 / 42%);
+}
+
+.owner-pet-tab.is-active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2f7a4a 0%, #1f5fa7 100%);
+  box-shadow: 0 12px 24px rgb(31 95 167 / 20%);
+}
+
+.owner-pet-tab-number {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 82%);
+  color: #1f5fa7;
+  font-weight: 950;
+}
+
+.owner-pet-editor {
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 1.35rem;
+  background: linear-gradient(145deg, rgb(255 255 255 / 48%), rgb(255 255 255 / 18%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 74%);
+  padding: clamp(0.9rem, 2vw, 1.35rem);
+}
+
+.profile-form-grid.profile-form-grid-operator-four.owner-pet-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.owner-pet-anagraphics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid rgb(31 95 167 / 14%);
+}
+
+.owner-pet-general-notes {
+  grid-column: 1 / -1;
+}
+
+.owner-pet-general-notes textarea {
+  min-height: 7.5rem;
+  resize: none;
+}
+
+.owner-pet-characteristics-title {
+  margin: 0.15rem 0 -0.15rem;
+}
+
+.owner-pet-choice-card {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgb(31 95 167 / 20%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 52%);
+  padding: 0.85rem;
+}
+
+.owner-pet-choice-card legend {
+  color: #234465;
+  font-weight: 900;
+  padding: 0 0.35rem;
+}
+
+.owner-pet-choice-list {
+  max-height: 13.5rem;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  padding: 0.2rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(31 95 167 / 42%) transparent;
+}
+
+.owner-pet-choice-list .profile-checkbox-option {
+  min-width: 0;
+}
+
+.owner-pet-gallery-header {
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(31 95 167 / 14%);
+}
+
+.owner-pet-gallery-layout {
+  grid-template-columns: minmax(190px, 32%) minmax(0, 1fr);
+}
+
+.owner-pet-documents-section {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(31 95 167 / 14%);
+}
+
+.owner-pet-documents-header {
+  align-items: center;
+}
+
+.owner-pet-documents-intro {
+  max-width: 52rem;
+  margin: 0.35rem 0 0;
+  color: rgb(23 50 77 / 76%);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.owner-pet-documents-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.owner-pet-document-card {
+  min-width: 0;
+  border: 1px solid rgb(31 95 167 / 18%);
+  border-radius: 1.15rem;
+  background: linear-gradient(145deg, rgb(255 255 255 / 58%), rgb(255 255 255 / 28%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%);
+  padding: clamp(0.8rem, 1.8vw, 1rem);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.owner-pet-document-card-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  color: #234465;
+}
+
+.owner-pet-document-card-head > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-pet-document-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.owner-pet-document-remove {
+  min-height: 2.2rem;
+  padding-block: 0.35rem;
+}
+
+.owner-pet-document-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+.owner-pet-document-notes {
+  grid-column: 1 / -1;
+}
+
+.owner-pet-document-notes .profile-textarea {
+  min-height: 5.2rem;
+  resize: none;
+}
+
+.owner-pet-document-filebar {
+  min-width: 0;
+  border: 1px solid rgb(47 122 74 / 18%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 58%);
+  padding: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.owner-pet-document-filecopy,
+.owner-pet-document-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.owner-pet-document-filecopy > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.owner-pet-document-filecopy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #234465;
+  font-size: 0.9rem;
+}
+
+.owner-pet-document-filecopy small {
+  color: rgb(23 50 77 / 68%);
+  font-weight: 800;
+}
+
+.owner-pet-document-fileicon {
+  width: 2.45rem;
+  height: 2.45rem;
+  flex: 0 0 auto;
+  border-radius: 0.78rem;
+  display: grid;
+  place-items: center;
+  background: rgb(31 95 167 / 12%);
+  color: #1f5fa7;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.owner-pet-document-upload,
+.owner-pet-document-download {
+  min-height: 2.45rem;
+  border-radius: 999px;
+  padding: 0.48rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.owner-pet-document-download {
+  border: 1px solid rgb(31 95 167 / 28%);
+  background: rgb(255 255 255 / 82%);
+  color: #1f5fa7;
+}
+
+.owner-pet-documents-empty {
+  min-height: 7rem;
+}
+
+.owner-pets-empty {
+  min-height: 17rem;
+  border: 1px dashed rgb(31 95 167 / 28%);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 42%);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.85rem;
+  color: #234465;
+  text-align: center;
+}
+
+.owner-pets-empty svg {
+  width: 3.4rem;
+  height: 3.4rem;
+  color: #2f7a4a;
+}
+
 .profile-location-kicker {
   margin: 0;
   color: #1f5fa7;
@@ -1532,7 +1855,7 @@
   font-family: inherit;
 }
 
-.profile-language-grid {
+.profile-checkbox-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 0.7rem;
@@ -1726,6 +2049,7 @@
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 44%),
     0 8px 18px rgb(31 95 167 / 6%);
+  transition: transform 0.18s ease, outline-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .profile-calendar-cell.is-empty {
@@ -1787,8 +2111,29 @@
 }
 
 .profile-calendar-cell.is-selected {
+  z-index: 2;
   border-color: rgb(31 95 167 / 44%);
+  outline: 3px solid #1f5fa7;
+  outline-offset: 2px;
+  transform: translateY(-2px);
   box-shadow: inset 0 0 0 1px rgb(31 95 167 / 16%), 0 14px 24px rgb(31 95 167 / 12%);
+}
+
+.profile-calendar-selected-marker {
+  position: absolute;
+  top: 0.42rem;
+  right: 0.42rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #1f5fa7;
+  color: #fff !important;
+  font-size: 0.76rem !important;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 4px 10px rgb(31 95 167 / 28%);
 }
 
 .profile-calendar-cell.is-enabled.is-selected {
@@ -1815,6 +2160,8 @@
     linear-gradient(135deg, rgb(31 95 167 / 92%) 0%, rgb(47 122 74 / 82%) 100%);
   color: #fff;
   cursor: not-allowed;
+  outline: none;
+  transform: none;
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 32%),
     0 18px 34px rgb(31 95 167 / 28%);
@@ -1917,6 +2264,29 @@
   gap: 0.18rem;
   font-weight: 900;
   letter-spacing: -0.02em;
+}
+
+.profile-calendar-selected-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+}
+
+.profile-calendar-selected-date {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  border: 1px solid rgb(255 255 255 / 58%);
+  border-radius: 0.78rem;
+  background: linear-gradient(135deg, #1f5fa7 0%, #2875ba 100%);
+  color: #fff;
+  padding: 0.38rem 0.72rem;
+  font-size: clamp(1.02rem, 1.55vw, 1.3rem);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  box-shadow: 0 9px 18px rgb(31 95 167 / 20%);
 }
 
 .profile-calendar-day-header,
@@ -2109,7 +2479,7 @@
   opacity: 0.78;
 }
 
-.profile-language-option {
+.profile-checkbox-option {
   min-height: 30px;
   border-radius: 1rem;
   border: 1px solid rgb(31 95 167 / 18%);
@@ -2122,7 +2492,7 @@
   font-weight: 700;
 }
 
-.profile-language-option input {
+.profile-checkbox-option input {
   accent-color: #1f5fa7;
   width: 24px;
   min-height: 30px;
@@ -2684,6 +3054,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .profile-form-grid.profile-form-grid-operator-four.owner-pet-fields {
+    grid-template-columns: 1fr;
+  }
+
   .profile-location-inline {
     grid-template-columns: 1fr;
   }
@@ -2724,6 +3098,10 @@
     grid-template-columns: 1fr;
   }
 
+  .profile-form-grid.profile-pet-characteristics-grid {
+    grid-template-columns: 1fr;
+  }
+
   .profile-location-grid,
   .profile-location-inline {
     grid-template-columns: 1fr;
@@ -2745,6 +3123,18 @@
 
   .profile-calendar-layout {
     grid-template-columns: 1fr;
+  }
+
+  .profile-form-grid.profile-form-grid-operator-four.owner-pet-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-pet-anagraphics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-pet-general-notes {
+    grid-column: auto;
   }
 }
 
@@ -2786,6 +3176,54 @@
 
   .profile-gallery-layout {
     grid-template-columns: 1fr;
+  }
+
+  .owner-pets-header,
+  .owner-pet-editor-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .owner-pets-header .profile-gallery-add,
+  .owner-pet-editor-head .profile-gallery-remove {
+    width: 100%;
+  }
+
+  .owner-pets-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .owner-pet-tab {
+    width: 100%;
+    padding-right: 0.7rem;
+  }
+
+  .owner-pet-choice-list {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-pet-document-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-pet-document-notes {
+    grid-column: auto;
+  }
+
+  .owner-pet-document-filebar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .owner-pet-document-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .owner-pet-document-upload,
+  .owner-pet-document-download {
+    width: 100%;
   }
 
   .profile-gallery-thumbs {
@@ -2864,6 +3302,10 @@
   .profile-calendar-cell span,
   .profile-calendar-cell small {
     font-size: 0.72rem;
+  }
+
+  .profile-calendar-selected-marker {
+    display: none;
   }
 
   .profile-calendar-duration {

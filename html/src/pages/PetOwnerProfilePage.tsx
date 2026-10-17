@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -7,6 +7,7 @@ import '../css/profile.css'
 import { sanitizeText } from '../utility.js'
 import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
 import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
+import PetOwnerPetsSection, { PetsIcon } from '../components/PetOwnerPetsSection.tsx'
 
 type CityOption = {
   name: string
@@ -99,6 +100,7 @@ function isPasswordValid(password: string): boolean {
 }
 
 export default function PetOwnerProfilePage() {
+  const [activeMenu, setActiveMenu] = useState<'personal' | 'pets'>('personal')
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [isLoading, setIsLoading] = useState(true)
@@ -177,10 +179,10 @@ export default function PetOwnerProfilePage() {
   const accountProviderLabel = 'Cambio Credenziali'
   const accountActionLabel = 'Gestisci Credenziali'
 
-  function showProfileToast(message: string, type: 'error' | 'success') {
+  const showProfileToast = useCallback((message: string, type: 'error' | 'success') => {
     setToastMessage(message)
     setToastType(type)
-  }
+  }, [])
 
   function setManualMapPosition(lat: number, lng: number) {
     const nextLat = Number(lat.toFixed(7))
@@ -211,7 +213,7 @@ export default function PetOwnerProfilePage() {
   }, [previewPhotoUrl, selectedPhotoFile])
 
   useEffect(() => {
-    if (isLoading || !mapContainerRef.current || leafletMapRef.current) {
+    if (activeMenu !== 'personal' || isLoading || !mapContainerRef.current || leafletMapRef.current) {
       return
     }
 
@@ -260,7 +262,7 @@ export default function PetOwnerProfilePage() {
     }
     // Leaflet must be mounted once after the profile form becomes visible; marker updates are handled separately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading])
+  }, [activeMenu, isLoading])
 
   useEffect(() => {
     const map = leafletMapRef.current
@@ -319,7 +321,7 @@ export default function PetOwnerProfilePage() {
     }
 
     void loadProfileData()
-  }, [])
+  }, [showProfileToast])
 
   useEffect(() => {
     if (!isCityDropdownOpen) {
@@ -694,7 +696,11 @@ export default function PetOwnerProfilePage() {
         <section className="profile-layout" aria-label="Area profilo pet owner">
           <aside className="profile-sidebar" aria-label="Menu profilo">
             <nav className="profile-menu">
-              <button className="profile-menu-item is-personal is-active" type="button">
+              <button
+                className={`profile-menu-item is-personal ${activeMenu === 'personal' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveMenu('personal')}
+              >
                 <span className="profile-menu-badge" aria-hidden="true">
                   <PersonalDataIcon />
                 </span>
@@ -703,21 +709,35 @@ export default function PetOwnerProfilePage() {
                   <small>Informazioni anagrafiche, recapiti e foto profilo</small>
                 </span>
               </button>
+              <button
+                className={`profile-menu-item is-operator ${activeMenu === 'pets' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveMenu('pets')}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">
+                  <PetsIcon />
+                </span>
+                <span className="profile-menu-copy">
+                  <strong>IL MIO PET</strong>
+                </span>
+              </button>
             </nav>
           </aside>
 
           <section className="profile-stage" aria-label="Contenuto pagina">
             <div className="profile-stage-card">
               <p className="profile-stage-kicker">PROFILO PET OWNER</p>
-              <div className="profile-stage-title-row">
-                <h1 className="profile-stage-title">Dati personali</h1>
-                <FieldLegend />
-              </div>
+              {activeMenu === 'personal' ? (
+                <>
+                  <div className="profile-stage-title-row">
+                    <h1 className="profile-stage-title">Dati personali</h1>
+                    <FieldLegend />
+                  </div>
 
-              {isLoading ? (
-                <div className="profile-loading-card">Caricamento dati personali in corso...</div>
-              ) : (
-                <form id="profile-petowner-personal-form" className="profile-form" onSubmit={handleSavePersonalData}>
+                  {isLoading ? (
+                    <div className="profile-loading-card">Caricamento dati personali in corso...</div>
+                  ) : (
+                    <form id="profile-petowner-personal-form" className="profile-form" onSubmit={handleSavePersonalData}>
                   <section className="profile-form-section profile-photo-section">
                     <div className="profile-identity-grid">
                       <label className="profile-field">
@@ -932,14 +952,23 @@ export default function PetOwnerProfilePage() {
                       </div>
                     </div>
                   </section>
-                </form>
+                    </form>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="profile-stage-title-row">
+                    <h1 className="profile-stage-title">Il mio pet</h1>
+                  </div>
+                  <PetOwnerPetsSection onToast={showProfileToast} />
+                </>
               )}
             </div>
           </section>
         </section>
       </section>
 
-      {!isLoading ? (
+      {!isLoading && activeMenu === 'personal' ? (
         <div className="profile-floating-actions">
           <button type="submit" form="profile-petowner-personal-form" className="profile-save-button" disabled={isSaving}>
             <span className="profile-save-button-label">Salva dati</span>

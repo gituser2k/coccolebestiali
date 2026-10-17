@@ -1,4 +1,10 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Backend Coccole Bestiali
+
+La documentazione dello schema e della procedura di aggiornamento del database è disponibile in [`migration/README.md`](./migration/README.md).
+
+La fonte cumulativa delle strutture MySQL/MariaDB è [`migration/migration.txt`](./migration/migration.txt); il nome del database viene ricavato dalla variabile `DB_DATABASE` di `.env`.
+
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>

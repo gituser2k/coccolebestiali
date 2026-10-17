@@ -1,6 +1,7 @@
 -- Migration cumulativa Coccole Bestiali.
 -- Idempotente: puo essere rieseguita su database esistenti per ripristinare tabelle e seed mancanti.
 -- Il nome database viene valorizzato tramite la variabile DB_DATABASE del file .env sostituendo {{DB_DATABASE}}.
+-- Documentazione completa: php/migration/README.md.
 
 CREATE DATABASE IF NOT EXISTS `{{DB_DATABASE}}` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 USE `{{DB_DATABASE}}`;
@@ -79,27 +80,6 @@ CREATE TABLE IF NOT EXISTS `personaldata` (
   UNIQUE KEY `uk_personaldata_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `language` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(120) NOT NULL DEFAULT '',
-  `sortorder` int NOT NULL DEFAULT 0,
-  `created_at` int NOT NULL DEFAULT 0,
-  `updated_at` int NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `languagedata` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
-  `language_id` int(10) unsigned NOT NULL DEFAULT 0,
-  `created_at` int NOT NULL DEFAULT 0,
-  `updated_at` int NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_languagedata_user_language` (`user_id`, `language_id`),
-  KEY `idx_languagedata_user_id` (`user_id`),
-  KEY `idx_languagedata_language_id` (`language_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `operatordata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
@@ -110,12 +90,24 @@ CREATE TABLE IF NOT EXISTS `operatordata` (
   `bio` varchar(4096) NOT NULL DEFAULT '',
   `experience_years` int NOT NULL DEFAULT 0,
   `pet_size` varchar(32) NOT NULL DEFAULT '',
-  `service_hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_operatordata_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Rimuove il vecchio prezzo globale: il prezzo e ora configurato per singolo servizio.
+SET @operatordata_drop_service_hour_price = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'operatordata' AND `COLUMN_NAME` = 'service_hour_price'
+  ),
+  'ALTER TABLE `operatordata` DROP COLUMN `service_hour_price`',
+  'SELECT 1'
+);
+PREPARE operatordata_stmt FROM @operatordata_drop_service_hour_price;
+EXECUTE operatordata_stmt;
+DEALLOCATE PREPARE operatordata_stmt;
 
 CREATE TABLE IF NOT EXISTS `operatorassociatedata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -240,6 +232,135 @@ CREATE TABLE IF NOT EXISTS `operatorgallery` (
   KEY `idx_operatorgallery_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Profilo Pet Owner: anagrafica dei singoli pet.
+-- Un utente puo possedere piu pet; sortorder mantiene il loro ordine di visualizzazione.
+CREATE TABLE IF NOT EXISTS `ownerpet` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `sex` varchar(16) NOT NULL DEFAULT '',
+  `birth_date` date DEFAULT NULL,
+  `microchip_code` varchar(64) NOT NULL DEFAULT '',
+  `general_notes` varchar(4096) NOT NULL DEFAULT '',
+  `pet_size` varchar(32) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_ownerpet_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Aggiornamento idempotente per installazioni in cui ownerpet esiste gia.
+-- Le istruzioni dinamiche aggiungono esclusivamente le colonne mancanti senza alterare i dati presenti.
+SET @ownerpet_add_sex = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpet' AND `COLUMN_NAME` = 'sex'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `ownerpet` ADD COLUMN `sex` varchar(16) NOT NULL DEFAULT '''' AFTER `name`'
+);
+PREPARE ownerpet_stmt FROM @ownerpet_add_sex;
+EXECUTE ownerpet_stmt;
+DEALLOCATE PREPARE ownerpet_stmt;
+
+SET @ownerpet_add_birth_date = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpet' AND `COLUMN_NAME` = 'birth_date'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `ownerpet` ADD COLUMN `birth_date` date DEFAULT NULL AFTER `sex`'
+);
+PREPARE ownerpet_stmt FROM @ownerpet_add_birth_date;
+EXECUTE ownerpet_stmt;
+DEALLOCATE PREPARE ownerpet_stmt;
+
+SET @ownerpet_add_microchip_code = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpet' AND `COLUMN_NAME` = 'microchip_code'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `ownerpet` ADD COLUMN `microchip_code` varchar(64) NOT NULL DEFAULT '''' AFTER `birth_date`'
+);
+PREPARE ownerpet_stmt FROM @ownerpet_add_microchip_code;
+EXECUTE ownerpet_stmt;
+DEALLOCATE PREPARE ownerpet_stmt;
+
+SET @ownerpet_add_general_notes = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpet' AND `COLUMN_NAME` = 'general_notes'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `ownerpet` ADD COLUMN `general_notes` varchar(4096) NOT NULL DEFAULT '''' AFTER `microchip_code`'
+);
+PREPARE ownerpet_stmt FROM @ownerpet_add_general_notes;
+EXECUTE ownerpet_stmt;
+DEALLOCATE PREPARE ownerpet_stmt;
+
+-- Relazione molti-a-molti tra il singolo pet del proprietario e le razze configurate in petbreed.
+CREATE TABLE IF NOT EXISTS `ownerpetbreeddata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `petbreed_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ownerpetbreeddata_pet_breed` (`pet_id`, `petbreed_id`),
+  KEY `idx_ownerpetbreeddata_pet_id` (`pet_id`),
+  KEY `idx_ownerpetbreeddata_breed_id` (`petbreed_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Relazione molti-a-molti tra il singolo pet del proprietario e le caratteristiche configurate in pettype.
+CREATE TABLE IF NOT EXISTS `ownerpettypedata` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `pettype_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ownerpettypedata_pet_type` (`pet_id`, `pettype_id`),
+  KEY `idx_ownerpettypedata_pet_id` (`pet_id`),
+  KEY `idx_ownerpettypedata_type_id` (`pettype_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Gallery fotografica del singolo pet.
+-- photo contiene il percorso relativo al disco Laravel public; sortorder definisce l'ordine delle immagini.
+CREATE TABLE IF NOT EXISTS `ownerpetgallery` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `photo` varchar(1024) NOT NULL DEFAULT '',
+  `caption` varchar(255) NOT NULL DEFAULT '',
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_ownerpetgallery_pet_id` (`pet_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Archivio privato dei documenti associati al singolo pet.
+-- file_path contiene il percorso sul disco Laravel local (storage/app/private).
+CREATE TABLE IF NOT EXISTS `ownerpetdocument` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `document_type` varchar(64) NOT NULL DEFAULT '',
+  `title` varchar(255) NOT NULL DEFAULT '',
+  `issued_at` date DEFAULT NULL,
+  `expires_at` date DEFAULT NULL,
+  `notes` varchar(2048) NOT NULL DEFAULT '',
+  `file_path` varchar(1024) NOT NULL DEFAULT '',
+  `original_name` varchar(255) NOT NULL DEFAULT '',
+  `mime_type` varchar(120) NOT NULL DEFAULT '',
+  `file_size` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `sortorder` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_ownerpetdocument_pet_id` (`pet_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `service` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL DEFAULT '',
@@ -274,7 +395,6 @@ CREATE TABLE IF NOT EXISTS `operatorservicedata` (
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
   `service_id` int(10) unsigned NOT NULL DEFAULT 0,
   `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
-  `is_exclusive` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -282,6 +402,19 @@ CREATE TABLE IF NOT EXISTS `operatorservicedata` (
   KEY `idx_operatorservicedata_user_id` (`user_id`),
   KEY `idx_operatorservicedata_service_id` (`service_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- L'esclusiva e gestita come funzionalita del servizio, non come colonna dedicata.
+SET @operatorservice_drop_is_exclusive = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'operatorservicedata' AND `COLUMN_NAME` = 'is_exclusive'
+  ),
+  'ALTER TABLE `operatorservicedata` DROP COLUMN `is_exclusive`',
+  'SELECT 1'
+);
+PREPARE operatorservice_stmt FROM @operatorservice_drop_is_exclusive;
+EXECUTE operatorservice_stmt;
+DEALLOCATE PREPARE operatorservice_stmt;
 
 CREATE TABLE IF NOT EXISTS `operatorservicefeaturedata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -395,17 +528,6 @@ INSERT IGNORE INTO `servicefeaturedata` (`service_id`, `feature_id`, `created_at
   (5, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (5, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (5, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
-
-INSERT INTO `language` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
-  (1, 'Italiano', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (2, 'English', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (3, 'Francais', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (4, 'Espanol', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (5, 'Deutsch', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
-ON DUPLICATE KEY UPDATE
-  `name` = VALUES(`name`),
-  `sortorder` = VALUES(`sortorder`),
-  `updated_at` = VALUES(`updated_at`);
 
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
   (1, 'Addestratore', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),

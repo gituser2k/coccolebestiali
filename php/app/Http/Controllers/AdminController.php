@@ -14,7 +14,7 @@ class AdminController extends Controller
     public function getAdminFeatures(): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $rows = $m->getAdminFeatures();
 
             return response()->json([
@@ -41,7 +41,7 @@ class AdminController extends Controller
     public function getAdminPetTypes(): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $rows = $m->getAdminPetTypes();
 
             return response()->json([
@@ -68,7 +68,7 @@ class AdminController extends Controller
     public function getAdminHouseFeatures(): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $rows = $m->getAdminHouseFeatures();
 
             return response()->json([
@@ -102,7 +102,7 @@ class AdminController extends Controller
                 'name' => ['required', 'string', 'max:255'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $featureId = $m->saveAdminFeature($validated);
 
             return response()->json([
@@ -135,7 +135,7 @@ class AdminController extends Controller
                 'sortorder' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $petTypeId = $m->saveAdminPetType($validated);
 
             return response()->json([
@@ -168,7 +168,7 @@ class AdminController extends Controller
                 'sortorder' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $houseFeatureId = $m->saveAdminHouseFeature($validated);
 
             return response()->json([
@@ -200,7 +200,7 @@ class AdminController extends Controller
                 'ids.*' => ['required', 'integer', 'min:1'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $m->reorderAdminPetTypes($validated['ids']);
 
             return response()->json([
@@ -231,7 +231,7 @@ class AdminController extends Controller
                 'ids.*' => ['required', 'integer', 'min:1'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $m->reorderAdminHouseFeatures($validated['ids']);
 
             return response()->json([
@@ -255,7 +255,7 @@ class AdminController extends Controller
     public function deleteAdminFeature(int $featureId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->deleteAdminFeatureById($featureId);
 
             return response()->json([
@@ -279,7 +279,7 @@ class AdminController extends Controller
     public function deleteAdminPetType(int $petTypeId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->deleteAdminPetTypeById($petTypeId);
 
             return response()->json([
@@ -303,7 +303,7 @@ class AdminController extends Controller
     public function deleteAdminHouseFeature(int $houseFeatureId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->deleteAdminHouseFeatureById($houseFeatureId);
 
             return response()->json([
@@ -327,7 +327,7 @@ class AdminController extends Controller
     public function getAdminServices(): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $rows = $m->getAdminServices()->map(function ($row) {
                 $featureIds = trim((string) ($row->feature_ids ?? '')) === ''
                     ? []
@@ -382,7 +382,7 @@ class AdminController extends Controller
 
             $validated['feature_ids'] = $validated['feature_ids'] ?? [];
 
-            $m = new Admin();
+            $m = new Admin;
             $serviceId = $m->saveAdminService($validated);
 
             return response()->json([
@@ -407,7 +407,7 @@ class AdminController extends Controller
     public function deleteAdminService(int $serviceId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->deleteAdminServiceById($serviceId);
 
             return response()->json([
@@ -431,7 +431,7 @@ class AdminController extends Controller
     public function detachAdminServiceFeature(int $serviceId, int $featureId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->detachFeatureFromService($serviceId, $featureId);
 
             return response()->json([
@@ -455,7 +455,7 @@ class AdminController extends Controller
     public function detachAdminFeatureFromAllServices(int $featureId): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $m->detachFeatureFromAllServices($featureId);
 
             return response()->json([
@@ -479,7 +479,7 @@ class AdminController extends Controller
     public function getAdminErrors(): JsonResponse
     {
         try {
-            $m = new Admin();
+            $m = new Admin;
             $rows = $m->getAdminErrors();
 
             return response()->json([
@@ -513,7 +513,7 @@ class AdminController extends Controller
                 'ids.*' => ['required', 'integer', 'min:1'],
             ]);
 
-            $m = new Admin();
+            $m = new Admin;
             $deleted = $m->deleteAdminErrorsByIds($validated['ids']);
 
             return response()->json([

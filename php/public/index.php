@@ -3,6 +3,9 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 
+// MAMP FastCGI workers on macOS can otherwise abort on the first outbound TLS request.
+putenv('OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES');
+
 define('LARAVEL_START', microtime(true));
 
 // Determine if the application is in maintenance mode...

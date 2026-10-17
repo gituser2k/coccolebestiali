@@ -12,11 +12,13 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class AuthController extends Controller
 {
     private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
+
     private const PORTAL_USER_ROLE_COOKIE = 'cb_portal_user_role';
 
     public function getPublicAuthConfig(): JsonResponse
@@ -97,7 +99,7 @@ class AuthController extends Controller
             ]);
 
             $role = $this->normalizeRole($validated['role']);
-            $m = new UserAccount();
+            $m = new UserAccount;
             $email = strtolower((string) $validated['email']);
             $user = $m->registerEmailUser($role, $email, (string) $validated['password']);
             $this->sendRegistrationEmailConfirmation($email, $role);
@@ -108,6 +110,12 @@ class AuthController extends Controller
                     'user' => $user,
                 ],
             ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->validator->errors()->first(),
+                'errors' => $e->errors(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (RuntimeException $e) {
             if ($e->getMessage() === 'EMAIL_ALREADY_EXISTS') {
                 return response()->json([
@@ -146,7 +154,7 @@ class AuthController extends Controller
                 'password' => ['required', 'string', 'max:255'],
             ]);
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->authenticateEmailUser(
                 strtolower((string) $validated['email']),
                 (string) $validated['password']
@@ -159,6 +167,12 @@ class AuthController extends Controller
                     'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
                 ],
             ], 200), $user);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->validator->errors()->first(),
+                'errors' => $e->errors(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (RuntimeException $e) {
             $message = match ($e->getMessage()) {
                 'LOGIN_USER_NOT_FOUND' => 'Account non trovato.',
@@ -202,7 +216,7 @@ class AuthController extends Controller
             $email = strtolower((string) $validated['email']);
             $temporaryPassword = $this->generateTemporaryPassword();
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->createTemporaryPassword($email, $temporaryPassword);
 
             if ($user !== []) {
@@ -261,7 +275,7 @@ class AuthController extends Controller
                 'password_confirmation.same' => 'Le password inserite non coincidono.',
             ]);
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->completeTemporaryPasswordChange($userId, (string) $validated['password']);
 
             return $this->withPortalUserCookies(response()->json([
@@ -317,7 +331,7 @@ class AuthController extends Controller
                 throw new RuntimeException('GOOGLE_TOKEN_MISSING');
             }
 
-            $m = new UserAccount();
+            $m = new UserAccount;
             $user = $m->upsertSocialUser(
                 'google',
                 $claims['sub'],
@@ -379,7 +393,7 @@ class AuthController extends Controller
                 throw new RuntimeException('GOOGLE_TOKEN_MISSING');
             }
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->loginSocialUser('google', (string) $claims['sub'], (string) ($claims['email'] ?? ''));
 
             return $this->withPortalUserCookies(response()->json([
@@ -450,7 +464,7 @@ class AuthController extends Controller
                 'password.not_regex' => 'La password non puo contenere spazi.',
             ]);
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->switchCurrentUserToEmail(
                 $userId,
                 strtolower((string) $validated['email']),
@@ -519,7 +533,7 @@ class AuthController extends Controller
                 throw new RuntimeException('GOOGLE_TOKEN_MISSING');
             }
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->switchCurrentUserToSocial(
                 $userId,
                 'google',
@@ -583,7 +597,7 @@ class AuthController extends Controller
                 ->header('Content-Type', 'text/html; charset=UTF-8');
         }
 
-        $m = new UserAccount();
+        $m = new UserAccount;
         $m->markEmailAsVerified($email);
         $user = $m->getUserByEmail($email);
 
@@ -609,7 +623,7 @@ class AuthController extends Controller
                 ], Response::HTTP_OK);
             }
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->getUserById($userId);
 
             if ($user === []) {
@@ -689,7 +703,7 @@ class AuthController extends Controller
                 $validated['user'] ?? null
             );
 
-            $m = new UserAccount();
+            $m = new UserAccount;
             $user = $m->upsertSocialUser(
                 'apple',
                 $claims['sub'],
@@ -745,7 +759,7 @@ class AuthController extends Controller
                 $validated['user'] ?? null
             );
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->loginSocialUser('apple', (string) $claims['sub'], (string) ($claims['email'] ?? ''));
 
             return $this->withPortalUserCookies(response()->json([
@@ -807,7 +821,7 @@ class AuthController extends Controller
                 $validated['user'] ?? null
             );
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->switchCurrentUserToSocial(
                 $userId,
                 'apple',
@@ -895,7 +909,7 @@ class AuthController extends Controller
                 'mock' => true,
             ];
 
-            $m = new UserAccount();
+            $m = new UserAccount;
             $user = $m->upsertSocialUser(
                 'apple',
                 $sub,
@@ -957,7 +971,7 @@ class AuthController extends Controller
             $mockSub = trim((string) ($validated['mockSub'] ?? ''));
             $mockEmail = strtolower(trim((string) ($validated['mockEmail'] ?? '')));
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->loginSocialUser('apple', $mockSub, $mockEmail);
 
             return $this->withPortalUserCookies(response()->json([
@@ -1041,7 +1055,7 @@ class AuthController extends Controller
                 'mock' => true,
             ];
 
-            $model = new UserAccount();
+            $model = new UserAccount;
             $user = $model->switchCurrentUserToSocial(
                 $userId,
                 'apple',
@@ -1411,6 +1425,7 @@ class AuthController extends Controller
     private function profileRedirectPathForRoleAndEntry(string $role, string $entry): string
     {
         $basePath = $this->profileRedirectPathForRole($role);
+
         return $basePath.'?entry='.urlencode($entry);
     }
 

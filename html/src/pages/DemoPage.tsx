@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { useEffect, useState } from 'react'
 
 export type DemoPageProps = {
@@ -23,19 +22,23 @@ export default function DemoPage({ ...initial }: DemoPageProps) {
 
     async function loadFromLaravel() {
       try {
-        const response = await axios.get('/api/inertia-demo', {
+        const response = await fetch('/api/inertia-demo', {
           headers: {
             'X-Inertia': 'true',
             'X-Requested-With': 'XMLHttpRequest',
             Accept: 'application/json',
           },
         })
+        if (!response.ok) {
+          throw new Error('Richiesta demo non completata.')
+        }
+        const payload = await response.json()
 
         if (!isMounted) {
           return
         }
 
-        const nextProps = response.data?.props as DemoPageProps
+        const nextProps = payload?.props as DemoPageProps
         if (nextProps.message) {
           setMessage(nextProps.message)
         } else {

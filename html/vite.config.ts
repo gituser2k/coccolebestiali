@@ -14,12 +14,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        index: resolve(__dirname, 'src/html/index.html'),
-        demo: resolve(__dirname, 'src/html/demo.html'),
-        register: resolve(__dirname, 'src/html/register.html'),
-        profilePetOwner: resolve(__dirname, 'src/html/profile-petowner.html'),
-        profilePetAssistant: resolve(__dirname, 'src/html/profile-petassistant.html'),
-        templateEmpty: resolve(__dirname, 'src/html/template_empty.html'),
+        index: resolve(import.meta.dirname, 'src/html/index.html'),
+        demo: resolve(import.meta.dirname, 'src/html/demo.html'),
+        register: resolve(import.meta.dirname, 'src/html/register.html'),
+        profilePetOwner: resolve(import.meta.dirname, 'src/html/profile-petowner.html'),
+        profilePetAssistant: resolve(import.meta.dirname, 'src/html/profile-petassistant.html'),
+        templateEmpty: resolve(import.meta.dirname, 'src/html/template_empty.html'),
       },
     },
   },
