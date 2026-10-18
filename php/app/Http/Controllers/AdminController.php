@@ -8,9 +8,85 @@ use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 class AdminController extends Controller
 {
+    private const ADMIN_SESSION_KEY = 'cb_admin_authenticated';
+
+    public function login(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'username' => ['required', 'string', 'max:100'],
+            'password' => ['required', 'string', 'max:255'],
+        ]);
+        $expectedUsername = (string) env('CMS_ADMIN_USERNAME', 'coccoadmin');
+        $expectedPassword = (string) env('CMS_ADMIN_PASSWORD', 'cocco123.');
+        if (! hash_equals($expectedUsername, $validated['username']) || ! hash_equals($expectedPassword, $validated['password'])) {
+            return response()->json(['ok' => false, 'message' => 'Credenziali non valide.'], 401);
+        }
+
+        $request->session()->put(self::ADMIN_SESSION_KEY, true);
+        $request->session()->regenerate();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $request->session()->forget(self::ADMIN_SESSION_KEY);
+        $request->session()->regenerateToken();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function session(Request $request): JsonResponse
+    {
+        return response()->json(['ok' => (bool) $request->session()->get(self::ADMIN_SESSION_KEY, false)]);
+    }
+
+    public function getAdminPolicies(Request $request): JsonResponse
+    {
+        if (! $request->session()->get(self::ADMIN_SESSION_KEY, false)) {
+            return response()->json(['ok' => false, 'message' => 'Sessione amministrativa non disponibile.'], 401);
+        }
+        try {
+            return response()->json(['ok' => true, 'data' => (new Admin)->getAdminPolicies()]);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'data' => []], 500);
+        }
+    }
+
+    public function saveAdminPolicies(Request $request): JsonResponse
+    {
+        if (! $request->session()->get(self::ADMIN_SESSION_KEY, false)) {
+            return response()->json(['ok' => false, 'message' => 'Sessione amministrativa non disponibile.'], 401);
+        }
+        $validated = $request->validate([
+            'values' => ['required', 'array', 'min:1'],
+            'values.*' => ['required', 'integer'],
+        ]);
+
+        try {
+            $result = (new Admin)->saveAdminPolicies($validated['values']);
+
+            return response()->json(['ok' => true, 'data' => $result]);
+        } catch (InvalidArgumentException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() === 'POLICY_DURATION_STEP'
+                    ? 'La durata massima deve essere un multiplo di 30 minuti.'
+                    : 'Uno o più valori non rispettano i limiti previsti.',
+            ], 422);
+        } catch (Exception $e) {
+            Utility::saveError($validated, $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'message' => 'Aggiornamento policy non completato.'], 500);
+        }
+    }
+
     public function getAdminFeatures(): JsonResponse
     {
         try {

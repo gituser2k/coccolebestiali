@@ -4,6 +4,392 @@
   --text-main: #333333;
 }
 
+.profile-bookings-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.profile-bookings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-bookings-view-tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  border: 1px solid rgb(255 255 255 / 76%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 48%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+
+.profile-bookings-view-tabs button {
+  display: inline-flex;
+  min-height: 2.7rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #315675;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-bookings-view-tabs button > span {
+  display: grid;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  padding: 0 0.35rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(31 95 167 / 10%);
+  color: #1f5fa7;
+  font-size: 0.75rem;
+}
+
+.profile-bookings-view-tabs button.is-active {
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  color: #fff;
+  box-shadow: 0 9px 20px rgb(31 95 167 / 20%);
+}
+
+.profile-bookings-view-tabs button.is-active > span {
+  background: rgb(255 255 255 / 20%);
+  color: #fff;
+}
+
+.profile-booking-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid rgb(31 95 167 / 14%);
+}
+
+.profile-booking-mode > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+  color: #36516a;
+}
+
+.profile-booking-mode > div:first-child strong { color: #183a59; }
+
+.profile-booking-mode > div:last-child {
+  display: flex;
+  padding: 0.24rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+}
+
+.profile-booking-mode button {
+  min-height: 2.55rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+  background: transparent;
+  color: #1f5fa7;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-booking-mode button.is-active {
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  color: white;
+  box-shadow: 0 8px 18px rgb(31 95 167 / 18%);
+}
+
+.profile-bookings-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.profile-bookings-empty {
+  display: grid;
+  gap: 0.3rem;
+  padding: 2rem;
+  border: 1px solid rgb(31 95 167 / 14%);
+  border-radius: 1.4rem;
+  background: rgb(255 255 255 / 48%);
+  text-align: center;
+  color: #536a80;
+}
+
+.profile-booking-card {
+  padding: clamp(1rem, 2.5vw, 1.4rem);
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-left: 5px solid #1f5fa7;
+  border-radius: 1.35rem;
+  background: linear-gradient(145deg, rgb(255 255 255 / 72%), rgb(255 255 255 / 36%));
+  box-shadow: 0 14px 28px rgb(31 95 167 / 10%);
+}
+
+.profile-booking-card.is-confirmed,
+.profile-booking-card.is-completed {
+  border-left-color: #2f7a4a;
+}
+
+.profile-booking-card.is-cancelled,
+.profile-booking-card.is-declined,
+.profile-booking-card.is-expired {
+  border-left-color: #9a3c36;
+  opacity: 0.82;
+}
+
+.profile-booking-card > header,
+.profile-booking-actions,
+.profile-booking-modal-actions,
+.profile-review-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.profile-booking-card > header {
+  justify-content: space-between;
+}
+
+.profile-booking-card > header span,
+.profile-booking-facts span {
+  color: #57718b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.profile-booking-card > header h2 {
+  margin: 0.18rem 0 0;
+  color: #183a59;
+  font-size: 1.2rem;
+}
+
+.profile-booking-card > header > strong {
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  background: rgb(31 95 167 / 10%);
+  color: #1f5fa7;
+  font-size: 0.75rem;
+}
+
+.profile-booking-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.profile-booking-facts > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 58%);
+}
+
+.profile-booking-message,
+.profile-booking-proposal {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.85rem;
+  background: rgb(167 208 140 / 17%);
+  color: #36516a;
+  line-height: 1.45;
+}
+
+.profile-booking-proposal {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid rgb(47 122 74 / 22%);
+}
+
+.profile-booking-proposal p {
+  margin: 0;
+}
+
+.profile-booking-actions {
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}
+
+.profile-booking-actions button,
+.profile-booking-modal-actions button,
+.profile-review-choice button {
+  min-height: 2.7rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 1rem;
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  color: white;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-booking-actions .is-outline,
+.profile-booking-modal-actions .is-outline,
+.profile-review-choice button {
+  border: 1px solid rgb(31 95 167 / 26%);
+  background: rgb(255 255 255 / 72%);
+  color: #1f5fa7;
+}
+
+.profile-booking-actions .is-danger,
+.profile-booking-modal-actions .is-danger {
+  background: #9a3c36;
+}
+
+.profile-review-choice button.is-selected {
+  background: #2f7a4a;
+  color: white;
+}
+
+.profile-review-choice button.is-selected.is-negative {
+  background: #9a3c36;
+}
+
+.profile-booking-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(21 45 67 / 58%);
+  backdrop-filter: blur(10px);
+}
+
+.profile-booking-modal {
+  width: min(620px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  padding: clamp(1.2rem, 3vw, 2rem);
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-radius: 1.6rem;
+  background: linear-gradient(145deg, #f8fbfd, #e9f2fa);
+  box-shadow: 0 28px 70px rgb(18 50 77 / 28%);
+}
+
+.profile-booking-modal h2 {
+  margin-top: 0;
+  color: #2f7a4a;
+}
+
+.profile-booking-modal textarea {
+  width: 100%;
+  margin-top: 0.75rem;
+  border: 1px solid rgb(31 95 167 / 24%);
+  border-radius: 0.85rem;
+  padding: 0.8rem;
+  background: white;
+  color: #213d58;
+  font: inherit;
+}
+
+.profile-booking-modal .portal-combobox {
+  margin-top: 0.75rem;
+}
+
+.profile-booking-modal textarea {
+  min-height: 7rem;
+  resize: none;
+}
+
+.profile-booking-modal-actions {
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}
+
+.profile-booking-cancel-modal {
+  width: min(520px, 100%);
+  text-align: center;
+}
+
+.profile-booking-cancel-icon {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.9rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(154 60 54 / 12%);
+  color: #9a3c36;
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.profile-booking-cancel-modal h2 {
+  margin-bottom: 0.65rem;
+  color: #8a2f2a;
+}
+
+.profile-booking-cancel-modal p {
+  margin: 0;
+  color: #36516a;
+  line-height: 1.55;
+}
+
+.profile-booking-cancel-warning {
+  margin-top: 0.75rem !important;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgb(154 60 54 / 20%);
+  border-radius: 0.9rem;
+  background: rgb(154 60 54 / 8%);
+  color: #7f2d28 !important;
+  font-weight: 800;
+}
+
+.profile-booking-cancel-modal .profile-booking-modal-actions {
+  justify-content: center;
+  margin-top: 1.1rem;
+}
+
+.profile-booking-toast {
+  position: fixed;
+  z-index: 4000;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(92vw, 620px);
+  padding: 0.8rem 1.1rem;
+  border-radius: 999px;
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 14px 35px rgb(24 52 74 / 22%);
+}
+
+.profile-booking-toast.is-error { background: #9a3c36; }
+.profile-booking-toast.is-success { background: linear-gradient(135deg, #2f7a4a, #1f5fa7); }
+
+@media (max-width: 760px) {
+  .profile-bookings-header { align-items: stretch; flex-direction: column; }
+  .profile-bookings-view-tabs { width: 100%; }
+  .profile-bookings-view-tabs button { flex: 1; }
+  .profile-booking-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .profile-booking-mode { align-items: stretch; flex-direction: column; }
+  .profile-booking-mode > div:last-child { width: 100%; }
+  .profile-booking-mode button { flex: 1; }
+}
+
+@media (max-width: 480px) {
+  .profile-bookings-view-tabs button { padding-inline: 0.7rem; }
+  .profile-booking-facts { grid-template-columns: 1fr; }
+  .profile-booking-actions button { flex: 1 1 100%; }
+  .profile-booking-modal-actions { flex-direction: column-reverse; }
+  .profile-booking-modal-actions button { width: 100%; }
+}
+
 .register-shell {
   min-height: 100svh;
   padding: clamp(0.8rem, 2vw, 1.4rem);
@@ -256,6 +642,23 @@
   background: linear-gradient(135deg, rgb(255 210 132 / 24%) 0%, rgb(255 255 255 / 50%) 100%);
 }
 
+.profile-menu-item.is-bookings {
+  background: linear-gradient(135deg, rgb(38 132 128 / 18%) 0%, rgb(126 186 232 / 30%) 100%);
+}
+
+.profile-menu-item.is-remove-account {
+  margin-top: 0.45rem;
+  border-color: rgb(180 35 24 / 24%);
+  background: linear-gradient(135deg, rgb(180 35 24 / 12%) 0%, rgb(255 239 236 / 76%) 100%);
+}
+
+.profile-menu-item.is-remove-account:hover {
+  border-color: rgb(180 35 24 / 42%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 80%),
+    0 18px 28px rgb(180 35 24 / 16%);
+}
+
 .profile-menu-badge {
   flex: 0 0 auto;
   width: 3.1rem;
@@ -283,6 +686,19 @@
 
 .is-calendar .profile-menu-badge {
   background: linear-gradient(145deg, #d89a2b 0%, #f1c86b 100%);
+}
+
+.is-bookings .profile-menu-badge {
+  background: linear-gradient(145deg, #287f72 0%, #2472b8 100%);
+  box-shadow: 0 9px 18px rgb(31 95 167 / 24%);
+}
+
+.is-remove-account .profile-menu-badge {
+  background: linear-gradient(145deg, #b42318 0%, #d85a50 100%);
+}
+
+.is-remove-account .profile-menu-copy strong {
+  color: #932018;
 }
 
 .profile-menu-copy {
@@ -826,8 +1242,7 @@
   padding-bottom: 1rem;
 }
 
-.profile-field input,
-.profile-field select {
+.profile-field input {
   width: 100%;
   min-height: 46px;
   border: 1px solid #cfd8dc;
@@ -857,17 +1272,7 @@
   min-height: 72px;
 }
 
-.profile-field select {
-  appearance: none;
-  padding-right: 2.9rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2318456e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.95rem center;
-  background-size: 0.9rem;
-}
-
 .profile-field input:focus,
-.profile-field select:focus,
 .profile-textarea:focus {
   border-color: var(--brand-blue);
   box-shadow: 0 0 0 3px rgb(31 95 167 / 14%);
@@ -911,29 +1316,9 @@
 }
 
 .profile-multiselect-trigger {
-  width: 100%;
-  min-height: 46px;
-  border: 1px solid #cfd8dc;
-  border-radius: 12px;
-  padding: 0 2.9rem 0 0.9rem;
-  font-size: 0.98rem;
-  outline: none;
-  background:
-    rgb(255 255 255 / 92%)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2318456e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
-    no-repeat right 0.95rem center / 0.9rem;
-  color: #17324d;
-  text-align: left;
-  cursor: pointer;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease;
-}
-
-.profile-multiselect-trigger:focus,
-.profile-multiselect-trigger.is-open {
-  border-color: var(--brand-blue);
-  box-shadow: 0 0 0 3px rgb(31 95 167 / 14%);
 }
 
 .profile-field:has(.profile-field-label.is-required) input,
@@ -2613,6 +2998,57 @@
   font-size: clamp(1.15rem, 2vw, 1.55rem);
 }
 
+.profile-password-modal-field > label {
+  color: #333333;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.profile-password-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.profile-password-input-wrap input {
+  padding-right: 3.65rem;
+}
+
+.profile-password-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  padding: 0;
+  transform: translateY(-50%);
+  place-items: center;
+  border: 1px solid rgb(31 95 167 / 20%);
+  border-radius: 50%;
+  background: rgb(239 246 253 / 92%);
+  color: #1f5fa7;
+  cursor: pointer;
+}
+
+.profile-password-visibility-toggle:hover,
+.profile-password-visibility-toggle:focus-visible {
+  border-color: rgb(31 95 167 / 48%);
+  background: #fff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(31 95 167 / 12%);
+}
+
+.profile-password-visibility-toggle svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .profile-credentials-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2755,6 +3191,77 @@
   background: linear-gradient(135deg, #2f7a4a 0%, #1f5fa7 100%);
   color: #fff;
   box-shadow: 0 14px 24px rgb(31 95 167 / 20%);
+}
+
+.profile-modal-button.is-danger {
+  background: linear-gradient(135deg, #b42318 0%, #d54a3f 100%);
+  color: #fff;
+  box-shadow: 0 14px 24px rgb(180 35 24 / 22%);
+}
+
+.profile-remove-account-modal {
+  width: min(100%, 40rem);
+  border-radius: 1.35rem;
+  border: 1px solid rgb(255 255 255 / 72%);
+  background: linear-gradient(165deg, rgb(255 255 255 / 94%) 0%, rgb(255 235 232 / 92%) 100%);
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 88%),
+    0 28px 62px rgb(59 16 12 / 34%);
+  display: grid;
+  gap: 1rem;
+}
+
+.profile-remove-account-kicker {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #b42318;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.profile-remove-account-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.85rem;
+  border: 1px solid rgb(180 35 24 / 22%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 72%);
+  padding: 1rem;
+}
+
+.profile-remove-account-warning p {
+  margin: 0;
+  color: #4b2420;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.profile-remove-account-warning-icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #b42318;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+@media (max-width: 520px) {
+  .profile-remove-account-modal .profile-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .profile-remove-account-modal .profile-modal-button {
+    width: 100%;
+  }
 }
 
 .account-change-modal {

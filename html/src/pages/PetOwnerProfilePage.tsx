@@ -4,10 +4,14 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import logoImage from '../assets/logo.png'
 import '../css/profile.css'
+import '../css/combobox.css'
 import { sanitizeText } from '../utility.js'
 import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
 import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
 import PetOwnerPetsSection, { PetsIcon } from '../components/PetOwnerPetsSection.tsx'
+import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
+import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
+import PasswordVisibilityField from '../components/PasswordVisibilityField.tsx'
 
 type CityOption = {
   name: string
@@ -100,7 +104,7 @@ function isPasswordValid(password: string): boolean {
 }
 
 export default function PetOwnerProfilePage() {
-  const [activeMenu, setActiveMenu] = useState<'personal' | 'pets'>('personal')
+  const [activeMenu, setActiveMenu] = useState<'personal' | 'pets' | 'bookings'>('personal')
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [isLoading, setIsLoading] = useState(true)
@@ -123,6 +127,7 @@ export default function PetOwnerProfilePage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isPasswordSaving, setIsPasswordSaving] = useState(false)
+  const [isRemoveAccountModalOpen, setIsRemoveAccountModalOpen] = useState(false)
   const didAttemptInitialGeocodeRef = useRef(false)
 
   const profileEntryMode = useMemo<'register' | 'login'>(() => {
@@ -721,6 +726,31 @@ export default function PetOwnerProfilePage() {
                   <strong>IL MIO PET</strong>
                 </span>
               </button>
+              <button
+                className={`profile-menu-item is-bookings ${activeMenu === 'bookings' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveMenu('bookings')}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">
+                  <BookingsIcon />
+                </span>
+                <span className="profile-menu-copy"><strong>LE MIE PRENOTAZIONI</strong><small>Richieste, conferme e recensioni</small></span>
+              </button>
+              <button
+                className="profile-menu-item is-remove-account"
+                type="button"
+                onClick={() => setIsRemoveAccountModalOpen(true)}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M8.5 8.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Zm-3 10.25c0-2.55 2.92-4.5 6.5-4.5 1.02 0 1.98.16 2.82.46M17 16l4 4m0-4-4 4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className="profile-menu-copy">
+                  <strong>RIMUOVI ACCOUNT</strong>
+                  <small>Cancella definitivamente account e dati</small>
+                </span>
+              </button>
             </nav>
           </aside>
 
@@ -799,22 +829,19 @@ export default function PetOwnerProfilePage() {
                   <section className="profile-form-grid profile-form-section">
                     <label className="profile-field">
                       <FieldLabel>Età</FieldLabel>
-                      <input
-                        type="text"
-                        list="profile-petowner-age-options"
+                      <select
+                        className="portal-combobox"
                         value={profile.age ? String(profile.age) : ''}
-                        placeholder="Seleziona"
-                        inputMode="numeric"
                         onChange={(event) => {
-                          const rawValue = event.target.value.replace(/[^\d]/g, '')
+                          const rawValue = event.target.value
                           updateProfileField('age', rawValue ? Number(rawValue) : 0)
                         }}
-                      />
-                      <datalist id="profile-petowner-age-options">
+                      >
+                        <option value="">Seleziona</option>
                         {AGE_OPTIONS.map((age) => (
-                          <option key={age} value={String(age)} />
+                          <option key={age} value={String(age)}>{age}</option>
                         ))}
-                      </datalist>
+                      </select>
                     </label>
                     <label className="profile-field">
                       <FieldLabel tone={fieldVisibility.phone} onToneToggle={() => toggleFieldVisibility('phone')}>Numero di Telefono</FieldLabel>
@@ -955,13 +982,15 @@ export default function PetOwnerProfilePage() {
                     </form>
                   )}
                 </>
-              ) : (
+              ) : activeMenu === 'pets' ? (
                 <>
                   <div className="profile-stage-title-row">
                     <h1 className="profile-stage-title">Il mio pet</h1>
                   </div>
                   <PetOwnerPetsSection onToast={showProfileToast} />
                 </>
+              ) : (
+                <BookingsSection role="pet_owner" />
               )}
             </div>
           </section>
@@ -1011,28 +1040,20 @@ export default function PetOwnerProfilePage() {
             </label>
 
             <div className="profile-credentials-row">
-              <label className="profile-field profile-password-modal-field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  placeholder="Inserisci password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  autoComplete="new-password"
-                />
-              </label>
+              <PasswordVisibilityField
+                label="Password"
+                placeholder="Inserisci password"
+                value={newPassword}
+                onChange={setNewPassword}
+              />
 
               <div className="profile-confirm-credentials">
-                <label className="profile-field profile-password-modal-field">
-                  <span>Conferma Password</span>
-                  <input
-                    type="password"
-                    placeholder="Conferma password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    autoComplete="new-password"
-                  />
-                </label>
+                <PasswordVisibilityField
+                  label="Conferma Password"
+                  placeholder="Conferma password"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                />
                 <div className="profile-modal-actions profile-modal-actions-inline">
                   <button
                     type="button"
@@ -1090,6 +1111,13 @@ export default function PetOwnerProfilePage() {
           role="pet_owner"
           onClose={() => setIsAccountChangeModalOpen(false)}
           onChanged={handleAccountChanged}
+          onError={(message) => showProfileToast(message, 'error')}
+        />
+      ) : null}
+
+      {isRemoveAccountModalOpen ? (
+        <RemoveAccountModal
+          onClose={() => setIsRemoveAccountModalOpen(false)}
           onError={(message) => showProfileToast(message, 'error')}
         />
       ) : null}

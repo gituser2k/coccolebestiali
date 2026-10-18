@@ -1,0 +1,32 @@
+/* Regola unica per tutte le select native del portale. */
+select.portal-combobox,
+button.portal-combobox-trigger {
+  width: 100%;
+  min-height: var(--portal-combobox-height, 3.45rem);
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid rgb(31 95 167 / 22%);
+  border-radius: 1rem;
+  outline: 0;
+  padding: 0 2.6rem 0 0.8rem;
+  background-color: rgb(255 255 255 / 90%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='m2 2 6 6 6-6' fill='none' stroke='%2317324d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 0.8rem auto;
+  color: #17324d;
+  font: inherit;
+  font-weight: 800;
+}
+
+button.portal-combobox-trigger {
+  text-align: left;
+  cursor: pointer;
+}
+
+select.portal-combobox:focus,
+button.portal-combobox-trigger:focus,
+button.portal-combobox-trigger.is-open {
+  border-color: #1f5fa7;
+  box-shadow: 0 0 0 4px rgb(31 95 167 / 12%);
+}

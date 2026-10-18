@@ -4,11 +4,15 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import logoImage from '../assets/logo.png'
 import '../css/profile.css'
+import '../css/combobox.css'
 import { sanitizeText } from '../utility.js'
 import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
 import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
+import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
+import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
+import PasswordVisibilityField from '../components/PasswordVisibilityField.tsx'
 
-type MenuKey = 'personal' | 'operator' | 'calendar'
+type MenuKey = 'personal' | 'operator' | 'calendar' | 'bookings'
 
 type OperatorTitleOption = {
   id: number
@@ -425,6 +429,7 @@ export default function ProfilePlaceholderPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isPasswordSaving, setIsPasswordSaving] = useState(false)
+  const [isRemoveAccountModalOpen, setIsRemoveAccountModalOpen] = useState(false)
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null)
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null)
   const [serviceRateDrafts, setServiceRateDrafts] = useState<Record<number, string>>({})
@@ -432,6 +437,8 @@ export default function ProfilePlaceholderPage() {
   const [calendarYear, setCalendarYear] = useState(todayCalendar.year)
   const [calendarMonth, setCalendarMonth] = useState(todayCalendar.month)
   const [calendarDays, setCalendarDays] = useState<CalendarDaySummary[]>([])
+  const [bookingConfirmationMode, setBookingConfirmationMode] = useState<'manual' | 'automatic'>('manual')
+  const [isBookingModeSaving, setIsBookingModeSaving] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [calendarDayData, setCalendarDayData] = useState<CalendarDayData>(createEmptyCalendarDay(todayCalendar.isoDate))
   const [isCalendarEditorOpen, setIsCalendarEditorOpen] = useState(false)
@@ -1327,10 +1334,31 @@ export default function ProfilePlaceholderPage() {
       }
 
       setCalendarDays(Array.isArray(payload?.data?.days) ? payload.data.days : [])
+      setBookingConfirmationMode(payload?.data?.bookingConfirmationMode === 'automatic' ? 'automatic' : 'manual')
     } catch {
       setCalendarDays([])
     } finally {
       setIsCalendarMonthLoading(false)
+    }
+  }
+
+  async function saveBookingConfirmationMode(mode: 'manual' | 'automatic') {
+    setIsBookingModeSaving(true)
+    try {
+      const response = await fetch('/api/bookings/confirmation-mode', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ mode }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Impostazione non salvata.')
+      setBookingConfirmationMode(mode)
+      showProfileToast('Modalità di prenotazione aggiornata.', 'success')
+    } catch (error) {
+      showProfileToast(error instanceof Error ? error.message : 'Impostazione non salvata.', 'error')
+    } finally {
+      setIsBookingModeSaving(false)
     }
   }
 
@@ -2205,6 +2233,31 @@ export default function ProfilePlaceholderPage() {
                   <small>Disponibilita, turni e organizzazione delle attivita</small>
                 </span>
               </button>
+              <button
+                className={`profile-menu-item is-bookings ${activeMenu === 'bookings' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveMenu('bookings')}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">
+                  <BookingsIcon />
+                </span>
+                <span className="profile-menu-copy"><strong>LE MIE PRENOTAZIONI</strong><small>Richieste, conferme e recensioni</small></span>
+              </button>
+              <button
+                className="profile-menu-item is-remove-account"
+                type="button"
+                onClick={() => setIsRemoveAccountModalOpen(true)}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M8.5 8.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Zm-3 10.25c0-2.55 2.92-4.5 6.5-4.5 1.02 0 1.98.16 2.82.46M17 16l4 4m0-4-4 4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className="profile-menu-copy">
+                  <strong>RIMUOVI ACCOUNT</strong>
+                  <small>Cancella definitivamente account e dati</small>
+                </span>
+              </button>
             </nav>
           </aside>
 
@@ -2282,22 +2335,19 @@ export default function ProfilePlaceholderPage() {
                       <section className="profile-form-grid profile-form-section">
                         <label className="profile-field">
                           <FieldLabel>Età</FieldLabel>
-                          <input
-                            type="text"
-                            list="profile-age-options"
+                          <select
+                            className="portal-combobox"
                             value={profile.age ? String(profile.age) : ''}
-                            placeholder="Seleziona"
-                            inputMode="numeric"
                             onChange={(event) => {
-                              const rawValue = event.target.value.replace(/[^\d]/g, '')
+                              const rawValue = event.target.value
                               updateProfileField('age', rawValue ? Number(rawValue) : 0)
                             }}
-                          />
-                          <datalist id="profile-age-options">
+                          >
+                            <option value="">Seleziona</option>
                             {AGE_OPTIONS.map((age) => (
-                              <option key={age} value={String(age)} />
+                              <option key={age} value={String(age)}>{age}</option>
                             ))}
-                          </datalist>
+                          </select>
                         </label>
                         <label className="profile-field">
                           <FieldLabel tone={fieldVisibility.phone} onToneToggle={() => toggleFieldVisibility('phone')}>Numero di Telefono</FieldLabel>
@@ -2414,6 +2464,7 @@ export default function ProfilePlaceholderPage() {
                             <label className="profile-field profile-radius-field">
                               <span>Raggio operativo</span>
                               <select
+                                className="portal-combobox"
                                 value={profile.serviceRadiusKm}
                                 onChange={(event) => updateProfileField('serviceRadiusKm', Number(event.target.value))}
                               >
@@ -2613,7 +2664,7 @@ export default function ProfilePlaceholderPage() {
                             <span>Razza pet</span>
                             <button
                               type="button"
-                              className={`profile-multiselect-trigger ${isPetBreedDropdownOpen ? 'is-open' : ''}`}
+                              className={`profile-multiselect-trigger portal-combobox-trigger ${isPetBreedDropdownOpen ? 'is-open' : ''}`}
                               ref={petBreedTriggerRef}
                               onClick={() => setIsPetBreedDropdownOpen((current) => !current)}
                               aria-haspopup="listbox"
@@ -2648,6 +2699,7 @@ export default function ProfilePlaceholderPage() {
                           <label className="profile-field">
                             <span>Taglia</span>
                             <select
+                              className="portal-combobox"
                               value={operatorProfile.petSize}
                               onChange={(event) => updateOperatorField('petSize', event.target.value)}
                             >
@@ -2663,7 +2715,7 @@ export default function ProfilePlaceholderPage() {
                             <span>Tipo di pet</span>
                             <button
                               type="button"
-                              className={`profile-multiselect-trigger ${isPetTypeDropdownOpen ? 'is-open' : ''}`}
+                              className={`profile-multiselect-trigger portal-combobox-trigger ${isPetTypeDropdownOpen ? 'is-open' : ''}`}
                               ref={petTypeTriggerRef}
                               onClick={() => setIsPetTypeDropdownOpen((current) => !current)}
                               aria-haspopup="listbox"
@@ -2697,22 +2749,19 @@ export default function ProfilePlaceholderPage() {
                           </div>
                           <label className="profile-field">
                             <span>Anni esperienza</span>
-                            <input
-                              type="text"
-                              list="profile-experience-options"
+                            <select
+                              className="portal-combobox"
                               value={operatorProfile.experienceYears ? String(operatorProfile.experienceYears) : ''}
-                              placeholder="Seleziona"
-                              inputMode="numeric"
                               onChange={(event) => {
-                                const rawValue = event.target.value.replace(/[^\d]/g, '')
+                                const rawValue = event.target.value
                                 updateOperatorField('experienceYears', rawValue ? Number(rawValue) : 0)
                               }}
-                            />
-                            <datalist id="profile-experience-options">
+                            >
+                              <option value="">Seleziona</option>
                               {EXPERIENCE_OPTIONS.map((years) => (
-                                <option key={years} value={String(years)} />
+                                <option key={years} value={String(years)}>{years}</option>
                               ))}
-                            </datalist>
+                            </select>
                           </label>
                         </div>
                       </section>
@@ -2801,7 +2850,7 @@ export default function ProfilePlaceholderPage() {
                         <div className="profile-field profile-multiselect-field" ref={houseFeatureDropdownRef}>
                           <button
                             type="button"
-                            className={`profile-multiselect-trigger ${isHouseFeatureDropdownOpen ? 'is-open' : ''}`}
+                            className={`profile-multiselect-trigger portal-combobox-trigger ${isHouseFeatureDropdownOpen ? 'is-open' : ''}`}
                             ref={houseFeatureTriggerRef}
                             onClick={() => setIsHouseFeatureDropdownOpen((current) => !current)}
                             aria-haspopup="listbox"
@@ -2947,12 +2996,19 @@ export default function ProfilePlaceholderPage() {
                     </form>
                   )}
                 </>
-              ) : (
+              ) : activeMenu === 'calendar' ? (
                 <>
                   <p className="profile-stage-kicker">IMPOSTA LA DISPONIBILITA DEI GIORNI PRENOTABILI</p>
                   <h1 className="profile-stage-title">Calendario</h1>
                   <div className="profile-calendar-shell">
                     <section className="profile-form-section profile-calendar-toolbar">
+                      <div className="profile-booking-mode">
+                        <div><strong>Conferma prenotazioni</strong><span>Scegli se accettare ogni richiesta o confermarla automaticamente.</span></div>
+                        <div role="radiogroup" aria-label="Modalità conferma prenotazioni">
+                          <button type="button" className={bookingConfirmationMode === 'manual' ? 'is-active' : ''} disabled={isBookingModeSaving} onClick={() => void saveBookingConfirmationMode('manual')}>Da accettare</button>
+                          <button type="button" className={bookingConfirmationMode === 'automatic' ? 'is-active' : ''} disabled={isBookingModeSaving} onClick={() => void saveBookingConfirmationMode('automatic')}>Automatica</button>
+                        </div>
+                      </div>
                       <div className="profile-calendar-nav">
                         <button type="button" className="profile-calendar-nav-btn" onClick={() => shiftCalendarMonth(-1)}>
                           Mese precedente
@@ -3037,6 +3093,7 @@ export default function ProfilePlaceholderPage() {
                                           <label className="profile-field">
                                             <span>Inizio</span>
                                             <select
+                                              className="portal-combobox"
                                               value={slot.startTime}
                                               onChange={(event) => updateCalendarSlot(slotIndex, 'startTime', event.target.value)}
                                             >
@@ -3050,6 +3107,7 @@ export default function ProfilePlaceholderPage() {
                                           <label className="profile-field">
                                             <span>Fine</span>
                                             <select
+                                              className="portal-combobox"
                                               value={slot.endTime}
                                               onChange={(event) => updateCalendarSlot(slotIndex, 'endTime', event.target.value)}
                                             >
@@ -3213,6 +3271,8 @@ export default function ProfilePlaceholderPage() {
                     </div>
                   </div>
                 </>
+              ) : (
+                <BookingsSection role="pet_assistant" />
               )}
             </div>
           </section>
@@ -3271,28 +3331,20 @@ export default function ProfilePlaceholderPage() {
             </label>
 
             <div className="profile-credentials-row">
-              <label className="profile-field profile-password-modal-field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  placeholder="Inserisci password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  autoComplete="new-password"
-                />
-              </label>
+              <PasswordVisibilityField
+                label="Password"
+                placeholder="Inserisci password"
+                value={newPassword}
+                onChange={setNewPassword}
+              />
 
               <div className="profile-confirm-credentials">
-                <label className="profile-field profile-password-modal-field">
-                  <span>Conferma Password</span>
-                  <input
-                    type="password"
-                    placeholder="Conferma password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    autoComplete="new-password"
-                  />
-                </label>
+                <PasswordVisibilityField
+                  label="Conferma Password"
+                  placeholder="Conferma password"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                />
                 <div className="profile-modal-actions profile-modal-actions-inline">
                   <button
                     type="button"
@@ -3350,6 +3402,13 @@ export default function ProfilePlaceholderPage() {
           role="pet_assistant"
           onClose={() => setIsAccountChangeModalOpen(false)}
           onChanged={handleAccountChanged}
+          onError={(message) => showProfileToast(message, 'error')}
+        />
+      ) : null}
+
+      {isRemoveAccountModalOpen ? (
+        <RemoveAccountModal
+          onClose={() => setIsRemoveAccountModalOpen(false)}
           onError={(message) => showProfileToast(message, 'error')}
         />
       ) : null}

@@ -5,9 +5,149 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class Admin extends Model
 {
+    public function getAdminPolicies(): array
+    {
+        return [
+            'policies' => PortalPolicy::adminRows(),
+            'history' => DB::table('policy_change_log')
+                ->select(['id', 'batch_id', 'changes_json', 'recipient_count', 'delivery_count', 'failure_count', 'created_at'])
+                ->orderByDesc('id')
+                ->limit(20)
+                ->get()
+                ->map(function ($row) {
+                    $row->changes = json_decode((string) $row->changes_json, true) ?: [];
+                    unset($row->changes_json);
+
+                    return $row;
+                })
+                ->values(),
+        ];
+    }
+
+    public function saveAdminPolicies(array $submittedValues): array
+    {
+        $definitions = PortalPolicy::DEFINITIONS;
+        $current = PortalPolicy::values();
+        $changes = [];
+
+        foreach ($submittedValues as $key => $rawValue) {
+            if (! isset($definitions[$key])) {
+                continue;
+            }
+            $value = (int) $rawValue;
+            $definition = $definitions[$key];
+            if ($value < (int) $definition['min'] || $value > (int) $definition['max']) {
+                throw new \InvalidArgumentException('POLICY_VALUE_OUT_OF_RANGE');
+            }
+            if ($key === 'max_booking_duration_minutes' && $value % 30 !== 0) {
+                throw new \InvalidArgumentException('POLICY_DURATION_STEP');
+            }
+            if ($value !== (int) $current[$key]) {
+                $changes[] = [
+                    'key' => $key,
+                    'label' => $definition['label'],
+                    'unit' => $definition['unit'],
+                    'oldValue' => (int) $current[$key],
+                    'newValue' => $value,
+                ];
+            }
+        }
+
+        if ($changes === []) {
+            return ['changed' => false, 'changes' => [], 'recipients' => 0, 'delivered' => 0, 'failed' => 0];
+        }
+
+        $batchId = (string) Str::uuid();
+        $now = time();
+        $recipients = DB::table('users')
+            ->whereIn('role', ['pet_owner', 'pet_assistant'])
+            ->where('email_verified', 1)
+            ->whereNotNull('email')
+            ->where('email', '<>', '')
+            ->distinct()
+            ->pluck('email')
+            ->map(static fn ($email) => trim((string) $email))
+            ->filter()
+            ->values()
+            ->all();
+
+        $logId = DB::transaction(function () use ($changes, $batchId, $now, $recipients) {
+            foreach ($changes as $change) {
+                DB::table('portal_policy')->updateOrInsert(
+                    ['policy_key' => $change['key']],
+                    ['value' => $change['newValue'], 'updated_at' => $now]
+                );
+            }
+
+            return (int) DB::table('policy_change_log')->insertGetId([
+                'batch_id' => $batchId,
+                'changes_json' => json_encode($changes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'recipient_count' => count($recipients),
+                'delivery_count' => 0,
+                'failure_count' => 0,
+                'created_at' => $now,
+            ]);
+        });
+
+        [$delivered, $failed] = $this->notifyPolicyChanges($batchId, $changes, $recipients);
+        DB::table('policy_change_log')->where('id', $logId)->update([
+            'delivery_count' => $delivered,
+            'failure_count' => $failed,
+        ]);
+
+        return [
+            'changed' => true,
+            'changes' => $changes,
+            'recipients' => count($recipients),
+            'delivered' => $delivered,
+            'failed' => $failed,
+        ];
+    }
+
+    private function notifyPolicyChanges(string $batchId, array $changes, array $recipients): array
+    {
+        if ($recipients === []) {
+            return [0, 0];
+        }
+
+        $rows = implode('', array_map(static function (array $change) {
+            return '<tr><td style="padding:10px;border-bottom:1px solid #dce6eb"><strong>'.e($change['label']).'</strong></td>'
+                .'<td style="padding:10px;border-bottom:1px solid #dce6eb">'.e($change['oldValue'].' '.$change['unit']).'</td>'
+                .'<td style="padding:10px;border-bottom:1px solid #dce6eb;color:#2f7a4a;font-weight:700">'.e($change['newValue'].' '.$change['unit']).'</td></tr>';
+        }, $changes));
+        $html = '<div style="font-family:Arial,sans-serif;color:#253b53;max-width:720px;margin:auto;padding:30px;border-radius:24px;background:#f3f7fb">'
+            .'<h1 style="margin-top:0;color:#2f7a4a">Coccole Bestiali</h1>'
+            .'<h2 style="color:#1f5fa7">Aggiornamento delle policy del portale</h2>'
+            .'<p>Abbiamo aggiornato alcune condizioni che regolano prenotazioni, cancellazioni, recensioni e ranking.</p>'
+            .'<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden"><thead><tr><th style="padding:10px;text-align:left">Policy</th><th style="padding:10px;text-align:left">Prima</th><th style="padding:10px;text-align:left">Adesso</th></tr></thead><tbody>'.$rows.'</tbody></table>'
+            .'<p style="font-size:13px;color:#617283">Comunicazione '.$batchId.'. Le nuove policy sono applicate alle operazioni effettuate successivamente alla modifica.</p>'
+            .'</div>';
+
+        $delivered = 0;
+        $failed = 0;
+        foreach (array_chunk($recipients, 50) as $chunk) {
+            try {
+                Mail::html($html, function ($message) use ($chunk) {
+                    $message->from('info@coccolebestiali.it', 'Coccole Bestiali')
+                        ->to('info@coccolebestiali.it', 'Coccole Bestiali')
+                        ->bcc($chunk)
+                        ->subject('Coccole Bestiali - Aggiornamento policy del portale');
+                });
+                $delivered += count($chunk);
+            } catch (\Throwable $exception) {
+                $failed += count($chunk);
+                Utility::saveError(['recipients' => $chunk, 'batchId' => $batchId], $exception->getMessage(), __METHOD__);
+            }
+        }
+
+        return [$delivered, $failed];
+    }
+
     public function getAdminErrors()
     {
         return DB::table('error')

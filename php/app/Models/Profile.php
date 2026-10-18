@@ -1059,6 +1059,7 @@ class Profile extends Model
         return [
             'year' => $year,
             'month' => $month,
+            'bookingConfirmationMode' => ((string) DB::table('operatordata')->where('user_id', $userId)->value('booking_confirmation_mode')) === 'automatic' ? 'automatic' : 'manual',
             'days' => $days,
         ];
     }

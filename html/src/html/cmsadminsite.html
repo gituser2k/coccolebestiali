@@ -452,6 +452,115 @@
         gap: 12px;
       }
 
+      .policy-intro {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 16px 18px;
+        border: 1px solid rgba(31, 95, 167, 0.2);
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(167, 208, 140, 0.2), rgba(31, 95, 167, 0.1));
+      }
+
+      .policy-intro strong {
+        display: block;
+        color: var(--green);
+        margin-bottom: 4px;
+      }
+
+      .policy-groups {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .policy-group {
+        border: 1px solid #dfe8ed;
+        border-radius: 14px;
+        background: #fff;
+        padding: 15px;
+      }
+
+      .policy-group h4 {
+        color: var(--blue);
+        margin: 0 0 12px;
+      }
+
+      .policy-field {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 130px;
+        align-items: center;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid #edf1f3;
+      }
+
+      .policy-field:last-child {
+        border-bottom: 0;
+      }
+
+      .policy-field label {
+        font-weight: 800;
+        color: #253b53;
+      }
+
+      .policy-field small {
+        display: block;
+        margin-top: 4px;
+        color: #647581;
+        line-height: 1.35;
+      }
+
+      .policy-value {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 7px;
+      }
+
+      .policy-value input {
+        min-width: 0;
+        padding: 10px 8px;
+        text-align: center;
+        font-weight: 800;
+      }
+
+      .policy-value span {
+        color: #647581;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+
+      .policy-history {
+        display: grid;
+        gap: 10px;
+      }
+
+      .policy-history-item {
+        border-left: 4px solid var(--blue);
+        border-radius: 10px;
+        background: #fff;
+        padding: 11px 13px;
+      }
+
+      .policy-history-item time {
+        color: #647581;
+        font-size: 0.82rem;
+      }
+
+      .policy-history-changes {
+        margin-top: 6px;
+        line-height: 1.5;
+        font-size: 0.88rem;
+      }
+
+      @media (max-width: 1050px) {
+        .policy-groups {
+          grid-template-columns: 1fr;
+        }
+      }
+
       .service-form-grid input,
       .service-form-grid textarea {
         width: 100%;
@@ -836,6 +945,7 @@
           <button id="btnServices" class="menu-btn" type="button">Servizi</button>
           <button id="btnPetTypes" class="menu-btn" type="button">Tipo di pet</button>
           <button id="btnHouseFeatures" class="menu-btn" type="button">Caratteristiche casa</button>
+          <button id="btnPolicies" class="menu-btn" type="button">Policy</button>
         </div>
         <button id="btnLogout" class="menu-btn logout-btn" type="button">Logout</button>
       </aside>
@@ -898,8 +1008,6 @@
       window.CBUtility = { showUtilityModal }
     </script>
     <script>
-      const ADMIN_USERNAME = 'coccoadmin'
-      const ADMIN_PASSWORD = 'cocco123.'
       const LOGIN_SESSION_KEY = 'cms_admin_logged'
 
       const loginShell = document.getElementById('loginShell')
@@ -912,6 +1020,7 @@
       const btnServices = document.getElementById('btnServices')
       const btnPetTypes = document.getElementById('btnPetTypes')
       const btnHouseFeatures = document.getElementById('btnHouseFeatures')
+      const btnPolicies = document.getElementById('btnPolicies')
       const btnLogout = document.getElementById('btnLogout')
       const btnDeleteErrors = document.getElementById('btnDeleteErrors')
       const rowContextMenu = document.getElementById('rowContextMenu')
@@ -949,6 +1058,8 @@
       let featureRows = []
       let petTypeRows = []
       let houseFeatureRows = []
+      let policyRows = []
+      let policyHistoryRows = []
       let editingServiceId = null
       let editingFeatureId = null
       let editingPetTypeId = null
@@ -973,6 +1084,7 @@
         btnServices.classList.toggle('is-active', type === 'services')
         btnPetTypes.classList.toggle('is-active', type === 'pettypes')
         btnHouseFeatures.classList.toggle('is-active', type === 'housefeatures')
+        btnPolicies.classList.toggle('is-active', type === 'policies')
         hideRowContextMenu()
       }
 
@@ -1130,6 +1242,25 @@
 
       function isLoginSessionActive() {
         return sessionStorage.getItem(LOGIN_SESSION_KEY) === '1'
+      }
+
+      async function restoreAdminSession() {
+        if (!isLoginSessionActive()) {
+          openLogin()
+          return
+        }
+        try {
+          const response = await fetch('/api/admin/auth/session', { headers: { Accept: 'application/json' } })
+          const payload = await response.json()
+          if (response.ok && payload?.ok) {
+            await openDashboard()
+            return
+          }
+        } catch (error) {
+          // La schermata di login resta la scelta sicura se la sessione non è verificabile.
+        }
+        clearLoginSession()
+        openLogin()
       }
 
       async function openDashboard() {
@@ -2204,6 +2335,106 @@
         statusNote.textContent = ''
       }
 
+      async function loadPoliciesSection() {
+        hideRowContextMenu()
+        contextMessageId = null
+        setDeleteButtonVisibility(false)
+        selectedErrorIds.clear()
+        selectedMessageIds.clear()
+        messageRowsMap.clear()
+        tableTitle.textContent = 'Policy del portale'
+        statusNote.textContent = 'Caricamento policy...'
+        showServicesWrap()
+
+        const response = await laravelFetch('/api/admin/policies', { headers: { Accept: 'application/json' } })
+        if (!response.ok) {
+          throw new Error('Errore caricamento policy')
+        }
+
+        const payload = await response.json()
+        policyRows = Array.isArray(payload?.data?.policies) ? payload.data.policies : []
+        policyHistoryRows = Array.isArray(payload?.data?.history) ? payload.data.history : []
+        renderPoliciesManager()
+        statusNote.textContent = ''
+      }
+
+      function renderPoliciesManager() {
+        const grouped = policyRows.reduce((groups, policy) => {
+          const group = String(policy.group || 'Generali')
+          groups[group] = groups[group] || []
+          groups[group].push(policy)
+          return groups
+        }, {})
+        const groupsHtml = Object.entries(grouped).map(([group, policies]) => `
+          <section class="policy-group">
+            <h4>${escapeHtml(group)}</h4>
+            ${policies.map((policy) => `
+              <div class="policy-field">
+                <div>
+                  <label for="policy-${escapeHtml(policy.key)}">${escapeHtml(policy.label)}</label>
+                  <small>${escapeHtml(policy.description)} Limiti: ${Number(policy.min)}–${Number(policy.max)} ${escapeHtml(policy.unit)}.</small>
+                </div>
+                <div class="policy-value">
+                  <input id="policy-${escapeHtml(policy.key)}" data-policy-key="${escapeHtml(policy.key)}" type="number" min="${Number(policy.min)}" max="${Number(policy.max)}" step="${policy.key === 'max_booking_duration_minutes' ? 30 : 1}" value="${Number(policy.value)}">
+                  <span>${escapeHtml(policy.unit)}</span>
+                </div>
+              </div>
+            `).join('')}
+          </section>
+        `).join('')
+        const historyHtml = policyHistoryRows.length > 0
+          ? policyHistoryRows.map((entry) => `
+              <article class="policy-history-item">
+                <strong>${moment.unix(Number(entry.created_at)).format('DD/MM/YYYY HH:mm')}</strong>
+                <time> · ${Number(entry.delivery_count)}/${Number(entry.recipient_count)} email inviate${Number(entry.failure_count) > 0 ? ` · ${Number(entry.failure_count)} non consegnate` : ''}</time>
+                <div class="policy-history-changes">${(entry.changes || []).map((change) => `${escapeHtml(change.label)}: <b>${Number(change.oldValue)} → ${Number(change.newValue)} ${escapeHtml(change.unit)}</b>`).join('<br>')}</div>
+              </article>
+            `).join('')
+          : '<div class="service-empty">Nessuna variazione registrata.</div>'
+
+        servicesManager.innerHTML = `
+          <div class="service-form-grid">
+            <div class="policy-intro">
+              <div><strong>Configurazione centralizzata</strong><span>Ogni valore modificato viene applicato immediatamente alle nuove operazioni del portale.</span></div>
+              <button class="service-btn" type="button" data-action="save-policies">SALVA E COMUNICA</button>
+            </div>
+            <div class="policy-groups">${groupsHtml}</div>
+            <section class="services-card">
+              <h4 class="services-heading-blue">Storico variazioni e comunicazioni</h4>
+              <div class="policy-history">${historyHtml}</div>
+            </section>
+          </div>
+        `
+      }
+
+      async function savePolicies() {
+        const values = {}
+        servicesManager.querySelectorAll('[data-policy-key]').forEach((input) => {
+          values[input.getAttribute('data-policy-key')] = Number(input.value)
+        })
+
+        const response = await laravelFetch('/api/admin/policies', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values }),
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.message || 'Aggiornamento policy non completato.')
+        }
+
+        const result = payload.data || {}
+        if (!result.changed) {
+          statusNote.textContent = 'Nessuna policy è stata modificata.'
+          return
+        }
+        const outcome = result.failed > 0
+          ? `Policy aggiornate. Email inviate: ${result.delivered}/${result.recipients}. Alcuni invii non sono riusciti.`
+          : `Policy aggiornate e comunicate a ${result.delivered} iscritti.`
+        await loadPoliciesSection()
+        statusNote.textContent = outcome
+      }
+
       async function saveCurrentService() {
         const name = document.getElementById('serviceName')?.value?.trim() ?? ''
         const description = document.getElementById('serviceDescription')?.value?.trim() ?? ''
@@ -2581,6 +2812,12 @@
             return
           }
 
+          if (section === 'policies') {
+            setActiveMenu('policies')
+            await loadPoliciesSection()
+            return
+          }
+
           setActiveMenu('errors')
           showTableWrap()
           await loadErrors()
@@ -2590,7 +2827,7 @@
           if (section === 'services') {
             showServicesWrap()
             servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
-          } else if (section === 'pettypes' || section === 'housefeatures') {
+          } else if (section === 'pettypes' || section === 'housefeatures' || section === 'policies') {
             showServicesWrap()
             servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
           } else {
@@ -2606,14 +2843,22 @@
 
         const username = document.getElementById('username').value.trim()
         const password = document.getElementById('password').value
-
-        if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        try {
+          const response = await fetch('/api/admin/auth/login', {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          })
+          const payload = await response.json()
+          if (!response.ok || !payload?.ok) {
+            throw new Error('LOGIN_FAILED')
+          }
           setLoginSession()
           await openDashboard()
           return
+        } catch (error) {
+          loginError.classList.remove('is-hidden')
         }
-
-        loginError.classList.remove('is-hidden')
       })
 
       btnMessages.addEventListener('click', async () => {
@@ -2636,7 +2881,16 @@
         await showSection('housefeatures')
       })
 
-      btnLogout.addEventListener('click', () => {
+      btnPolicies.addEventListener('click', async () => {
+        await showSection('policies')
+      })
+
+      btnLogout.addEventListener('click', async () => {
+        try {
+          await fetch('/api/admin/auth/logout', { method: 'POST', headers: { Accept: 'application/json' } })
+        } catch (error) {
+          // La sessione locale viene comunque rimossa.
+        }
         clearLoginSession()
         openLogin()
       })
@@ -2788,6 +3042,11 @@
         const id = Number(actionTarget.getAttribute('data-id'))
 
         try {
+          if (action === 'save-policies') {
+            await savePolicies()
+            return
+          }
+
           if (action === 'save-service') {
             await saveCurrentService()
             return
@@ -3050,11 +3309,7 @@
         }
       })
 
-      if (isLoginSessionActive()) {
-        openDashboard()
-      } else {
-        openLogin()
-      }
+      void restoreAdminSession()
     </script>
   </body>
 </html>

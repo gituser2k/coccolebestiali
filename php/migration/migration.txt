@@ -469,6 +469,180 @@ CREATE TABLE IF NOT EXISTS `calendar_day_slot_service` (
   KEY `idx_calendar_day_slot_service_service_id` (`service_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+SET @operatordata_add_booking_confirmation_mode = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'operatordata' AND `COLUMN_NAME` = 'booking_confirmation_mode'
+  ),
+  "ALTER TABLE `operatordata` ADD COLUMN `booking_confirmation_mode` varchar(16) NOT NULL DEFAULT 'manual' AFTER `pet_size`",
+  'SELECT 1'
+);
+PREPARE operatordata_booking_stmt FROM @operatordata_add_booking_confirmation_mode;
+EXECUTE operatordata_booking_stmt;
+DEALLOCATE PREPARE operatordata_booking_stmt;
+
+CREATE TABLE IF NOT EXISTS `booking_counter` (
+  `year` smallint unsigned NOT NULL,
+  `last_value` int unsigned NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `booking` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `booking_number` varchar(32) NOT NULL DEFAULT '',
+  `owner_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `assistant_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `service_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `source_slot_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `booking_date` date NOT NULL,
+  `start_time` varchar(5) NOT NULL DEFAULT '',
+  `end_time` varchar(5) NOT NULL DEFAULT '',
+  `duration_minutes` smallint unsigned NOT NULL DEFAULT 30,
+  `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `total_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `message` varchar(4096) NOT NULL DEFAULT '',
+  `confirmation_mode` varchar(16) NOT NULL DEFAULT 'manual',
+  `status` varchar(32) NOT NULL DEFAULT 'pending',
+  `response_deadline` int NOT NULL DEFAULT 0,
+  `accepted_at` int NOT NULL DEFAULT 0,
+  `cancelled_at` int NOT NULL DEFAULT 0,
+  `cancelled_by_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `cancellation_reason` varchar(2048) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_booking_number` (`booking_number`),
+  KEY `idx_booking_owner` (`owner_user_id`, `status`, `booking_date`),
+  KEY `idx_booking_assistant` (`assistant_user_id`, `status`, `booking_date`),
+  KEY `idx_booking_slot` (`source_slot_id`, `status`),
+  KEY `idx_booking_schedule` (`assistant_user_id`, `booking_date`, `start_time`, `end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `booking_reschedule` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `proposed_by_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `source_slot_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `booking_date` date NOT NULL,
+  `start_time` varchar(5) NOT NULL DEFAULT '',
+  `end_time` varchar(5) NOT NULL DEFAULT '',
+  `duration_minutes` smallint unsigned NOT NULL DEFAULT 30,
+  `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `total_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `message` varchar(4096) NOT NULL DEFAULT '',
+  `previous_status` varchar(32) NOT NULL DEFAULT 'pending',
+  `status` varchar(16) NOT NULL DEFAULT 'pending',
+  `responded_at` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_booking_reschedule_booking` (`booking_id`, `status`),
+  KEY `idx_booking_reschedule_slot` (`source_slot_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @booking_reschedule_add_previous_status = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'booking_reschedule' AND `COLUMN_NAME` = 'previous_status'
+  ),
+  "ALTER TABLE `booking_reschedule` ADD COLUMN `previous_status` varchar(32) NOT NULL DEFAULT 'pending' AFTER `message`",
+  'SELECT 1'
+);
+PREPARE booking_reschedule_stmt FROM @booking_reschedule_add_previous_status;
+EXECUTE booking_reschedule_stmt;
+DEALLOCATE PREPARE booking_reschedule_stmt;
+
+CREATE TABLE IF NOT EXISTS `booking_review` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `reviewer_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `reviewed_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `sentiment` varchar(16) NOT NULL DEFAULT '',
+  `comment` varchar(4096) NOT NULL DEFAULT '',
+  `score_delta` smallint NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_booking_review_author` (`booking_id`, `reviewer_user_id`),
+  KEY `idx_booking_review_target` (`reviewed_user_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_reputation` (
+  `user_id` int(10) unsigned NOT NULL,
+  `score` tinyint unsigned NOT NULL DEFAULT 60,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_user_reputation_score` (`score`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `reputation_event` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `actor_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `event_type` varchar(32) NOT NULL DEFAULT '',
+  `delta` smallint NOT NULL DEFAULT 0,
+  `score_after` tinyint unsigned NOT NULL DEFAULT 60,
+  `note` varchar(2048) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_reputation_event_user` (`user_id`, `created_at`),
+  KEY `idx_reputation_event_booking` (`booking_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `booking_action_token` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `action` varchar(32) NOT NULL DEFAULT '',
+  `token_hash` char(64) NOT NULL DEFAULT '',
+  `expires_at` int NOT NULL DEFAULT 0,
+  `used_at` int NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_booking_action_token_hash` (`token_hash`),
+  KEY `idx_booking_action_token_booking` (`booking_id`, `action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`)
+SELECT `id`, 60, UNIX_TIMESTAMP() FROM `users`
+ON DUPLICATE KEY UPDATE `user_id` = VALUES(`user_id`);
+
+CREATE TABLE IF NOT EXISTS `portal_policy` (
+  `policy_key` varchar(96) NOT NULL,
+  `value` int NOT NULL,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`policy_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `policy_change_log` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `batch_id` varchar(36) NOT NULL,
+  `changes_json` longtext NOT NULL,
+  `recipient_count` int unsigned NOT NULL DEFAULT 0,
+  `delivery_count` int unsigned NOT NULL DEFAULT 0,
+  `failure_count` int unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_policy_change_batch` (`batch_id`),
+  KEY `idx_policy_change_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `portal_policy` (`policy_key`, `value`, `updated_at`) VALUES
+('booking_min_notice_hours', 24, UNIX_TIMESTAMP()),
+('manual_response_hours', 24, UNIX_TIMESTAMP()),
+('assistant_cutoff_hours', 3, UNIX_TIMESTAMP()),
+('owner_free_cancellation_hours', 24, UNIX_TIMESTAMP()),
+('owner_late_cancellation_penalty', 5, UNIX_TIMESTAMP()),
+('assistant_late_action_penalty', 5, UNIX_TIMESTAMP()),
+('positive_review_points', 5, UNIX_TIMESTAMP()),
+('negative_review_penalty', 5, UNIX_TIMESTAMP()),
+('initial_reputation_score', 60, UNIX_TIMESTAMP()),
+('review_window_days', 30, UNIX_TIMESTAMP()),
+('max_booking_duration_minutes', 480, UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `policy_key` = VALUES(`policy_key`);
+
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES
   (1, 'Tracking GPS', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (2, 'Chat privata', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
@@ -486,7 +660,7 @@ INSERT INTO `service` (`id`, `name`, `description`, `created_at`, `updated_at`) 
   (2, 'Soggiorno a domicilio', 'Assistenza direttamente a casa del cliente per garantire continuita, serenita e cura nell''ambiente abituale del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (3, 'Soggiorno presso il petassistant', 'Ospitalita in ambiente accogliente e controllato presso il petassistant, con presenza costante e cura dedicata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (4, 'Asilo diurno', 'Accoglienza giornaliera con momenti di gioco, relax e attenzione continua, ideale per assenze durante la giornata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (5, 'Pet Taxi (presso veterinari o tolettatori)', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+  (5, 'Pet Taxi', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `description` = VALUES(`description`),

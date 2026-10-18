@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\PetAssistantSearchController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Response;
@@ -54,6 +56,15 @@ Route::get('/profile/petassistant', function () {
     $file = base_path('../html/dist/src/html/profile-petassistant.html');
     if (! File::exists($file)) {
         return response('Pagina profilo pet assistant non compilata. Esegui "npm run build" nella cartella html.', Response::HTTP_SERVICE_UNAVAILABLE);
+    }
+
+    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+});
+
+Route::get('/search', function () {
+    $file = base_path('../html/dist/src/html/search.html');
+    if (! File::exists($file)) {
+        return response('Pagina ricerca non compilata. Esegui "npm run build" nella cartella html.', Response::HTTP_SERVICE_UNAVAILABLE);
     }
 
     return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
@@ -123,6 +134,7 @@ Route::middleware('api')
         Route::get('/auth/config', [AuthController::class, 'getPublicAuthConfig']);
         Route::get('/auth/me', [AuthController::class, 'getCurrentUser']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::delete('/auth/account', [AuthController::class, 'deleteCurrentAccount']);
         Route::post('/auth/frontend-error', [AuthController::class, 'logFrontendError']);
         Route::post('/auth/login/email', [AuthController::class, 'loginEmail']);
         Route::post('/auth/login/google', [AuthController::class, 'loginGoogle']);
@@ -159,7 +171,24 @@ Route::middleware('api')
         Route::get('/profile/petassistant/calendar/day', [ProfileController::class, 'getPetAssistantCalendarDay']);
         Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
         Route::post('/profile/petassistant/calendar/copy', [ProfileController::class, 'copyPetAssistantCalendarDay']);
+        Route::get('/search/pet-assistants/options', [PetAssistantSearchController::class, 'getOptions']);
+        Route::post('/search/pet-assistants', [PetAssistantSearchController::class, 'search']);
+        Route::get('/bookings', [BookingController::class, 'index']);
+        Route::post('/bookings', [BookingController::class, 'store']);
+        Route::post('/bookings/confirmation-mode', [BookingController::class, 'updateConfirmationMode']);
+        Route::post('/bookings/{bookingId}/accept', [BookingController::class, 'accept'])->whereNumber('bookingId');
+        Route::post('/bookings/{bookingId}/decline', [BookingController::class, 'decline'])->whereNumber('bookingId');
+        Route::post('/bookings/{bookingId}/cancel', [BookingController::class, 'cancel'])->whereNumber('bookingId');
+        Route::get('/bookings/{bookingId}/alternatives', [BookingController::class, 'alternatives'])->whereNumber('bookingId');
+        Route::post('/bookings/{bookingId}/reschedule', [BookingController::class, 'proposeReschedule'])->whereNumber('bookingId');
+        Route::post('/bookings/{bookingId}/reschedule/respond', [BookingController::class, 'respondReschedule'])->whereNumber('bookingId');
+        Route::post('/bookings/{bookingId}/review', [BookingController::class, 'review'])->whereNumber('bookingId');
+        Route::get('/bookings/action/{token}', [BookingController::class, 'showEmailAction'])->where('token', '[a-f0-9]{64}');
+        Route::post('/bookings/action/{token}', [BookingController::class, 'consumeEmailAction'])->where('token', '[a-f0-9]{64}');
 
+        Route::post('/admin/auth/login', [AdminController::class, 'login']);
+        Route::post('/admin/auth/logout', [AdminController::class, 'logout']);
+        Route::get('/admin/auth/session', [AdminController::class, 'session']);
         Route::get('/admin/messages', [MessageController::class, 'getAdminMessages']);
         Route::get('/admin/messages/{messageId}/reply', [MessageController::class, 'getLastAdminMessageReply']);
         Route::delete('/admin/messages', [MessageController::class, 'deleteAdminMessages']);
@@ -182,4 +211,6 @@ Route::middleware('api')
         Route::post('/admin/house-features', [AdminController::class, 'saveAdminHouseFeature']);
         Route::post('/admin/house-features/reorder', [AdminController::class, 'reorderAdminHouseFeatures']);
         Route::delete('/admin/house-features/{houseFeatureId}', [AdminController::class, 'deleteAdminHouseFeature']);
+        Route::get('/admin/policies', [AdminController::class, 'getAdminPolicies']);
+        Route::post('/admin/policies', [AdminController::class, 'saveAdminPolicies']);
     });

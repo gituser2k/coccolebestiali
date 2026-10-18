@@ -499,6 +499,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
               <label className="profile-field">
                 <span>Sesso</span>
                 <select
+                  className="portal-combobox"
                   value={selectedPet.sex}
                   onChange={(event) => updateSelectedPet((pet) => ({ ...pet, sex: event.target.value }))}
                 >
@@ -544,6 +545,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
               <label className="profile-field">
                 <span>Taglia</span>
                 <select
+                  className="portal-combobox"
                   value={selectedPet.petSize}
                   onChange={(event) => updateSelectedPet((pet) => ({ ...pet, petSize: event.target.value }))}
                 >
@@ -659,6 +661,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
                         <label className="profile-field">
                           <span>Tipologia</span>
                           <select
+                            className="portal-combobox"
                             value={document.documentType}
                             onChange={(event) => updateDocumentType(document, event.target.value)}
                           >

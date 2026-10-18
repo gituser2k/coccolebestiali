@@ -51,8 +51,10 @@ $radiusOptions = [3, 5, 8, 10, 15, 20];
 $titleIds = DB::table('operatortitle')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $breedIds = DB::table('petbreed')->where('name', '<>', 'Qualsiasi')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $anyBreedId = (int) (DB::table('petbreed')->where('name', 'Qualsiasi')->value('id') ?? 0);
+$rexBreedId = (int) (DB::table('petbreed')->where('name', 'Pastore Tedesco')->value('id') ?? 0);
 $petTypeIds = DB::table('pettype')->where('name', '<>', 'Qualsiasi')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $anyPetTypeId = (int) (DB::table('pettype')->where('name', 'Qualsiasi')->value('id') ?? 0);
+$rexPetTypeId = (int) (DB::table('pettype')->where('name', 'Docile')->value('id') ?? 0);
 $houseFeatureIds = DB::table('housefeature')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $serviceIds = DB::table('service')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $serviceFeatureMap = DB::table('servicefeaturedata')
@@ -62,12 +64,13 @@ $serviceFeatureMap = DB::table('servicefeaturedata')
     ->map(fn ($rows) => $rows->pluck('feature_id')->map(fn ($id) => (int) $id)->values()->all())
     ->all();
 
-if ($titleIds === [] || $breedIds === [] || $petTypeIds === [] || $houseFeatureIds === [] || $serviceIds === []) {
+if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === [] || $rexPetTypeId <= 0 || $houseFeatureIds === [] || $serviceIds === []) {
     fwrite(STDERR, "Cataloghi CRM incompleti. Esegui prima migration/migration.txt.\n");
     exit(1);
 }
 
 $tablesToReset = [
+    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking', 'booking_counter', 'user_reputation',
     'calendar_day_slot_service', 'calendar_day_slot', 'calendar_day',
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
@@ -83,8 +86,10 @@ DB::transaction(function () use (
     $titleIds,
     $breedIds,
     $anyBreedId,
+    $rexBreedId,
     $petTypeIds,
     $anyPetTypeId,
+    $rexPetTypeId,
     $houseFeatureIds,
     $serviceIds,
     $serviceFeatureMap
@@ -103,6 +108,8 @@ DB::transaction(function () use (
         $ring = 0.025 + (($number % 5) * 0.009);
         $latitude = 41.9028 + (sin($angle) * $ring);
         $longitude = 12.4964 + (cos($angle) * $ring * 1.35);
+        // Keep utente14 as a stable, reproducible match for the demo pet Rex.
+        $petSize = $number === 14 ? 'large' : $petSizes[($number - 1) % count($petSizes)];
 
         $userId = (int) DB::table('users')->insertGetId([
             'role' => 'pet_assistant',
@@ -140,8 +147,15 @@ DB::transaction(function () use (
             'vat_number' => $isAssociation ? sprintf('099%08d', $number) : '',
             'bio' => 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.',
             'experience_years' => 1 + (($number * 3) % 20),
-            'pet_size' => $petSizes[($number - 1) % count($petSizes)],
+            'pet_size' => $petSize,
+            'booking_confirmation_mode' => $number % 2 === 0 ? 'automatic' : 'manual',
             'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('user_reputation')->insert([
+            'user_id' => $userId,
+            'score' => 45 + ((($number - 1) * 7) % 46),
             'updated_at' => $now,
         ]);
 
@@ -164,6 +178,9 @@ DB::transaction(function () use (
                 $breedIds[($number - 1) % count($breedIds)],
                 $breedIds[($number + 4) % count($breedIds)],
             ];
+        if ($petSize === 'large') {
+            $selectedBreeds[] = $rexBreedId;
+        }
         foreach (array_unique($selectedBreeds) as $breedId) {
             DB::table('petbreeddata')->insert([
                 'user_id' => $userId,
@@ -179,6 +196,9 @@ DB::transaction(function () use (
                 $petTypeIds[($number - 1) % count($petTypeIds)],
                 $petTypeIds[($number + 2) % count($petTypeIds)],
             ];
+        if ($petSize === 'large') {
+            $selectedTypes[] = $rexPetTypeId;
+        }
         foreach (array_unique($selectedTypes) as $petTypeId) {
             DB::table('pettypedata')->insert([
                 'user_id' => $userId,

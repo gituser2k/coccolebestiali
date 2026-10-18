@@ -111,6 +111,12 @@ $lines = [
     'INSERT INTO `cb_seed_existing_users` (`id`) SELECT `id` FROM `users` WHERE `email` IN ('.$emailList.');',
     '',
     '-- Rimozione idempotente del precedente snapshot.',
+    'DELETE token FROM `booking_action_token` AS token INNER JOIN `booking` AS booking_row ON booking_row.id = token.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
+    'DELETE review FROM `booking_review` AS review INNER JOIN `booking` AS booking_row ON booking_row.id = review.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
+    'DELETE event_row FROM `reputation_event` AS event_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (event_row.user_id, event_row.actor_user_id);',
+    'DELETE proposal FROM `booking_reschedule` AS proposal INNER JOIN `booking` AS booking_row ON booking_row.id = proposal.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
+    'DELETE booking_row FROM `booking` AS booking_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
+    'DELETE reputation FROM `user_reputation` AS reputation INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = reputation.user_id;',
     'DELETE slot_service FROM `calendar_day_slot_service` AS slot_service INNER JOIN `calendar_day_slot` AS slot ON slot.id = slot_service.slot_id INNER JOIN `calendar_day` AS day_row ON day_row.id = slot.calendar_day_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
     'DELETE slot FROM `calendar_day_slot` AS slot INNER JOIN `calendar_day` AS day_row ON day_row.id = slot.calendar_day_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
     'DELETE day_row FROM `calendar_day` AS day_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
@@ -156,6 +162,13 @@ foreach ($users as $user) {
     $lines[] = '-- Account '.$userValues['email'];
     $lines[] = cbSqlInsert('users', $userValues, $pdo);
     $lines[] = 'SET '.$userVariable.' = LAST_INSERT_ID();';
+
+    $reputation = DB::table('user_reputation')->where('user_id', $sourceUserId)->first();
+    if ($reputation) {
+        $reputationValues = cbRowWithout($reputation, ['user_id']);
+        $reputationValues = ['user_id' => $userVariable, ...$reputationValues];
+        $lines[] = cbSqlInsert('user_reputation', $reputationValues, $pdo, ['user_id']);
+    }
 
     foreach ($directUserTables as $table) {
         $rows = DB::table($table)->where('user_id', $sourceUserId)->orderBy('id')->get();

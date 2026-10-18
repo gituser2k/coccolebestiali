@@ -19,6 +19,7 @@ export default defineConfig({
         register: resolve(import.meta.dirname, 'src/html/register.html'),
         profilePetOwner: resolve(import.meta.dirname, 'src/html/profile-petowner.html'),
         profilePetAssistant: resolve(import.meta.dirname, 'src/html/profile-petassistant.html'),
+        search: resolve(import.meta.dirname, 'src/html/search.html'),
         templateEmpty: resolve(import.meta.dirname, 'src/html/template_empty.html'),
       },
     },

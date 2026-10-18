@@ -143,6 +143,7 @@ function HomePage() {
   const [isLoginPanelOpen, setIsLoginPanelOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoginBusy, setIsLoginBusy] = useState(false)
+  const [isCredentialLoginBusy, setIsCredentialLoginBusy] = useState(false)
   const [isLogoutBusy, setIsLogoutBusy] = useState(false)
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false)
   const [isForgotPasswordBusy, setIsForgotPasswordBusy] = useState(false)
@@ -411,10 +412,9 @@ function HomePage() {
         return
       }
 
-      showToast('Login completato. Reindirizzamento in corso...', 'success')
-      window.setTimeout(() => {
-        window.location.assign(payload?.data?.redirect || '/profile/petassistant')
-      }, 220)
+      setLoginData({ email: '', password: '' })
+      showToast('Login completato.', 'success')
+      setIsLoginBusy(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore durante il login.'
       if (TECHNICAL_AUTH_MESSAGES.has(message)) {
@@ -502,9 +502,6 @@ function HomePage() {
       setTemporaryNewPassword('')
       setTemporaryConfirmPassword('')
       showToast('Password aggiornata. Accesso completato.', 'success')
-      window.setTimeout(() => {
-        window.location.assign(payload?.data?.redirect || '/profile/petassistant?entry=login')
-      }, 220)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Cambio password non completato.'
       showToast(message, 'error')
@@ -561,10 +558,15 @@ function HomePage() {
       return
     }
 
-    await postLogin('/api/auth/login/email', {
-      email,
-      password,
-    })
+    setIsCredentialLoginBusy(true)
+    try {
+      await postLogin('/api/auth/login/email', {
+        email,
+        password,
+      })
+    } finally {
+      setIsCredentialLoginBusy(false)
+    }
   }
 
   async function submitGoogleLogin(idToken: string, accessToken: string = '') {
@@ -727,8 +729,10 @@ function HomePage() {
               className="hero-login-action hero-login-primary"
               type="submit"
               disabled={isLoginBusy}
+              aria-busy={isCredentialLoginBusy}
             >
-              Login
+              {isCredentialLoginBusy ? <span className="hero-login-button-spinner" aria-hidden="true" /> : null}
+              <span>Login</span>
             </button>
             <button
               className="hero-forgot-password-link"
@@ -851,7 +855,7 @@ function HomePage() {
                     Assistenza affidabile, stile professionale, atmosfera accogliente.
                   </p>
                   <div className="hero-cta-actions">
-                    <a className="cta-btn cta-primary" href="#">
+                    <a className="cta-btn cta-primary" href="/search">
                       Cerca Un Pet Assistant
                     </a>
                   </div>

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class UserAccount extends Model
@@ -61,6 +62,11 @@ class UserAccount extends Model
             'password_reset_required' => 0,
             'avatar' => '',
             'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('user_reputation')->insertOrIgnore([
+            'user_id' => $userId,
+            'score' => PortalPolicy::value('initial_reputation_score'),
             'updated_at' => $now,
         ]);
 
@@ -163,6 +169,12 @@ class UserAccount extends Model
                     'updated_at' => $now,
                 ]);
             }
+
+            DB::table('user_reputation')->insertOrIgnore([
+                'user_id' => $userId,
+                'score' => PortalPolicy::value('initial_reputation_score'),
+                'updated_at' => $now,
+            ]);
 
             return $this->getUserById($userId);
         });
@@ -442,6 +454,193 @@ class UserAccount extends Model
             ]);
 
         return $this->getUserById($userId);
+    }
+
+    public function deleteAccount(int $userId): array
+    {
+        if ($userId <= 0) {
+            throw new RuntimeException('INVALID_CURRENT_USER');
+        }
+
+        $user = DB::table('users')
+            ->select(['id', 'email', 'avatar'])
+            ->where('id', $userId)
+            ->first();
+
+        if (! $user) {
+            throw new RuntimeException('LOGIN_USER_NOT_FOUND');
+        }
+
+        $petIds = Schema::hasTable('ownerpet')
+            ? DB::table('ownerpet')->where('user_id', $userId)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        $calendarDayIds = Schema::hasTable('calendar_day')
+            ? DB::table('calendar_day')->where('user_id', $userId)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        $calendarSlotIds = $calendarDayIds !== [] && Schema::hasTable('calendar_day_slot')
+            ? DB::table('calendar_day_slot')->whereIn('calendar_day_id', $calendarDayIds)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        $messageIds = Schema::hasTable('message') && trim((string) $user->email) !== ''
+            ? DB::table('message')->where('email', (string) $user->email)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        $bookingIds = Schema::hasTable('booking')
+            ? DB::table('booking')->where('owner_user_id', $userId)->orWhere('assistant_user_id', $userId)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+
+        $publicFiles = $this->collectAccountPublicFiles($userId, $petIds, (string) $user->avatar);
+        $privateFiles = $this->collectAccountPrivateFiles($petIds);
+
+        DB::transaction(function () use ($userId, $petIds, $calendarDayIds, $calendarSlotIds, $messageIds, $bookingIds) {
+            if ($bookingIds !== []) {
+                if (Schema::hasTable('booking_action_token')) {
+                    DB::table('booking_action_token')->whereIn('booking_id', $bookingIds)->delete();
+                }
+                if (Schema::hasTable('booking_review')) {
+                    DB::table('booking_review')->whereIn('booking_id', $bookingIds)->delete();
+                }
+                if (Schema::hasTable('reputation_event')) {
+                    DB::table('reputation_event')->whereIn('booking_id', $bookingIds)->delete();
+                }
+                if (Schema::hasTable('booking_reschedule')) {
+                    DB::table('booking_reschedule')->whereIn('booking_id', $bookingIds)->delete();
+                }
+                DB::table('booking')->whereIn('id', $bookingIds)->delete();
+            }
+            if (Schema::hasTable('booking_review')) {
+                DB::table('booking_review')->where('reviewer_user_id', $userId)->orWhere('reviewed_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('reputation_event')) {
+                DB::table('reputation_event')->where('user_id', $userId)->orWhere('actor_user_id', $userId)->delete();
+            }
+            $this->deleteByUserId('user_reputation', $userId);
+            if ($calendarSlotIds !== [] && Schema::hasTable('calendar_day_slot_service')) {
+                DB::table('calendar_day_slot_service')->whereIn('slot_id', $calendarSlotIds)->delete();
+            }
+            if ($calendarDayIds !== [] && Schema::hasTable('calendar_day_slot')) {
+                DB::table('calendar_day_slot')->whereIn('calendar_day_id', $calendarDayIds)->delete();
+            }
+            $this->deleteByUserId('calendar_day', $userId);
+
+            $this->deleteByUserId('operatorservicefeaturedata', $userId);
+            $this->deleteByUserId('operatorservicedata', $userId);
+            $this->deleteByUserId('operatorgallery', $userId);
+            $this->deleteByUserId('housefeaturedata', $userId);
+            $this->deleteByUserId('pettypedata', $userId);
+            $this->deleteByUserId('petbreeddata', $userId);
+            $this->deleteByUserId('operatortitledata', $userId);
+
+            if (Schema::hasTable('operatordata') && Schema::hasTable('operatorassociatedata')) {
+                $fiscalCode = trim((string) DB::table('operatordata')->where('user_id', $userId)->value('fiscal_code'));
+                if ($fiscalCode !== '') {
+                    DB::table('operatorassociatedata')->where('fiscal_code', $fiscalCode)->delete();
+                }
+            }
+            $this->deleteByUserId('operatorassociatedata', $userId);
+            $this->deleteByUserId('operatordata', $userId);
+
+            if ($petIds !== []) {
+                $this->deleteByPetIds('ownerpetbreeddata', $petIds);
+                $this->deleteByPetIds('ownerpettypedata', $petIds);
+                $this->deleteByPetIds('ownerpetgallery', $petIds);
+                $this->deleteByPetIds('ownerpetdocument', $petIds);
+            }
+            $this->deleteByUserId('ownerpet', $userId);
+
+            if ($messageIds !== [] && Schema::hasTable('messageback')) {
+                DB::table('messageback')->whereIn('messageid', $messageIds)->delete();
+            }
+            if ($messageIds !== [] && Schema::hasTable('message')) {
+                DB::table('message')->whereIn('id', $messageIds)->delete();
+            }
+
+            $this->deleteByUserId('personaldata', $userId);
+            $this->deleteByUserId('social_accounts', $userId);
+            DB::table('users')->where('id', $userId)->delete();
+        });
+
+        return [
+            'publicFilesNotRemoved' => $this->deleteStorageFiles('public', $publicFiles),
+            'privateFilesNotRemoved' => $this->deleteStorageFiles('local', $privateFiles),
+        ];
+    }
+
+    private function collectAccountPublicFiles(int $userId, array $petIds, string $avatar): array
+    {
+        $paths = [$avatar];
+
+        if (Schema::hasTable('personaldata')) {
+            $paths[] = (string) DB::table('personaldata')->where('user_id', $userId)->value('photo');
+        }
+        if (Schema::hasTable('operatorgallery')) {
+            $paths = array_merge($paths, DB::table('operatorgallery')->where('user_id', $userId)->pluck('photo')->all());
+        }
+        if ($petIds !== [] && Schema::hasTable('ownerpetgallery')) {
+            $paths = array_merge($paths, DB::table('ownerpetgallery')->whereIn('pet_id', $petIds)->pluck('photo')->all());
+        }
+
+        return $this->normalizeStoragePaths($paths, true);
+    }
+
+    private function collectAccountPrivateFiles(array $petIds): array
+    {
+        if ($petIds === [] || ! Schema::hasTable('ownerpetdocument')) {
+            return [];
+        }
+
+        return $this->normalizeStoragePaths(
+            DB::table('ownerpetdocument')->whereIn('pet_id', $petIds)->pluck('file_path')->all(),
+            false
+        );
+    }
+
+    private function normalizeStoragePaths(array $paths, bool $public): array
+    {
+        $normalized = [];
+
+        foreach ($paths as $path) {
+            $value = trim((string) $path);
+            if ($value === '' || preg_match('#^(?:https?:)?//#i', $value) || str_contains($value, '..')) {
+                continue;
+            }
+
+            if ($public) {
+                $value = preg_replace('#^/?storage/#', '', $value) ?? '';
+            }
+            $value = ltrim($value, '/');
+
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    private function deleteStorageFiles(string $disk, array $paths): array
+    {
+        $failed = [];
+
+        foreach ($paths as $path) {
+            if (Storage::disk($disk)->exists($path) && ! Storage::disk($disk)->delete($path)) {
+                $failed[] = $path;
+            }
+        }
+
+        return $failed;
+    }
+
+    private function deleteByUserId(string $table, int $userId): void
+    {
+        if (Schema::hasTable($table)) {
+            DB::table($table)->where('user_id', $userId)->delete();
+        }
+    }
+
+    private function deleteByPetIds(string $table, array $petIds): void
+    {
+        if (Schema::hasTable($table)) {
+            DB::table($table)->whereIn('pet_id', $petIds)->delete();
+        }
     }
 
     private function ensurePasswordResetRequiredColumn(): void

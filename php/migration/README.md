@@ -49,6 +49,20 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | `personaldata` | Dati personali, recapiti e coordinate GPS. |
 | `operatordata` | Informazioni professionali del Pet Assistant. |
 | `operatorassociatedata` | Associati collegati a un operatore di tipo associazione. |
+| `user_reputation` | Punteggio corrente, inizializzato a 60/100. |
+| `reputation_event` | Registro immutabile delle variazioni del ranking. |
+
+### Prenotazioni e recensioni
+
+| Tabella | Funzione |
+| --- | --- |
+| `booking_counter` | Progressivo annuale utilizzato dai numeri di prenotazione. |
+| `booking` | Prenotazione, partecipanti, pet, servizio, orario, costo e stato. |
+| `booking_reschedule` | Proposte strutturate di riprogrammazione. |
+| `booking_review` | Recensioni reciproche collegate a servizi conclusi. |
+| `booking_action_token` | Token monouso per le azioni sicure inviate via email. |
+
+Le prenotazioni richiedono almeno 24 ore di anticipo e riservano intervalli contigui di 30 minuti. Il comando pianificato Laravel riconcilia ogni cinque minuti richieste scadute e servizi conclusi; in produzione va eseguito con `php artisan schedule:work` oppure tramite cron con `php artisan schedule:run`.
 
 ### Configurazione professionale
 
@@ -153,6 +167,7 @@ Il dataset varia in modo deterministico:
 - caratteristiche della casa;
 - servizi, funzionalità abilitate e prezzi orari.
 - calendari distribuiti casualmente per il mese successivo, con giornate attive e non attive, fasce non sovrapposte e servizi realmente configurati dall'operatore.
+- almeno dieci Pet Assistant compatibili con Rex (`frabe75@gmail.com`): Pastore Tedesco, taglia grande e carattere docile.
 
 Per rigenerare esclusivamente i calendari dei 40 Pet Assistant, senza modificare account e profili:
 
@@ -213,6 +228,21 @@ Quando viene aggiunta o modificata una struttura dati:
 5. Documentare in questo file finalità, relazioni e percorsi storage.
 6. Verificare lo schema sul database locale MAMP dopo l’esecuzione.
 7. Eseguire almeno un test di creazione, lettura, aggiornamento ed eliminazione dei dati coinvolti.
+
+## Policy del portale
+
+La tabella `portal_policy` contiene i valori operativi modificabili dal CMS nella sezione **Policy**. Il backend legge sempre questa tabella tramite `App\Models\PortalPolicy`; i valori definiti nel modello sono fallback di sicurezza e coincidono con quelli iniziali della migration.
+
+La tabella `policy_change_log` conserva uno storico immutabile per ogni salvataggio:
+
+- identificativo univoco del lotto di modifica;
+- valori precedenti e nuovi in formato JSON;
+- numero di destinatari, email consegnate e invii falliti;
+- data e ora della variazione.
+
+Il salvataggio aggiorna solo i valori realmente cambiati e invia un unico riepilogo professionale, tramite destinatari in copia nascosta, a tutti i Pet Owner e Pet Assistant con email verificata. Un errore SMTP non annulla la configurazione: viene salvato nella tabella `error` e riportato nel risultato del CMS.
+
+Le policy governano anticipo e durata delle prenotazioni, tempi di risposta, cancellazioni, penalità, punteggi delle recensioni, ranking iniziale e finestra temporale per recensire. La scala reputazionale resta strutturalmente compresa tra `0` e `100`.
 
 ## Verifica delle tabelle Pet Owner
 

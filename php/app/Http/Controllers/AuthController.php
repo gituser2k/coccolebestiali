@@ -164,7 +164,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'data' => [
                     'user' => $user,
-                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                    'redirect' => '/',
                 ],
             ], 200), $user);
         } catch (ValidationException $e) {
@@ -282,7 +282,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'data' => [
                     'user' => $user,
-                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                    'redirect' => '/',
                 ],
                 'message' => 'Password aggiornata con successo.',
             ], Response::HTTP_OK), $user);
@@ -400,7 +400,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'data' => [
                     'user' => $user,
-                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                    'redirect' => '/',
                 ],
             ], 200), $user);
         } catch (RuntimeException $e) {
@@ -686,6 +686,64 @@ class AuthController extends Controller
         }
     }
 
+    public function deleteCurrentAccount(Request $request): JsonResponse
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $model = new UserAccount;
+            $result = $model->deleteAccount($userId);
+
+            $filesNotRemoved = array_merge(
+                $result['publicFilesNotRemoved'] ?? [],
+                $result['privateFilesNotRemoved'] ?? []
+            );
+            if ($filesNotRemoved !== []) {
+                Utility::saveError(
+                    ['userId' => $userId, 'files' => $filesNotRemoved],
+                    'Account eliminato, ma alcuni file non sono stati rimossi.',
+                    __METHOD__
+                );
+            }
+
+            if ($request->hasSession()) {
+                $request->session()->forget([
+                    self::PORTAL_USER_ID_COOKIE,
+                    self::PORTAL_USER_ROLE_COOKIE,
+                ]);
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Account rimosso definitivamente.',
+            ], Response::HTTP_OK)
+                ->withCookie(Cookie::forget(self::PORTAL_USER_ID_COOKIE, '/', null))
+                ->withCookie(Cookie::forget(self::PORTAL_USER_ROLE_COOKIE, '/', null));
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Non è stato possibile rimuovere l’account. Riprova.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Non è stato possibile rimuovere l’account. Riprova.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function registerApple(Request $request): JsonResponse
     {
         $validated = [];
@@ -766,7 +824,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'data' => [
                     'user' => $user,
-                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                    'redirect' => '/',
                 ],
             ], 200), $user);
         } catch (RuntimeException $e) {
@@ -978,7 +1036,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'data' => [
                     'user' => $user,
-                    'redirect' => $this->profileRedirectPathForRoleAndEntry((string) ($user['role'] ?? ''), 'login'),
+                    'redirect' => '/',
                     'mock' => true,
                 ],
             ], 200), $user);
