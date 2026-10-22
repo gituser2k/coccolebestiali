@@ -160,6 +160,7 @@ Route::middleware('api')
         Route::get('/profile/petowner/pets/options', [ProfileController::class, 'getPetOwnerPetOptions']);
         Route::get('/profile/petowner/pets', [ProfileController::class, 'getPetOwnerPets']);
         Route::post('/profile/petowner/pets', [ProfileController::class, 'savePetOwnerPets']);
+        Route::post('/profile/petowner/pets/profile-photo', [ProfileController::class, 'updatePetOwnerProfilePhoto']);
         Route::get('/profile/petowner/pets/documents/{documentId}', [ProfileController::class, 'downloadPetOwnerDocument'])
             ->whereNumber('documentId');
         Route::get('/profile/petassistant/personal', [ProfileController::class, 'getPetAssistantPersonalProfile']);
@@ -213,4 +214,7 @@ Route::middleware('api')
         Route::delete('/admin/house-features/{houseFeatureId}', [AdminController::class, 'deleteAdminHouseFeature']);
         Route::get('/admin/policies', [AdminController::class, 'getAdminPolicies']);
         Route::post('/admin/policies', [AdminController::class, 'saveAdminPolicies']);
+        Route::post('/admin/demo-data/restore-system', [AdminController::class, 'restoreSystemData']);
+        Route::post('/admin/demo-data/clear-all', [AdminController::class, 'clearAllData']);
+        Route::post('/admin/demo-data/seed', [AdminController::class, 'seedDemoData']);
     });

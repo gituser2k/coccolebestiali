@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { sanitizeText, validateEmail } from '../utility.js'
+import {
+  fetchAuthRequest,
+  getGoogleAccounts,
+  getGooglePopupMessage,
+  initializeGoogleIdentity,
+  initializeGoogleTokenClient,
+  promptGoogleIdentity,
+} from '../auth/googleOAuth'
+import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
 
 type PortalRole = 'pet_owner' | 'pet_assistant'
 
@@ -36,26 +45,6 @@ type SocialAccountSwitchActionsProps = {
 
 declare global {
   interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (params: {
-            client_id: string
-            callback: (response: { credential?: string }) => void
-          }) => void
-          prompt: (callback?: (notification: { isNotDisplayed?: () => boolean }) => void) => void
-        }
-        oauth2?: {
-          initTokenClient: (params: {
-            client_id: string
-            scope: string
-            callback: (response: { access_token?: string; error?: string }) => void
-          }) => {
-            requestAccessToken: (params?: { prompt?: string }) => void
-          }
-        }
-      }
-    }
     AppleID?: {
       auth?: {
         init: (params: {
@@ -126,7 +115,7 @@ export function SocialAccountSwitchActions({
     appleMockAuth: false,
   })
   const [isBusy, setIsBusy] = useState(false)
-  const googleTokenClientRef = useRef<{ requestAccessToken: (params?: { prompt?: string }) => void } | null>(null)
+  const googleTokenClientRef = useRef<GoogleTokenClient | null>(null)
   const googleIdInitializedRef = useRef(false)
   const roleTitle = role === 'pet_assistant' ? 'Pet Assistant' : 'Pet Owner'
   const appleButtonLabel = buttonPrefix === 'Passa a' ? 'Passa ad Apple' : `${buttonPrefix} Apple`
@@ -159,29 +148,27 @@ export function SocialAccountSwitchActions({
   }, [onError])
 
   function ensureGoogleClientsInitialized() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       return false
     }
 
-    if (!googleIdInitializedRef.current && window.google.accounts.id) {
-      window.google.accounts.id.initialize({
-        client_id: authConfig.googleClientId,
-        callback: async (response) => {
+    if (!googleIdInitializedRef.current) {
+      googleIdInitializedRef.current = initializeGoogleIdentity(
+        authConfig.googleClientId,
+        async (response) => {
           if (!response?.credential) {
             setIsBusy(false)
             return
           }
           await submitGoogleAccountChange(response.credential)
         },
-      })
-      googleIdInitializedRef.current = true
+      )
     }
 
-    if (!googleTokenClientRef.current && window.google.accounts.oauth2) {
-      googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: authConfig.googleClientId,
-        scope: 'openid email profile',
-        callback: async (response) => {
+    if (!googleTokenClientRef.current) {
+      googleTokenClientRef.current = initializeGoogleTokenClient(
+        authConfig.googleClientId,
+        async (response) => {
           if (response?.error || !response?.access_token) {
             setIsBusy(false)
             onError('Autenticazione Google annullata o non riuscita.')
@@ -190,7 +177,8 @@ export function SocialAccountSwitchActions({
 
           await submitGoogleAccountChange('', response.access_token)
         },
-      })
+        handleGooglePopupError,
+      )
     }
 
     return googleIdInitializedRef.current || Boolean(googleTokenClientRef.current)
@@ -210,7 +198,7 @@ export function SocialAccountSwitchActions({
     setIsBusy(true)
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchAuthRequest(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +214,9 @@ export function SocialAccountSwitchActions({
 
       onChanged(payload?.data?.user ?? {}, payload?.message || 'Account aggiornato con successo.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Cambio account non completato.'
+      const message = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Cambio account non completato. Riprova.'
+        : error instanceof Error ? error.message : 'Cambio account non completato.'
       onError(message)
     } finally {
       setIsBusy(false)
@@ -240,8 +230,13 @@ export function SocialAccountSwitchActions({
     })
   }
 
+  function handleGooglePopupError(error: GooglePopupError) {
+    setIsBusy(false)
+    onError(getGooglePopupMessage(error))
+  }
+
   async function handleGoogleAccountChange() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }
@@ -250,22 +245,22 @@ export function SocialAccountSwitchActions({
     ensureGoogleClientsInitialized()
 
     if (googleTokenClientRef.current) {
-      googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      try {
+        googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      } catch {
+        handleGooglePopupError({ type: 'unknown' })
+      }
       return
     }
 
-    if (!window.google.accounts.id) {
+    const prompted = promptGoogleIdentity(() => {
       setIsBusy(false)
       onError('Si è verificato un errore. Riprova più tardi.')
-      return
-    }
-
-    window.google.accounts.id.prompt((notification) => {
-      if (notification?.isNotDisplayed?.()) {
-        setIsBusy(false)
-        onError('Si è verificato un errore. Riprova più tardi.')
-      }
     })
+    if (!prompted) {
+      setIsBusy(false)
+      onError('Si è verificato un errore. Riprova più tardi.')
+    }
   }
 
   async function handleAppleAccountChange() {
@@ -279,7 +274,12 @@ export function SocialAccountSwitchActions({
       return
     }
 
-    if (!authConfig.appleClientId || !authConfig.appleRedirectUri || !window.AppleID?.auth) {
+    if (!authConfig.appleClientId || !authConfig.appleRedirectUri) {
+      onError('Metodo di Login ancora non disponibile')
+      return
+    }
+
+    if (!window.AppleID?.auth) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }
@@ -338,7 +338,7 @@ export default function AccountChangeModal({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isBusy, setIsBusy] = useState(false)
-  const googleTokenClientRef = useRef<{ requestAccessToken: (params?: { prompt?: string }) => void } | null>(null)
+  const googleTokenClientRef = useRef<GoogleTokenClient | null>(null)
   const googleIdInitializedRef = useRef(false)
 
   const passwordChecks = getPasswordChecks(password)
@@ -382,29 +382,27 @@ export default function AccountChangeModal({
   }, [onError])
 
   function ensureGoogleClientsInitialized() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       return false
     }
 
-    if (!googleIdInitializedRef.current && window.google.accounts.id) {
-      window.google.accounts.id.initialize({
-        client_id: authConfig.googleClientId,
-        callback: async (response) => {
+    if (!googleIdInitializedRef.current) {
+      googleIdInitializedRef.current = initializeGoogleIdentity(
+        authConfig.googleClientId,
+        async (response) => {
           if (!response?.credential) {
             setIsBusy(false)
             return
           }
           await submitGoogleAccountChange(response.credential)
         },
-      })
-      googleIdInitializedRef.current = true
+      )
     }
 
-    if (!googleTokenClientRef.current && window.google.accounts.oauth2) {
-      googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: authConfig.googleClientId,
-        scope: 'openid email profile',
-        callback: async (response) => {
+    if (!googleTokenClientRef.current) {
+      googleTokenClientRef.current = initializeGoogleTokenClient(
+        authConfig.googleClientId,
+        async (response) => {
           if (response?.error || !response?.access_token) {
             setIsBusy(false)
             onError('Autenticazione Google annullata o non riuscita.')
@@ -413,7 +411,8 @@ export default function AccountChangeModal({
 
           await submitGoogleAccountChange('', response.access_token)
         },
-      })
+        handleGooglePopupError,
+      )
     }
 
     return googleIdInitializedRef.current || Boolean(googleTokenClientRef.current)
@@ -433,7 +432,7 @@ export default function AccountChangeModal({
     setIsBusy(true)
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchAuthRequest(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -449,7 +448,9 @@ export default function AccountChangeModal({
 
       onChanged(payload?.data?.user ?? {}, payload?.message || 'Account aggiornato con successo.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Cambio account non completato.'
+      const message = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Cambio account non completato. Riprova.'
+        : error instanceof Error ? error.message : 'Cambio account non completato.'
       onError(message)
     } finally {
       setIsBusy(false)
@@ -484,8 +485,13 @@ export default function AccountChangeModal({
     })
   }
 
+  function handleGooglePopupError(error: GooglePopupError) {
+    setIsBusy(false)
+    onError(getGooglePopupMessage(error))
+  }
+
   async function handleGoogleAccountChange() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }
@@ -494,22 +500,22 @@ export default function AccountChangeModal({
     ensureGoogleClientsInitialized()
 
     if (googleTokenClientRef.current) {
-      googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      try {
+        googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      } catch {
+        handleGooglePopupError({ type: 'unknown' })
+      }
       return
     }
 
-    if (!window.google.accounts.id) {
+    const prompted = promptGoogleIdentity(() => {
       setIsBusy(false)
       onError('Si è verificato un errore. Riprova più tardi.')
-      return
-    }
-
-    window.google.accounts.id.prompt((notification) => {
-      if (notification?.isNotDisplayed?.()) {
-        setIsBusy(false)
-        onError('Si è verificato un errore. Riprova più tardi.')
-      }
     })
+    if (!prompted) {
+      setIsBusy(false)
+      onError('Si è verificato un errore. Riprova più tardi.')
+    }
   }
 
   async function handleAppleAccountChange() {
@@ -523,7 +529,12 @@ export default function AccountChangeModal({
       return
     }
 
-    if (!authConfig.appleClientId || !authConfig.appleRedirectUri || !window.AppleID?.auth) {
+    if (!authConfig.appleClientId || !authConfig.appleRedirectUri) {
+      onError('Metodo di Login ancora non disponibile')
+      return
+    }
+
+    if (!window.AppleID?.auth) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }

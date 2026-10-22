@@ -1170,7 +1170,10 @@ class AuthController extends Controller
 
     private function verifyGoogleIdToken(string $idToken): array
     {
-        $response = Http::acceptJson()->get('https://oauth2.googleapis.com/tokeninfo', [
+        $response = Http::acceptJson()
+            ->connectTimeout(3)
+            ->timeout(8)
+            ->get('https://oauth2.googleapis.com/tokeninfo', [
             'id_token' => $idToken,
         ]);
 
@@ -1322,7 +1325,10 @@ class AuthController extends Controller
 
     private function verifyGoogleAccessToken(string $accessToken): array
     {
-        $tokenInfoResponse = Http::acceptJson()->get('https://oauth2.googleapis.com/tokeninfo', [
+        $tokenInfoResponse = Http::acceptJson()
+            ->connectTimeout(3)
+            ->timeout(8)
+            ->get('https://oauth2.googleapis.com/tokeninfo', [
             'access_token' => $accessToken,
         ]);
         if (! $tokenInfoResponse->ok()) {
@@ -1334,6 +1340,8 @@ class AuthController extends Controller
         }
 
         $userInfoResponse = Http::acceptJson()
+            ->connectTimeout(3)
+            ->timeout(8)
             ->withToken($accessToken)
             ->get('https://www.googleapis.com/oauth2/v3/userinfo');
         if (! $userInfoResponse->ok()) {

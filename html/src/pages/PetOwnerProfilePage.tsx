@@ -394,6 +394,16 @@ export default function PetOwnerProfilePage() {
     setSelectedPhotoFile(event.target.files?.[0] ?? null)
   }
 
+  const handlePetProfilePhotoChange = useCallback((photo: { photo: string, photoUrl: string } | null) => {
+    setSelectedPhotoFile(null)
+    setIsPhotoPreviewBroken(false)
+    setProfile((current) => ({
+      ...current,
+      photo: photo?.photo ?? '',
+      photoUrl: photo?.photoUrl ?? '',
+    }))
+  }, [])
+
   function handleCitySelection(option: CityOption) {
     updateProfileField('city', option.name)
     setCityOptions([])
@@ -987,7 +997,10 @@ export default function PetOwnerProfilePage() {
                   <div className="profile-stage-title-row">
                     <h1 className="profile-stage-title">Il mio pet</h1>
                   </div>
-                  <PetOwnerPetsSection onToast={showProfileToast} />
+                  <PetOwnerPetsSection
+                    onToast={showProfileToast}
+                    onProfilePhotoChange={handlePetProfilePhotoChange}
+                  />
                 </>
               ) : (
                 <BookingsSection role="pet_owner" />

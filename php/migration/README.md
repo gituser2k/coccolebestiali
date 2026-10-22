@@ -180,18 +180,25 @@ L'intervallo parte dal giorno di esecuzione e termina un mese dopo. Il risultato
 
 Le password brevi del dataset sono destinate esclusivamente allo sviluppo locale e non devono essere utilizzate in produzione.
 
-## Snapshot dei profili correnti
+## Snapshot sistema e dati demo
 
-Il file [`seed_current_profiles.sql`](./seed_current_profiles.sql) contiene uno snapshot riproducibile di:
+Gli snapshot riproducono lo stato corrente del portale in due blocchi indipendenti:
 
-- `frabe75@gmail.com`, inclusi profilo, provider social, pet, gallery e documenti;
-- i 40 Pet Assistant `utente1@email.it` ... `utente40@email.it`;
-- dati personali e professionali, qualifiche, caratteristiche, servizi e funzionalita;
-- disponibilita di calendario, fasce orarie e prezzi dei servizi.
+- [`seed_system_configuration.sql`](./seed_system_configuration.sql) ripristina servizi, funzionalita, qualifiche, razze, tipi di pet, caratteristiche casa e policy;
+- [`seed_demo_data.sql`](./seed_demo_data.sql) ripristina 1 Pet Owner, Rex, 40 Pet Assistant e tutti i dati operativi collegati, inclusi profili, calendari, ranking e prenotazioni;
+- [`demo_storage`](./demo_storage) contiene le immagini pubbliche e i documenti privati referenziati dal dataset demo; `manifest.json` ne descrive i percorsi.
 
-Lo snapshot non usa gli ID utente del server sorgente: durante l'importazione ricostruisce le relazioni usando variabili SQL e gli ID assegnati dal database di destinazione. Puo quindi essere rieseguito senza duplicare i 41 account gestiti. Prima dell'importazione deve essere stato applicato `migration.txt`.
+Prima degli snapshot deve essere sempre applicato `migration.txt`. I pulsanti nella sezione **Dati demo** del CMS eseguono separatamente i due ripristini; **CREA DATI DEMO** ripulisce i dati operativi prima dell'importazione e ricopia automaticamente immagini e documenti nelle cartelle Laravel.
 
-Per importarlo con MAMP:
+La stessa sezione offre tre operazioni distinte:
+
+- **SVUOTA TUTTO IL DATABASE** elimina tutti i record da tutte le tabelle, mantenendone la struttura;
+- **RIPRISTINA DATI DI SISTEMA** ricrea esclusivamente cataloghi, configurazione e policy;
+- **CREA DATI DEMO** ricrea account e dati operativi esattamente come nello snapshot corrente.
+
+Il collaudo completo deve eseguire i tre comandi in questo ordine e confrontare tutte le tabelle con lo stato precedente allo svuotamento. Lo snapshot corrente non contiene prenotazioni pregresse.
+
+Per importarli manualmente con MAMP:
 
 ```bash
 cd /Applications/MAMP/htdocs/coccolebestiali/php
@@ -206,7 +213,14 @@ DB_PORT=$(sed -n 's/^DB_PORT=//p' .env | head -1)
   --port="${DB_PORT}" \
   --user="${DB_USER}" \
   --password="${DB_PASSWORD}" \
-  "${DB_NAME}" < migration/seed_current_profiles.sql
+  "${DB_NAME}" < migration/seed_system_configuration.sql
+
+/Applications/MAMP/Library/bin/mysql80/bin/mysql \
+  --host=127.0.0.1 \
+  --port="${DB_PORT}" \
+  --user="${DB_USER}" \
+  --password="${DB_PASSWORD}" \
+  "${DB_NAME}" < migration/seed_demo_data.sql
 ```
 
 Per rigenerare lo snapshot a partire dal database corrente:
@@ -215,7 +229,7 @@ Per rigenerare lo snapshot a partire dal database corrente:
 /Applications/MAMP/bin/php/php8.3.30/bin/php migration/export_current_profiles.php
 ```
 
-Lo script SQL conserva i percorsi dei file nel database, ma non incorpora i file binari. Le immagini pubbliche in `storage/app/public` e i documenti privati in `storage/app/private` elencati in fondo allo snapshot devono essere copiati separatamente sul nuovo server.
+La rigenerazione aggiorna entrambi i file SQL, svuota la precedente cartella `demo_storage` e ricopia soltanto i file effettivamente referenziati dal database corrente. Deve essere eseguita solo quando il database contiene esattamente 1 Pet Owner e 40 Pet Assistant.
 
 ## Regole per gli aggiornamenti futuri
 

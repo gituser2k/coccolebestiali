@@ -4,6 +4,15 @@ import logoImage from '../assets/logo.png'
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { areRequiredFieldsFilled, sanitizeText, validateEmail } from '../utility.js'
+import {
+  fetchAuthRequest,
+  getGoogleAccounts,
+  getGooglePopupMessage,
+  initializeGoogleIdentity,
+  initializeGoogleTokenClient,
+  promptGoogleIdentity,
+} from '../auth/googleOAuth'
+import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
 
 const PORTAL_USER_STORAGE_KEY = 'cb_portal_user'
 const GENERIC_AUTH_ERROR_MESSAGE = 'Si è verificato un errore. Riprova più tardi.'
@@ -43,26 +52,6 @@ type PasswordChecks = {
 
 declare global {
   interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (params: {
-            client_id: string
-            callback: (response: { credential?: string }) => void
-          }) => void
-          prompt: (callback?: (notification: { isNotDisplayed?: () => boolean }) => void) => void
-        }
-        oauth2?: {
-          initTokenClient: (params: {
-            client_id: string
-            scope: string
-            callback: (response: { access_token?: string; error?: string }) => void
-          }) => {
-            requestAccessToken: (params?: { prompt?: string }) => void
-          }
-        }
-      }
-    }
     AppleID?: {
       auth?: {
         init: (params: {
@@ -164,7 +153,7 @@ function HomePage() {
     email: '',
     password: '',
   })
-  const googleTokenClientRef = useRef<{ requestAccessToken: (params?: { prompt?: string }) => void } | null>(null)
+  const googleTokenClientRef = useRef<GoogleTokenClient | null>(null)
   const googleIdInitializedRef = useRef(false)
   const temporaryPasswordChecks = getPasswordChecks(temporaryNewPassword)
   const hasTemporaryPasswordInput = temporaryNewPassword.length > 0
@@ -344,29 +333,28 @@ function HomePage() {
   }
 
   function ensureGoogleClientsInitialized() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       return false
     }
 
-    if (!googleIdInitializedRef.current && window.google.accounts.id) {
-      window.google.accounts.id.initialize({
-        client_id: authConfig.googleClientId,
-        callback: async (response) => {
+    if (!googleIdInitializedRef.current) {
+      googleIdInitializedRef.current = initializeGoogleIdentity(
+        authConfig.googleClientId,
+        async (response) => {
           if (!response?.credential) {
+            setIsLoginBusy(false)
             return
           }
 
           await submitGoogleLogin(response.credential)
-        },
-      })
-      googleIdInitializedRef.current = true
+        }
+      )
     }
 
-    if (!googleTokenClientRef.current && window.google.accounts.oauth2) {
-      googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: authConfig.googleClientId,
-        scope: 'openid email profile',
-        callback: async (response) => {
+    if (!googleTokenClientRef.current) {
+      googleTokenClientRef.current = initializeGoogleTokenClient(
+        authConfig.googleClientId,
+        async (response) => {
           if (response?.error || !response?.access_token) {
             showToast('Autenticazione Google annullata o non riuscita.', 'error')
             setIsLoginBusy(false)
@@ -375,17 +363,30 @@ function HomePage() {
 
           await submitGoogleLogin('', response.access_token)
         },
-      })
+        handleGooglePopupError
+      )
     }
 
     return googleIdInitializedRef.current || Boolean(googleTokenClientRef.current)
+  }
+
+  function handleGooglePopupError(error: GooglePopupError) {
+    setIsLoginBusy(false)
+    const message = getGooglePopupMessage(error)
+    showToast(message, error.type === 'popup_closed' ? 'success' : 'error')
+
+    if (!['popup_closed', 'popup_failed_to_open'].includes(error.type ?? '')) {
+      void reportTechnicalAuthError('HomePage.handleGooglePopupError', message, {
+        type: error.type ?? 'unknown',
+      })
+    }
   }
 
   async function postLogin(endpoint: string, body: Record<string, unknown>) {
     setIsLoginBusy(true)
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchAuthRequest(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -408,20 +409,21 @@ function HomePage() {
         setTemporaryConfirmPassword('')
         setIsTemporaryPasswordModalOpen(true)
         showToast('Imposta una nuova password per completare l accesso.', 'success')
-        setIsLoginBusy(false)
         return
       }
 
       setLoginData({ email: '', password: '' })
       showToast('Login completato.', 'success')
-      setIsLoginBusy(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Errore durante il login.'
+      const message = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Login non completato. Riprova.'
+        : error instanceof Error ? error.message : 'Errore durante il login.'
       if (TECHNICAL_AUTH_MESSAGES.has(message)) {
         await handleGenericAuthTechnicalError('HomePage.postLogin', message, { endpoint })
       } else {
         showToast(message, 'error')
       }
+    } finally {
       setIsLoginBusy(false)
     }
   }
@@ -605,7 +607,7 @@ function HomePage() {
       return
     }
 
-    if (!window.google?.accounts) {
+    if (!getGoogleAccounts()) {
       await handleGenericAuthTechnicalError('HomePage.handleGoogleLogin', 'SDK Google non disponibile.')
       return
     }
@@ -615,17 +617,21 @@ function HomePage() {
     ensureGoogleClientsInitialized()
 
     if (googleTokenClientRef.current) {
-      googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      try {
+        googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      } catch {
+        handleGooglePopupError({ type: 'unknown' })
+      }
       return
     }
 
-    if (!window.google.accounts.id) {
+    if (!getGoogleAccounts()?.id) {
       await handleGenericAuthTechnicalError('HomePage.handleGoogleLogin', 'SDK Google non disponibile.')
       setIsLoginBusy(false)
       return
     }
 
-    window.google.accounts.id.prompt((notification) => {
+    const prompted = promptGoogleIdentity((notification) => {
       if (notification?.isNotDisplayed?.()) {
         setIsLoginBusy(false)
         void handleGenericAuthTechnicalError(
@@ -634,6 +640,10 @@ function HomePage() {
         )
       }
     })
+
+    if (!prompted) {
+      setIsLoginBusy(false)
+    }
   }
 
   async function handleAppleLogin() {
@@ -643,10 +653,7 @@ function HomePage() {
     }
 
     if (!authConfig.appleClientId || !authConfig.appleRedirectUri) {
-      await handleGenericAuthTechnicalError(
-        'HomePage.handleAppleLogin',
-        'Config Apple non completa (clientId / redirectURI).'
-      )
+      showToast('Metodo di Login ancora non disponibile', 'success')
       return
     }
 
@@ -793,6 +800,11 @@ function HomePage() {
           </div>
           <div className="hero-right">
             <img className="hero-logo-mobile-top" src={logoImage} alt="Logo Coccole Bestiali" />
+            <img
+              className="hero-animals-mobile"
+              src={animaliImage}
+              alt="Cani e gatti felici nel servizio Coccole Bestiali"
+            />
             <div className="hero-right-panel">
               <div className="hero-topstrip">
                 <a

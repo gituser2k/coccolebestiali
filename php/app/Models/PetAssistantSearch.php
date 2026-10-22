@@ -32,7 +32,7 @@ class PetAssistantSearch
                 $pets = DB::table('ownerpet as p')
                     ->leftJoin('ownerpetgallery as g', function ($join) {
                         $join->on('g.pet_id', '=', 'p.id')
-                            ->whereRaw('g.id = (SELECT MIN(g2.id) FROM ownerpetgallery g2 WHERE g2.pet_id = p.id)');
+                            ->whereRaw('g.id = (SELECT g2.id FROM ownerpetgallery g2 WHERE g2.pet_id = p.id ORDER BY g2.is_profile DESC, g2.sortorder, g2.id LIMIT 1)');
                     })
                     ->select(['p.id', 'p.name', 'p.pet_size', 'g.photo'])
                     ->where('p.user_id', $userId)
@@ -57,7 +57,7 @@ class PetAssistantSearch
         ];
     }
 
-    public function search(string $startDate, string $endDate, array $serviceIds, int $petId = 0, int $userId = 0, int $durationMinutes = 60, string $sortBy = 'ranking'): array
+    public function search(string $startDate, string $endDate, array $serviceIds, int $petId = 0, int $userId = 0, int $durationMinutes = 60, string $sortBy = 'ranking', bool $onlyWithPhoto = false): array
     {
         $serviceIds = array_values(array_unique(array_filter(array_map('intval', $serviceIds), fn ($id) => $id > 0)));
 
@@ -81,6 +81,7 @@ class PetAssistantSearch
             ->where('slot_service.enabled', 1)
             ->whereBetween('day.date', [$startDate, $endDate])
             ->whereIn('slot_service.service_id', $serviceIds)
+            ->when($onlyWithPhoto, fn ($query) => $query->whereRaw("TRIM(COALESCE(personal.photo, '')) <> ''"))
             ->select([
                 'user.id as user_id',
                 'user.name as alias',
@@ -98,6 +99,8 @@ class PetAssistantSearch
                 'service.id as service_id',
                 'service.name as service_name',
                 'service.description as service_description',
+                'service.requires_home_photo as service_requires_home_photo',
+                'operator_service.home_photo_enabled as operator_home_photo_enabled',
                 'slot.id as slot_id',
                 'day.date',
                 'slot.start_time',
@@ -147,13 +150,21 @@ class PetAssistantSearch
             ->get(['data.user_id', 'title.name'])
             ->groupBy('user_id');
 
+        $houseGalleries = DB::table('operatorgallery')
+            ->whereIn('user_id', $candidateIds)
+            ->orderBy('user_id')
+            ->orderBy('sortorder')
+            ->orderBy('id')
+            ->get(['id', 'user_id', 'photo', 'caption', 'sortorder'])
+            ->groupBy('user_id');
+
         $allServices = $this->getAssistantServices($candidateIds);
         $rowsByAssistant = $availability
             ->whereIn('user_id', $candidateIds)
             ->groupBy('user_id');
 
         $ownerLocation = $this->getOwnerLocation($userId);
-        $results = $rowsByAssistant->map(function ($rows, $assistantId) use ($compatibility, $titles, $allServices, $durationMinutes, $ownerLocation) {
+        $results = $rowsByAssistant->map(function ($rows, $assistantId) use ($compatibility, $titles, $houseGalleries, $allServices, $durationMinutes, $ownerLocation) {
             $first = $rows->first();
             $matchedServices = $rows->groupBy('service_id')->map(function ($serviceRows) use ($durationMinutes) {
                 $service = $serviceRows->first();
@@ -167,6 +178,8 @@ class PetAssistantSearch
                     'id' => (int) $service->service_id,
                     'name' => (string) $service->service_name,
                     'description' => (string) $service->service_description,
+                    'requiresHomePhoto' => (bool) $service->service_requires_home_photo
+                        && (bool) $service->operator_home_photo_enabled,
                     'hourlyRate' => $rates->isEmpty() ? 0 : round((float) $rates->min(), 2),
                     'totalCost' => $rates->isEmpty() ? 0 : round((float) $rates->min() * ($durationMinutes / 60), 2),
                     'availableDays' => $serviceRows->pluck('date')->unique()->count(),
@@ -203,6 +216,12 @@ class PetAssistantSearch
                 'stars' => round(((int) $first->ranking_score / 20) * 2) / 2,
                 'distanceKm' => $this->distanceKm($ownerLocation, (float) $first->location_lat, (float) $first->location_lng),
                 'titles' => collect($titles->get((int) $assistantId, []))->pluck('name')->values()->all(),
+                'houseGallery' => collect($houseGalleries->get((int) $assistantId, []))->map(fn ($photo) => [
+                    'id' => (int) $photo->id,
+                    'photoUrl' => $this->normalizePhotoUrl((string) $photo->photo),
+                    'caption' => (string) $photo->caption,
+                    'sortorder' => (int) $photo->sortorder,
+                ])->values()->all(),
                 'petMatch' => $compatibility[(int) $assistantId]['label'] ?? '',
                 'matchedServices' => $matchedServices,
                 'otherServices' => $otherServices,

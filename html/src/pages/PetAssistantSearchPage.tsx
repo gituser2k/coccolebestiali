@@ -50,6 +50,7 @@ type MatchedService = {
   id: number
   name: string
   description: string
+  requiresHomePhoto: boolean
   hourlyRate: number
   totalCost: number
   availableDays: number
@@ -61,6 +62,13 @@ type OtherService = {
   name: string
   hourlyRate: number
   features: string[]
+}
+
+type HouseGalleryPhoto = {
+  id: number
+  photoUrl: string
+  caption: string
+  sortorder: number
 }
 
 type AssistantResult = {
@@ -76,6 +84,7 @@ type AssistantResult = {
   distanceKm: number | null
   minimumTotalCost: number
   titles: string[]
+  houseGallery: HouseGalleryPhoto[]
   petMatch: string
   matchedServices: MatchedService[]
   otherServices: OtherService[]
@@ -87,6 +96,11 @@ type BookingSelection = {
   assistant: AssistantResult
   service: MatchedService
   slot: AvailabilitySlot
+}
+
+type HouseGallerySelection = {
+  assistantName: string
+  photos: HouseGalleryPhoto[]
 }
 
 type SearchResponse = {
@@ -210,6 +224,16 @@ function CalendarIcon() {
   )
 }
 
+function HomePhotoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 10.5 12 3.8l8.5 6.7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 9.5v10h13v-10M9 19.5v-6h6v6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="16.8" cy="8.2" r="2.2" fill="currentColor" />
+    </svg>
+  )
+}
+
 export default function PetAssistantSearchPage() {
   const today = useMemo(() => new Date(), [])
   const [startDate, setStartDate] = useState(toIsoDate(today))
@@ -220,6 +244,7 @@ export default function PetAssistantSearchPage() {
   const [selectedPetId, setSelectedPetId] = useState(0)
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [sortBy, setSortBy] = useState<'ranking' | 'distance' | 'cost'>('ranking')
+  const [onlyWithPhoto, setOnlyWithPhoto] = useState(false)
   const [results, setResults] = useState<AssistantResult[]>([])
   const [visibleResultCount, setVisibleResultCount] = useState(8)
   const [matchedPetName, setMatchedPetName] = useState('')
@@ -229,6 +254,7 @@ export default function PetAssistantSearchPage() {
   const [hasSearched, setHasSearched] = useState(false)
   const [toast, setToast] = useState<{ message: string; tone: 'error' | 'success' } | null>(null)
   const [bookingSelection, setBookingSelection] = useState<BookingSelection | null>(null)
+  const [houseGallerySelection, setHouseGallerySelection] = useState<HouseGallerySelection | null>(null)
   const [bookingStartTime, setBookingStartTime] = useState('')
   const [bookingEndTime, setBookingEndTime] = useState('')
   const [bookingMessage, setBookingMessage] = useState('')
@@ -250,6 +276,21 @@ export default function PetAssistantSearchPage() {
     const timer = window.setTimeout(() => setToast(null), 5000)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    if (!houseGallerySelection) {
+      return
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setHouseGallerySelection(null)
+      }
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [houseGallerySelection])
 
   async function loadOptions() {
     setIsLoadingOptions(true)
@@ -311,6 +352,7 @@ export default function PetAssistantSearchPage() {
           petId: useMyPet ? petId : null,
           durationMinutes,
           sortBy,
+          onlyWithPhoto,
         }),
       })
       const payload = await response.json()
@@ -524,6 +566,15 @@ export default function PetAssistantSearchPage() {
                   <option value="cost">Costo minore</option>
                 </select>
               </label>
+              <label className="search-photo-filter">
+                <input
+                  type="checkbox"
+                  checked={onlyWithPhoto}
+                  onChange={(event) => setOnlyWithPhoto(event.target.checked)}
+                />
+                <span className="search-photo-filter-check" aria-hidden="true">✓</span>
+                <span>Solo con Foto</span>
+              </label>
             </div>
             <button
               className="search-submit"
@@ -609,15 +660,32 @@ export default function PetAssistantSearchPage() {
                   </div>
                   <div className="assistant-matched-services">
                     {assistant.matchedServices.map((service) => (
-                      <section className="assistant-service-card" key={service.id}>
+                      <section className={`assistant-service-card${service.requiresHomePhoto ? ' has-home-photo' : ''}`} key={service.id}>
                         <div className="assistant-service-title">
                           <div>
                             <h4>{service.name}</h4>
                             <p>{service.description}</p>
                           </div>
-                          {service.hourlyRate > 0 ? (
-                            <strong>{formatPrice(service.totalCost)}<small>{formatDuration(durationMinutes)} · {formatPrice(service.hourlyRate)}/ora</small></strong>
-                          ) : null}
+                          <div className="assistant-service-price">
+                            {service.hourlyRate > 0 ? (
+                              <strong>{formatPrice(service.totalCost)}<small>{formatDuration(durationMinutes)} · {formatPrice(service.hourlyRate)}/ora</small></strong>
+                            ) : null}
+                            {service.requiresHomePhoto ? (
+                              <button
+                                type="button"
+                                className="assistant-home-photo"
+                                title="Visualizza le foto dell'abitazione"
+                                aria-haspopup="dialog"
+                                onClick={() => setHouseGallerySelection({
+                                  assistantName: assistant.name,
+                                  photos: assistant.houseGallery,
+                                })}
+                              >
+                                <HomePhotoIcon />
+                                <small>CON FOTO</small>
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                         <div className="assistant-slots">
                           {service.slots.map((slot, index) => (
@@ -660,6 +728,29 @@ export default function PetAssistantSearchPage() {
       </section>
 
       {toast ? <div className={`search-toast ${toast.tone}`}>{toast.message}</div> : null}
+      {houseGallerySelection ? (
+        <div className="booking-modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setHouseGallerySelection(null)
+        }}>
+          <section className="house-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="house-gallery-modal-title">
+            <button className="booking-modal-close" type="button" onClick={() => setHouseGallerySelection(null)} aria-label="Chiudi">×</button>
+            <span className="booking-modal-kicker">GALLERY FOTO CASA</span>
+            <h2 id="house-gallery-modal-title">L'abitazione di {houseGallerySelection.assistantName}</h2>
+            {houseGallerySelection.photos.length > 0 ? (
+              <div className="house-gallery-list">
+                {houseGallerySelection.photos.map((photo, index) => (
+                  <figure className="house-gallery-item" key={photo.id}>
+                    <img src={photo.photoUrl} alt={photo.caption || `Foto abitazione ${index + 1}`} />
+                    {photo.caption ? <figcaption>{photo.caption}</figcaption> : null}
+                  </figure>
+                ))}
+              </div>
+            ) : (
+              <p className="house-gallery-empty">Le foto dell'abitazione non sono ancora disponibili.</p>
+            )}
+          </section>
+        </div>
+      ) : null}
       {bookingSelection ? (
         <div className="booking-modal-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !isBooking) setBookingSelection(null)

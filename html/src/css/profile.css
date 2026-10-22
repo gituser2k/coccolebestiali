@@ -1591,6 +1591,23 @@
   box-shadow: 0 8px 16px rgb(31 95 167 / 22%);
 }
 
+.owner-pet-profile-badge {
+  position: absolute;
+  left: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 1;
+  min-height: 1.45rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid rgb(255 255 255 / 82%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  box-shadow: 0 7px 16px rgb(26 85 73 / 25%);
+}
+
 .profile-gallery-thumb-frame {
   width: 100%;
   aspect-ratio: 1;
@@ -1666,6 +1683,30 @@
   align-self: start;
 }
 
+.owner-pet-profile-photo-button {
+  min-height: 2.6rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid rgb(47 122 74 / 34%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 88%);
+  color: #2f7a4a;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.owner-pet-profile-photo-button.is-active {
+  background: linear-gradient(135deg, #2f7a4a, #1f5fa7);
+  border-color: transparent;
+  color: #fff;
+}
+
+.owner-pet-profile-photo-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .profile-gallery-empty {
   min-height: 8rem;
   border-radius: 1rem;
@@ -1682,13 +1723,6 @@
 
 .profile-gallery-empty-editor {
   min-height: 100%;
-}
-
-.profile-gallery-editor-note {
-  color: rgb(23 50 77 / 76%);
-  font-size: 0.88rem;
-  line-height: 1.45;
-  font-weight: 700;
 }
 
 .owner-pets-section,

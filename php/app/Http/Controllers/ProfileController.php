@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class ProfileController extends Controller
 {
@@ -192,7 +193,7 @@ class ProfileController extends Controller
                 'pets.*.petTypeIds.*' => ['required', 'integer', 'min:1'],
                 'pets.*.gallery' => ['nullable', 'array', 'max:20'],
                 'pets.*.gallery.*.photo' => ['nullable', 'string', 'max:1024'],
-                'pets.*.gallery.*.caption' => ['nullable', 'string', 'max:255'],
+                'pets.*.gallery.*.isProfile' => ['nullable', 'boolean'],
                 'pets.*.documents' => ['nullable', 'array', 'max:30'],
                 'pets.*.documents.*.documentType' => ['required', 'string', 'in:'.implode(',', self::PET_DOCUMENT_TYPES)],
                 'pets.*.documents.*.title' => ['required', 'string', 'max:255'],
@@ -217,6 +218,7 @@ class ProfileController extends Controller
             $existingDocuments = $model->getPetOwnerDocumentPaths($userId);
             $allowedExistingDocuments = array_fill_keys($existingDocuments, true);
             $pets = [];
+            $profilePhotoAssigned = false;
 
             foreach (($validated['pets'] ?? []) as $petIndex => $pet) {
                 if (! is_array($pet)) {
@@ -229,7 +231,6 @@ class ProfileController extends Controller
                         continue;
                     }
 
-                    $caption = trim((string) ($item['caption'] ?? ''));
                     $photo = trim((string) ($item['photo'] ?? ''));
                     $uploadedPhoto = $request->file("petGalleryPhotos.$petIndex.$galleryIndex");
 
@@ -241,9 +242,11 @@ class ProfileController extends Controller
                         continue;
                     }
 
+                    $isProfile = ! $profilePhotoAssigned && (bool) ($item['isProfile'] ?? false);
+                    $profilePhotoAssigned = $profilePhotoAssigned || $isProfile;
                     $gallery[] = [
                         'photo' => $photo,
-                        'caption' => $caption,
+                        'isProfile' => $isProfile,
                     ];
                 }
 
@@ -310,6 +313,7 @@ class ProfileController extends Controller
             }
 
             $savedPets = $model->savePetOwnerPets($userId, $pets);
+            $selectedProfilePhoto = null;
             $retainedPhotos = [];
             foreach ($savedPets as $pet) {
                 foreach (($pet['gallery'] ?? []) as $item) {
@@ -317,7 +321,18 @@ class ProfileController extends Controller
                     if ($photo !== '') {
                         $retainedPhotos[$photo] = true;
                     }
+                    if ($selectedProfilePhoto === null && (bool) ($item['isProfile'] ?? false)) {
+                        $selectedProfilePhoto = $photo;
+                    }
                 }
+            }
+
+            $currentProfile = $model->getPersonalProfile($userId);
+            $currentProfilePhoto = trim((string) ($currentProfile['photo'] ?? ''));
+            if ($selectedProfilePhoto !== null) {
+                $model->syncPetOwnerProfilePhoto($userId, $selectedProfilePhoto);
+            } elseif (str_starts_with($currentProfilePhoto, 'owner-pet-gallery/')) {
+                $model->syncPetOwnerProfilePhoto($userId, '');
             }
 
             foreach ($existingPhotos as $existingPhoto) {
@@ -382,6 +397,43 @@ class ProfileController extends Controller
             return response()->json([
                 'ok' => false,
                 'message' => 'Salvataggio dei pet non completato.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function updatePetOwnerProfilePhoto(Request $request): JsonResponse
+    {
+        try {
+            $userId = $this->resolveCurrentUserId($request);
+            if ($userId <= 0) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Sessione utente non disponibile.',
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $validated = $request->validate([
+                'galleryId' => ['nullable', 'integer', 'min:1'],
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'data' => (new Profile)->setPetOwnerProfilePhoto(
+                    $userId,
+                    isset($validated['galleryId']) ? (int) $validated['galleryId'] : null
+                ),
+            ], Response::HTTP_OK);
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (Exception $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Aggiornamento della foto profilo non completato.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -798,6 +850,7 @@ class ProfileController extends Controller
                 'services' => ['nullable', 'array'],
                 'services.*.serviceId' => ['required', 'integer', 'min:1'],
                 'services.*.hourlyRate' => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+                'services.*.homePhotoEnabled' => ['nullable', 'boolean'],
                 'services.*.featureIds' => ['nullable', 'array'],
                 'services.*.featureIds.*' => ['required', 'integer', 'min:1'],
                 'gallery' => ['nullable', 'array'],

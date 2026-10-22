@@ -3,6 +3,15 @@ import '../css/register.css'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { sanitizeText, validateEmail } from '../utility.js'
+import {
+  fetchAuthRequest,
+  getGoogleAccounts,
+  getGooglePopupMessage,
+  initializeGoogleIdentity,
+  initializeGoogleTokenClient,
+  promptGoogleIdentity,
+} from '../auth/googleOAuth'
+import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
 
 const PORTAL_USER_STORAGE_KEY = 'cb_portal_user'
 const GENERIC_AUTH_ERROR_MESSAGE = 'Si è verificato un errore. Riprova più tardi.'
@@ -45,26 +54,6 @@ type PasswordChecks = {
 
 declare global {
   interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (params: {
-            client_id: string
-            callback: (response: { credential?: string }) => void
-          }) => void
-          prompt: (callback?: (notification: { isNotDisplayed?: () => boolean }) => void) => void
-        }
-        oauth2?: {
-          initTokenClient: (params: {
-            client_id: string
-            scope: string
-            callback: (response: { access_token?: string; error?: string }) => void
-          }) => {
-            requestAccessToken: (params?: { prompt?: string }) => void
-          }
-        }
-      }
-    }
     AppleID?: {
       auth?: {
         init: (params: {
@@ -246,7 +235,7 @@ export default function RegisterPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'error' | 'success'>('error')
   const pendingGoogleRoleRef = useRef<'pet_owner' | 'pet_assistant' | null>(null)
-  const googleTokenClientRef = useRef<{ requestAccessToken: (params?: { prompt?: string }) => void } | null>(null)
+  const googleTokenClientRef = useRef<GoogleTokenClient | null>(null)
   const googleIdInitializedRef = useRef(false)
 
   useEffect(() => {
@@ -351,47 +340,66 @@ export default function RegisterPage() {
   }, [])
 
   function ensureGoogleClientsInitialized() {
-    if (!authConfig.googleClientId || !window.google?.accounts) {
+    if (!authConfig.googleClientId || !getGoogleAccounts()) {
       return false
     }
 
-    if (!googleIdInitializedRef.current && window.google.accounts.id) {
-      window.google.accounts.id.initialize({
-        client_id: authConfig.googleClientId,
-        callback: async (response) => {
+    if (!googleIdInitializedRef.current) {
+      googleIdInitializedRef.current = initializeGoogleIdentity(
+        authConfig.googleClientId,
+        async (response) => {
           const role = pendingGoogleRoleRef.current
           if (!role || !response?.credential) {
+            setBusyRole(null)
+            pendingGoogleRoleRef.current = null
             return
           }
           await submitGoogleRegistration(role, response.credential)
-        },
-      })
-      googleIdInitializedRef.current = true
+        }
+      )
     }
 
-    if (!googleTokenClientRef.current && window.google.accounts.oauth2) {
-      googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: authConfig.googleClientId,
-        scope: 'openid email profile',
-        callback: async (response) => {
+    if (!googleTokenClientRef.current) {
+      googleTokenClientRef.current = initializeGoogleTokenClient(
+        authConfig.googleClientId,
+        async (response) => {
           const role = pendingGoogleRoleRef.current
           if (!role) {
             setBusyRole(null)
+            pendingGoogleRoleRef.current = null
             return
           }
 
           if (response?.error || !response?.access_token) {
             setRoleStatus(role, 'Autenticazione Google annullata o non riuscita.', 'error')
             setBusyRole(null)
+            pendingGoogleRoleRef.current = null
             return
           }
 
           await submitGoogleRegistration(role, '', response.access_token)
         },
-      })
+        handleGooglePopupError
+      )
     }
 
     return googleIdInitializedRef.current || Boolean(googleTokenClientRef.current)
+  }
+
+  function handleGooglePopupError(error: GooglePopupError) {
+    const role = pendingGoogleRoleRef.current
+    setBusyRole(null)
+    pendingGoogleRoleRef.current = null
+
+    const message = getGooglePopupMessage(error)
+    showToast(message, error.type === 'popup_closed' ? 'success' : 'error')
+
+    if (!['popup_closed', 'popup_failed_to_open'].includes(error.type ?? '')) {
+      void reportTechnicalAuthError('RegisterPage.handleGooglePopupError', message, {
+        role: role ?? 'unknown',
+        type: error.type ?? 'unknown',
+      })
+    }
   }
 
   useEffect(() => {
@@ -427,7 +435,7 @@ export default function RegisterPage() {
     setRoleStatus(role, '', 'error')
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchAuthRequest(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -456,7 +464,9 @@ export default function RegisterPage() {
 
       setRoleStatus(role, 'Registrazione completata. Controlla la tua email per confermare.', 'success')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Errore durante la registrazione.'
+      const message = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Registrazione non completata. Riprova.'
+        : error instanceof Error ? error.message : 'Errore durante la registrazione.'
       if (message === 'Email gia registrata.') {
         setRoleStatus(role, '', 'error')
         showToast(message, 'error')
@@ -538,7 +548,7 @@ export default function RegisterPage() {
       return
     }
 
-    if (!window.google?.accounts) {
+    if (!getGoogleAccounts()) {
       await handleGenericAuthTechnicalError(
         role,
         'RegisterPage.handleGoogleRegistration',
@@ -554,11 +564,15 @@ export default function RegisterPage() {
     ensureGoogleClientsInitialized()
 
     if (googleTokenClientRef.current) {
-      googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      try {
+        googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      } catch {
+        handleGooglePopupError({ type: 'unknown' })
+      }
       return
     }
 
-    if (!window.google.accounts.id) {
+    if (!getGoogleAccounts()?.id) {
       await handleGenericAuthTechnicalError(
         role,
         'RegisterPage.handleGoogleRegistration',
@@ -568,7 +582,7 @@ export default function RegisterPage() {
       return
     }
 
-    window.google.accounts.id.prompt((notification) => {
+    const prompted = promptGoogleIdentity((notification) => {
       if (notification?.isNotDisplayed?.()) {
         setBusyRole(null)
         void handleGenericAuthTechnicalError(
@@ -578,6 +592,10 @@ export default function RegisterPage() {
         )
       }
     })
+
+    if (!prompted) {
+      setBusyRole(null)
+    }
   }
 
   async function handleAppleRegistration(role: 'pet_owner' | 'pet_assistant') {
@@ -587,11 +605,7 @@ export default function RegisterPage() {
     }
 
     if (!authConfig.appleClientId || !authConfig.appleRedirectUri) {
-      await handleGenericAuthTechnicalError(
-        role,
-        'RegisterPage.handleAppleRegistration',
-        'Config Apple non completa (clientId / redirectURI).'
-      )
+      showToast('Metodo di Login ancora non disponibile', 'success')
       return
     }
 

@@ -1,0 +1,18 @@
+{
+    "generatedAt": "2026-10-22T23:14:00+02:00",
+    "public": [
+        "operator-gallery/demo-devfra75-area-accessori.jpg",
+        "operator-gallery/demo-devfra75-giardino.jpg",
+        "operator-gallery/demo-devfra75-soggiorno.jpg",
+        "operator-gallery/demo-devfra75-terrazzo.jpg",
+        "operator-gallery/demo-devfra75-zona-riposo.jpg",
+        "owner-pet-gallery/rex-pastore-tedesco.png"
+    ],
+    "private": [
+        "owner-pet-documents/user-83/assicurazione-rex.pdf",
+        "owner-pet-documents/user-83/certificato-microchip-rex.pdf",
+        "owner-pet-documents/user-83/libretto-sanitario-rex.pdf",
+        "owner-pet-documents/user-83/pedigree-rex.pdf",
+        "owner-pet-documents/user-83/vaccinazioni-rex.pdf"
+    ]
+}

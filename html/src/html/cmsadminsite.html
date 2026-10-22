@@ -447,6 +447,69 @@
         line-height: 1.45;
       }
 
+      .demo-data-layout {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .demo-data-card {
+        min-height: 230px;
+        padding: 22px;
+        border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .demo-data-card.is-system {
+        border: 1px solid rgba(31, 95, 167, 0.24);
+        background: linear-gradient(145deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.96));
+      }
+
+      .demo-data-card.is-seed {
+        border: 1px solid rgba(47, 122, 74, 0.24);
+        background: linear-gradient(145deg, rgba(238, 249, 241, 0.96), rgba(239, 246, 255, 0.96));
+      }
+
+      .demo-data-card.is-empty {
+        border: 1px solid rgba(180, 35, 24, 0.24);
+        background: linear-gradient(145deg, rgba(255, 244, 241, 0.96), rgba(255, 255, 255, 0.96));
+      }
+
+      .demo-data-card h4 {
+        margin: 0;
+        font-size: 1.14rem;
+        color: #17394d;
+      }
+
+      .demo-data-card p {
+        flex: 1;
+        line-height: 1.55;
+      }
+
+      .demo-data-action {
+        width: 100%;
+        min-height: 46px;
+        border: 0;
+        border-radius: 12px;
+        color: #fff;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .demo-data-action.is-system {
+        background: var(--blue);
+      }
+
+      .demo-data-action.is-seed {
+        background: linear-gradient(135deg, var(--green), var(--blue));
+      }
+
+      .demo-data-action.is-empty {
+        background: #b42318;
+      }
+
       .service-form-grid {
         display: grid;
         gap: 12px;
@@ -912,6 +975,10 @@
         .pettype-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        .demo-data-layout {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -928,7 +995,7 @@
           <input value="coccoadmin" id="username" name="username" type="text" autocomplete="username" style="padding-left: 10px;" required />
 
           <label for="password">Password</label>
-          <input value="cocco123." id="password" name="password" type="password" autocomplete="current-password" style="padding-left: 10px;" required />
+          <input id="password" name="password" type="password" autocomplete="current-password" style="padding-left: 10px;" required />
 
           <p id="loginError" class="login-error is-hidden">Credenziali non valide.</p>
           <button type="submit">Accedi</button>
@@ -946,6 +1013,7 @@
           <button id="btnPetTypes" class="menu-btn" type="button">Tipo di pet</button>
           <button id="btnHouseFeatures" class="menu-btn" type="button">Caratteristiche casa</button>
           <button id="btnPolicies" class="menu-btn" type="button">Policy</button>
+          <button id="btnDemoData" class="menu-btn" type="button">Dati demo</button>
         </div>
         <button id="btnLogout" class="menu-btn logout-btn" type="button">Logout</button>
       </aside>
@@ -1021,6 +1089,7 @@
       const btnPetTypes = document.getElementById('btnPetTypes')
       const btnHouseFeatures = document.getElementById('btnHouseFeatures')
       const btnPolicies = document.getElementById('btnPolicies')
+      const btnDemoData = document.getElementById('btnDemoData')
       const btnLogout = document.getElementById('btnLogout')
       const btnDeleteErrors = document.getElementById('btnDeleteErrors')
       const rowContextMenu = document.getElementById('rowContextMenu')
@@ -1085,6 +1154,7 @@
         btnPetTypes.classList.toggle('is-active', type === 'pettypes')
         btnHouseFeatures.classList.toggle('is-active', type === 'housefeatures')
         btnPolicies.classList.toggle('is-active', type === 'policies')
+        btnDemoData.classList.toggle('is-active', type === 'demodata')
         hideRowContextMenu()
       }
 
@@ -1338,10 +1408,12 @@
         const idField = document.getElementById('serviceId')
         const nameField = document.getElementById('serviceName')
         const descField = document.getElementById('serviceDescription')
+        const homePhotoField = document.getElementById('serviceHomePhoto')
 
         if (idField) idField.value = ''
         if (nameField) nameField.value = ''
         if (descField) descField.value = ''
+        if (homePhotoField) homePhotoField.checked = false
 
         document.querySelectorAll('.service-feature-selector').forEach((entry) => {
           entry.checked = false
@@ -1359,10 +1431,12 @@
         const idField = document.getElementById('serviceId')
         const nameField = document.getElementById('serviceName')
         const descField = document.getElementById('serviceDescription')
+        const homePhotoField = document.getElementById('serviceHomePhoto')
 
         if (idField) idField.value = String(service.id)
         if (nameField) nameField.value = service.name ?? ''
         if (descField) descField.value = service.description ?? ''
+        if (homePhotoField) homePhotoField.checked = Boolean(service.requires_home_photo)
 
         const selectedIds = new Set((service.feature_ids ?? []).map((value) => Number(value)))
         document.querySelectorAll('.service-feature-selector').forEach((entry) => {
@@ -1669,7 +1743,7 @@
       }
 
       function renderServicesManager() {
-        const featureChecks = featureRows.length > 0
+        const dynamicFeatureChecks = featureRows.length > 0
           ? featureRows.map((feature) => `
               <label class="service-feature-check">
                 <input class="service-feature-selector" type="checkbox" value="${Number(feature.id)}">
@@ -1677,6 +1751,13 @@
               </label>
             `).join('')
           : '<div class="service-empty">Nessuna funzionalità disponibile. Creane almeno una nella colonna di destra.</div>'
+        const featureChecks = `
+          <label class="service-feature-check">
+            <input id="serviceHomePhoto" type="checkbox">
+            <span>Foto Abitazione</span>
+          </label>
+          ${dynamicFeatureChecks}
+        `
 
         const servicesList = serviceRows.length > 0
           ? serviceRows.map((service) => `
@@ -1705,6 +1786,9 @@
                   </div>
                 </div>
                 <div class="service-badges">
+                  ${service.requires_home_photo
+                    ? '<span class="service-badge"><span>Foto Abitazione</span></span>'
+                    : ''}
                   ${(service.feature_names ?? []).length > 0
                     ? service.feature_names.map((name, index) => `
                         <span class="service-badge">
@@ -1725,7 +1809,9 @@
                           </button>
                         </span>
                       `).join('')
-                    : '<span class="service-badge" style="color:#6b7780;background:#f4f7f9;border-color:#dde5ea;">Nessuna funzionalità associata</span>'}
+                    : service.requires_home_photo
+                      ? ''
+                      : '<span class="service-badge" style="color:#6b7780;background:#f4f7f9;border-color:#dde5ea;">Nessuna funzionalità associata</span>'}
                 </div>
               </article>
             `).join('')
@@ -2358,6 +2444,61 @@
         statusNote.textContent = ''
       }
 
+      function loadDemoDataSection() {
+        hideRowContextMenu()
+        contextMessageId = null
+        setDeleteButtonVisibility(false)
+        selectedErrorIds.clear()
+        selectedMessageIds.clear()
+        messageRowsMap.clear()
+        tableTitle.textContent = 'Dati demo'
+        statusNote.textContent = ''
+        showServicesWrap()
+        servicesManager.innerHTML = `
+          <div class="demo-data-layout">
+            <section class="demo-data-card is-empty">
+              <h4>Svuota completamente il database</h4>
+              <p>Elimina definitivamente tutti i dati, inclusi account, configurazione, cataloghi, policy, calendari e prenotazioni. Mantiene soltanto la struttura delle tabelle.</p>
+              <button class="demo-data-action is-empty" type="button" data-action="clear-all-data">SVUOTA TUTTO IL DATABASE</button>
+            </section>
+            <section class="demo-data-card is-system">
+              <h4>Ripristina sistema e configurazione</h4>
+              <p>Ripristina servizi, funzionalità, qualifiche, razze, tipi di pet, caratteristiche casa e policy. Account e dati operativi restano invariati.</p>
+              <button class="demo-data-action is-system" type="button" data-action="restore-system-data">RIPRISTINA DATI DI SISTEMA</button>
+            </section>
+            <section class="demo-data-card is-seed">
+              <h4>Ripristina dataset dimostrativo</h4>
+              <p>Ricostruisce lo stato demo corrente con 1 Pet Owner, Rex, 40 Pet Assistant, profili, gallery, documenti, calendari, ranking e prenotazioni.</p>
+              <button class="demo-data-action is-seed" type="button" data-action="seed-demo-data">CREA DATI DEMO</button>
+            </section>
+          </div>
+        `
+      }
+
+      async function runDemoDataAction(action) {
+        const endpoints = {
+          clearAll: '/api/admin/demo-data/clear-all',
+          system: '/api/admin/demo-data/restore-system',
+          seed: '/api/admin/demo-data/seed',
+        }
+        const endpoint = endpoints[action]
+        const response = await laravelFetch(endpoint, {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.message || 'Operazione sui dati demo non completata.')
+        }
+
+        const summary = payload.data || {}
+        statusNote.textContent = action === 'clearAll'
+          ? `Database svuotato: ${Number(summary.tablesCleared || 0)} tabelle senza dati.`
+          : action === 'system'
+            ? `Configurazione ripristinata: ${Number(summary.services || 0)} servizi, ${Number(summary.features || 0)} funzionalità e ${Number(summary.policies || 0)} policy.`
+            : `Dati demo ripristinati: ${Number(summary.petAssistants || 0)} Pet Assistant, ${Number(summary.petOwners || 0)} Pet Owner e ${Number(summary.pets || 0)} pet.`
+      }
+
       function renderPoliciesManager() {
         const grouped = policyRows.reduce((groups, policy) => {
           const group = String(policy.group || 'Generali')
@@ -2438,6 +2579,7 @@
       async function saveCurrentService() {
         const name = document.getElementById('serviceName')?.value?.trim() ?? ''
         const description = document.getElementById('serviceDescription')?.value?.trim() ?? ''
+        const requiresHomePhoto = Boolean(document.getElementById('serviceHomePhoto')?.checked)
         const featureIds = getSelectedServiceFeatureIds()
         const isEditing = Boolean(editingServiceId)
 
@@ -2456,6 +2598,7 @@
             id: editingServiceId,
             name,
             description,
+            requires_home_photo: requiresHomePhoto,
             feature_ids: featureIds,
           }),
         })
@@ -2818,6 +2961,12 @@
             return
           }
 
+          if (section === 'demodata') {
+            setActiveMenu('demodata')
+            loadDemoDataSection()
+            return
+          }
+
           setActiveMenu('errors')
           showTableWrap()
           await loadErrors()
@@ -2827,7 +2976,7 @@
           if (section === 'services') {
             showServicesWrap()
             servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
-          } else if (section === 'pettypes' || section === 'housefeatures' || section === 'policies') {
+          } else if (section === 'pettypes' || section === 'housefeatures' || section === 'policies' || section === 'demodata') {
             showServicesWrap()
             servicesManager.innerHTML = '<div class="service-empty">Impossibile leggere i dati dal server.</div>'
           } else {
@@ -2883,6 +3032,10 @@
 
       btnPolicies.addEventListener('click', async () => {
         await showSection('policies')
+      })
+
+      btnDemoData.addEventListener('click', async () => {
+        await showSection('demodata')
       })
 
       btnLogout.addEventListener('click', async () => {
@@ -3042,6 +3195,43 @@
         const id = Number(actionTarget.getAttribute('data-id'))
 
         try {
+          if (action === 'clear-all-data' || action === 'restore-system-data' || action === 'seed-demo-data') {
+            if (!window.CBUtility?.showUtilityModal) {
+              return
+            }
+
+            const isClearAll = action === 'clear-all-data'
+            const isSystemRestore = action === 'restore-system-data'
+            window.CBUtility.showUtilityModal({
+              testo_header: isClearAll ? 'Svuotamento completo database' : isSystemRestore ? 'Ripristino sistema e configurazione' : 'Ripristino dati demo',
+              body: isClearAll
+                ? 'L’operazione eliminerà definitivamente ogni dato presente nel database mantenendo soltanto la struttura delle tabelle. Per ricostruire il portale sarà necessario eseguire i due ripristini. <b>Procedere?</b>'
+                : isSystemRestore
+                  ? 'L’operazione ripristinerà cataloghi e policy allo snapshot corrente senza modificare account e profili. <b>Procedere?</b>'
+                  : 'L’operazione sostituirà tutti gli account e i dati operativi con lo snapshot del Pet Owner di Rex e dei 40 Pet Assistant, incluse immagini e documenti. <b>Procedere?</b>',
+              colorazione: 'warning',
+              pulsanti: [
+                {
+                  label: isClearAll ? 'Svuota database' : isSystemRestore ? 'Ripristina sistema' : 'Crea dati demo',
+                  callback: async ({ close }) => {
+                    try {
+                      await runDemoDataAction(isClearAll ? 'clearAll' : isSystemRestore ? 'system' : 'seed')
+                      close()
+                    } catch (error) {
+                      statusNote.textContent = error?.message || 'Operazione sui dati demo non completata.'
+                      return false
+                    }
+                  },
+                },
+                {
+                  label: 'Chiudi',
+                  callback: ({ close }) => close(),
+                },
+              ],
+            })
+            return
+          }
+
           if (action === 'save-policies') {
             await savePolicies()
             return

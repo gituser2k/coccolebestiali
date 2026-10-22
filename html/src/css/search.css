@@ -444,6 +444,7 @@ a {
 }
 
 .assistant-service-card {
+  position: relative;
   padding: 0.8rem;
   border: 1px solid rgb(47 122 74 / 22%);
   border-radius: 1rem;
@@ -474,17 +475,68 @@ a {
   -webkit-box-orient: vertical;
 }
 
-.assistant-service-title > strong {
+.assistant-service-price {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.assistant-service-price > strong {
   color: var(--search-blue);
   font-size: 0.88rem;
   white-space: nowrap;
 }
 
-.assistant-service-title small {
+.assistant-service-price > strong small {
   display: block;
   color: var(--search-muted);
   font-size: 0.65rem;
   text-align: right;
+}
+
+.assistant-home-photo {
+  position: absolute;
+  top: 3.55rem;
+  right: 0.8rem;
+  width: 3.8rem;
+  min-height: 3rem;
+  padding: 0.34rem 0.3rem;
+  border: 1px solid rgb(31 95 167 / 22%);
+  border-radius: 0.72rem;
+  background: linear-gradient(145deg, rgb(226 240 255 / 92%), rgb(222 243 223 / 88%));
+  color: var(--search-blue);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  box-shadow: 0 7px 14px rgb(31 95 167 / 12%);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.assistant-home-photo:hover,
+.assistant-home-photo:focus-visible {
+  border-color: rgb(31 95 167 / 55%);
+  box-shadow: 0 10px 20px rgb(31 95 167 / 20%);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.assistant-home-photo svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.assistant-home-photo small {
+  color: var(--search-green);
+  font-size: 0.56rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .assistant-slots {
@@ -492,6 +544,10 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.assistant-service-card.has-home-photo .assistant-slots {
+  padding-right: 4.25rem;
 }
 
 .assistant-slots > button {
@@ -536,6 +592,52 @@ a {
 
 .search-order-controls select {
   min-width: 10rem;
+}
+
+.search-order-controls .search-photo-filter {
+  position: relative;
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--portal-combobox-height, 3.45rem);
+  padding: 0 1rem;
+  border: 2px solid rgb(31 95 167 / 22%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 90%);
+  color: var(--search-ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.search-photo-filter input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.search-photo-filter-check {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 2px solid rgb(31 95 167 / 38%);
+  border-radius: 0.42rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: transparent;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.search-photo-filter input:checked + .search-photo-filter-check {
+  border-color: var(--search-blue);
+  background: var(--search-blue);
+  color: #fff;
+}
+
+.search-photo-filter:has(input:focus-visible) {
+  border-color: var(--search-blue);
+  box-shadow: 0 0 0 4px rgb(31 95 167 / 12%);
 }
 
 .assistant-ranking-row,
@@ -592,6 +694,64 @@ a {
   border-radius: 1.8rem;
   background: linear-gradient(145deg, rgb(255 255 255 / 96%), rgb(229 241 248 / 94%));
   box-shadow: 0 28px 80px rgb(15 47 76 / 30%);
+}
+
+.house-gallery-modal {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1rem, 2.5vw, 1.65rem);
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 1.8rem;
+  background: linear-gradient(145deg, rgb(255 255 255 / 97%), rgb(229 241 248 / 95%));
+  box-shadow: 0 28px 80px rgb(15 47 76 / 30%);
+}
+
+.house-gallery-modal h2 {
+  margin: 0.3rem 3rem 1rem 0;
+  color: var(--search-green);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.house-gallery-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.house-gallery-item {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgb(31 95 167 / 16%);
+  border-radius: 1.15rem;
+  background: rgb(255 255 255 / 78%);
+  box-shadow: 0 12px 28px rgb(31 95 167 / 10%);
+}
+
+.house-gallery-item img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.house-gallery-item figcaption {
+  padding: 0.7rem 0.85rem 0.8rem;
+  color: var(--search-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.house-gallery-empty {
+  margin: 0;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 72%);
+  color: var(--search-muted);
+  text-align: center;
+  font-weight: 800;
 }
 
 .booking-modal-close {
@@ -739,6 +899,10 @@ a {
 }
 
 @media (max-width: 620px) {
+  .house-gallery-list {
+    grid-template-columns: 1fr;
+  }
+
   .booking-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -949,6 +1113,15 @@ a {
     flex-direction: column;
   }
 
+  .search-order-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-photo-filter {
+    grid-column: 1 / -1;
+  }
+
   .search-submit {
     justify-content: center;
     width: 100%;
@@ -982,6 +1155,14 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .search-order-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .search-order-controls select {
+    min-width: 0;
+  }
+
   .assistant-identity {
     grid-template-columns: 1fr;
   }
@@ -995,7 +1176,50 @@ a {
     flex-direction: column;
   }
 
-  .assistant-service-title small {
+  .assistant-service-price {
+    position: relative;
+    width: 100%;
+    min-height: 1.65rem;
+    grid-template-columns: 1fr;
+    align-items: center;
+  }
+
+  .assistant-service-price > strong {
+    width: 100%;
+    text-align: right;
+  }
+
+  .assistant-service-price > strong small {
     display: inline;
+  }
+
+  .assistant-home-photo {
+    top: 50%;
+    right: auto;
+    left: 0;
+    width: 4.65rem;
+    min-height: 1.55rem;
+    padding: 0.18rem 0.34rem;
+    flex-direction: row;
+    gap: 0.22rem;
+    transform: translateY(-50%);
+  }
+
+  .assistant-home-photo svg {
+    width: 0.92rem;
+    height: 0.92rem;
+  }
+
+  .assistant-home-photo small {
+    font-size: 0.53rem;
+  }
+
+  .assistant-home-photo:hover,
+  .assistant-home-photo:focus-visible {
+    transform: translateY(calc(-50% - 1px));
+  }
+
+  .assistant-service-card.has-home-photo .assistant-slots {
+    padding-right: 0;
   }
 }

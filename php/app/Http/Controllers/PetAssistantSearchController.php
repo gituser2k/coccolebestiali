@@ -50,6 +50,7 @@ class PetAssistantSearchController extends Controller
                 'petId' => ['nullable', 'integer', 'min:1'],
                 'durationMinutes' => ['nullable', 'integer', 'min:30', 'max:'.$maximumDuration, 'multiple_of:30'],
                 'sortBy' => ['nullable', 'string', 'in:ranking,distance,cost'],
+                'onlyWithPhoto' => ['nullable', 'boolean'],
             ]);
 
             $startDate = new DateTimeImmutable((string) $validated['startDate']);
@@ -69,7 +70,8 @@ class PetAssistantSearchController extends Controller
                 (int) ($validated['petId'] ?? 0),
                 $this->resolveCurrentUserId($request),
                 (int) ($validated['durationMinutes'] ?? 60),
-                (string) ($validated['sortBy'] ?? 'ranking')
+                (string) ($validated['sortBy'] ?? 'ranking'),
+                (bool) ($validated['onlyWithPhoto'] ?? false)
             );
 
             return response()->json([

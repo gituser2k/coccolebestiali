@@ -38,6 +38,7 @@ type ServiceOption = {
   id: number
   name: string
   description: string
+  requiresHomePhoto: boolean
   features: Array<{
     id: number
     name: string
@@ -48,6 +49,7 @@ type OperatorServiceSelection = {
   serviceId: number
   featureIds: number[]
   hourlyRate: number
+  homePhotoEnabled: boolean
 }
 
 type CityOption = {
@@ -988,6 +990,7 @@ export default function ProfilePlaceholderPage() {
             ? operatorProfilePayload.data.services.map((item: Record<string, unknown>) => ({
                 serviceId: Number(item.serviceId ?? 0),
                 hourlyRate: Number(item.hourlyRate ?? 0),
+                homePhotoEnabled: Boolean(item.homePhotoEnabled),
                 featureIds: Array.isArray(item.featureIds)
                   ? item.featureIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
                   : [],
@@ -1272,7 +1275,12 @@ export default function ProfilePlaceholderPage() {
         ...current,
         services: exists
           ? current.services.filter((service) => service.serviceId !== serviceId)
-          : [...current.services, { serviceId, featureIds: (option?.features ?? []).map((feature) => feature.id), hourlyRate: 0 }],
+          : [...current.services, {
+              serviceId,
+              featureIds: (option?.features ?? []).map((feature) => feature.id),
+              hourlyRate: 0,
+              homePhotoEnabled: Boolean(option?.requiresHomePhoto),
+            }],
       }
     })
   }
@@ -1316,6 +1324,17 @@ export default function ProfilePlaceholderPage() {
                 ? service.featureIds.filter((id) => id !== featureId)
                 : [...service.featureIds, featureId],
             }
+          : service
+      )),
+    }))
+  }
+
+  function toggleOperatorServiceHomePhoto(serviceId: number) {
+    setOperatorProfile((current) => ({
+      ...current,
+      services: current.services.map((service) => (
+        service.serviceId === serviceId
+          ? { ...service, homePhotoEnabled: !service.homePhotoEnabled }
           : service
       )),
     }))
@@ -2048,6 +2067,7 @@ export default function ProfilePlaceholderPage() {
       if (service.hourlyRate > 0) {
         body.append(`services[${index}][hourlyRate]`, String(service.hourlyRate))
       }
+      body.append(`services[${index}][homePhotoEnabled]`, service.homePhotoEnabled ? '1' : '0')
       service.featureIds.forEach((featureId, featureIndex) => {
         body.append(`services[${index}][featureIds][${featureIndex}]`, String(featureId))
       })
@@ -2117,6 +2137,7 @@ export default function ProfilePlaceholderPage() {
           ? payload.data.services.map((item: Record<string, unknown>) => ({
               serviceId: Number(item.serviceId ?? 0),
               hourlyRate: Number(item.hourlyRate ?? 0),
+              homePhotoEnabled: Boolean(item.homePhotoEnabled),
               featureIds: Array.isArray(item.featureIds)
                 ? item.featureIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
                 : [],
@@ -2811,6 +2832,16 @@ export default function ProfilePlaceholderPage() {
                                 </label>
 
                                 <div className="profile-service-features">
+                                  {service.requiresHomePhoto ? (
+                                    <button
+                                      type="button"
+                                      className={`profile-service-feature ${selected && currentSelection?.homePhotoEnabled ? 'is-active' : 'is-inactive'}`}
+                                      disabled={!selected}
+                                      onClick={() => toggleOperatorServiceHomePhoto(service.id)}
+                                    >
+                                      Foto Abitazione
+                                    </button>
+                                  ) : null}
                                   {service.features.map((feature) => (
                                     <button
                                       key={`${service.id}-${feature.id}`}
@@ -2946,9 +2977,6 @@ export default function ProfilePlaceholderPage() {
                                     ) : (
                                       <span className="profile-photo-placeholder">Anteprima foto</span>
                                     )}
-                                  </div>
-                                  <div className="profile-gallery-editor-note">
-                                    Stai modificando la foto in posizione <strong>{selectedGalleryIndex + 1}</strong>.
                                   </div>
                                   <label className="profile-upload-button profile-upload-button-secondary">
                                     Carica foto

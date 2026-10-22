@@ -71,10 +71,11 @@ class Profile extends Model
                 's.id',
                 's.name',
                 's.description',
+                's.requires_home_photo',
                 DB::raw("GROUP_CONCAT(DISTINCT sf.id ORDER BY sf.name SEPARATOR ',') as feature_ids"),
                 DB::raw("GROUP_CONCAT(DISTINCT sf.name ORDER BY sf.name SEPARATOR '||') as feature_names"),
             ])
-            ->groupBy('s.id', 's.name', 's.description')
+            ->groupBy('s.id', 's.name', 's.description', 's.requires_home_photo')
             ->orderBy('s.name')
             ->get()
             ->map(function ($row) {
@@ -103,6 +104,7 @@ class Profile extends Model
                     'id' => (int) $row->id,
                     'name' => (string) $row->name,
                     'description' => (string) $row->description,
+                    'requiresHomePhoto' => (bool) $row->requires_home_photo,
                     'features' => $features,
                 ];
             })
@@ -215,7 +217,7 @@ class Profile extends Model
             ->whereIn('pet_id', $petIds)
             ->orderBy('sortorder')
             ->orderBy('id')
-            ->get(['id', 'pet_id', 'photo', 'caption', 'sortorder'])
+            ->get(['id', 'pet_id', 'photo', 'is_profile', 'sortorder'])
             ->groupBy('pet_id');
         $documents = DB::table('ownerpetdocument')
             ->whereIn('pet_id', $petIds)
@@ -246,7 +248,7 @@ class Profile extends Model
                     'id' => (int) $item->id,
                     'photo' => (string) $item->photo,
                     'photoUrl' => $this->normalizePhotoUrl((string) $item->photo),
-                    'caption' => (string) $item->caption,
+                    'isProfile' => (bool) $item->is_profile,
                     'sortorder' => (int) $item->sortorder,
                 ])->values()->all(),
                 'documents' => collect($documents->get($petId, []))->map(fn ($item) => [
@@ -293,6 +295,70 @@ class Profile extends Model
             ->filter()
             ->values()
             ->all();
+    }
+
+    public function syncPetOwnerProfilePhoto(int $userId, string $photo): void
+    {
+        $this->ensurePersonalLocationSchema();
+        $now = time();
+        $existing = DB::table('personaldata')->where('user_id', $userId)->exists();
+
+        if ($existing) {
+            DB::table('personaldata')->where('user_id', $userId)->update([
+                'photo' => $photo,
+                'updated_at' => $now,
+            ]);
+
+            return;
+        }
+
+        DB::table('personaldata')->insert([
+            'user_id' => $userId,
+            'photo' => $photo,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    public function setPetOwnerProfilePhoto(int $userId, ?int $galleryId): array
+    {
+        $this->ensurePetOwnerPetsSchema();
+
+        return DB::transaction(function () use ($userId, $galleryId) {
+            $petIds = DB::table('ownerpet')->where('user_id', $userId)->pluck('id')->all();
+            $selected = null;
+
+            if ($galleryId !== null) {
+                $selected = DB::table('ownerpetgallery as gallery')
+                    ->join('ownerpet as pet', 'pet.id', '=', 'gallery.pet_id')
+                    ->where('pet.user_id', $userId)
+                    ->where('gallery.id', $galleryId)
+                    ->first(['gallery.id', 'gallery.photo']);
+
+                if (! $selected) {
+                    throw new \RuntimeException('Foto della gallery non disponibile.');
+                }
+            }
+
+            if ($petIds !== []) {
+                DB::table('ownerpetgallery')->whereIn('pet_id', $petIds)->update(['is_profile' => 0]);
+            }
+
+            if ($selected) {
+                DB::table('ownerpetgallery')->where('id', $selected->id)->update(['is_profile' => 1]);
+                $this->syncPetOwnerProfilePhoto($userId, (string) $selected->photo);
+            } else {
+                $currentPhoto = (string) ($this->getPersonalProfile($userId)['photo'] ?? '');
+                if (str_starts_with($currentPhoto, 'owner-pet-gallery/')) {
+                    $this->syncPetOwnerProfilePhoto($userId, '');
+                }
+            }
+
+            return [
+                'galleryId' => $selected ? (int) $selected->id : null,
+                'profile' => $this->getPersonalProfile($userId),
+            ];
+        });
     }
 
     public function getPetOwnerDocument(int $userId, int $documentId): ?object
@@ -373,7 +439,7 @@ class Profile extends Model
                     DB::table('ownerpetgallery')->insert([
                         'pet_id' => $petId,
                         'photo' => trim((string) $item['photo']),
-                        'caption' => trim((string) ($item['caption'] ?? '')),
+                        'is_profile' => (int) ($item['isProfile'] ?? false),
                         'sortorder' => $galleryIndex + 1,
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -532,13 +598,14 @@ class Profile extends Model
             );
 
         $services = DB::table('operatorservicedata')
-            ->select(['service_id', 'hour_price'])
+            ->select(['service_id', 'hour_price', 'home_photo_enabled'])
             ->where('user_id', $userId)
             ->orderBy('service_id')
             ->get()
             ->map(fn ($row) => [
                 'serviceId' => (int) $row->service_id,
                 'hourlyRate' => round((float) ($row->hour_price ?? 0), 2),
+                'homePhotoEnabled' => (bool) $row->home_photo_enabled,
                 'featureIds' => $selectedFeaturesMap->get((int) $row->service_id, $defaultFeaturesMap->get((int) $row->service_id, [])),
             ])
             ->all();
@@ -798,12 +865,19 @@ class Profile extends Model
                 $table->increments('id');
                 $table->unsignedInteger('pet_id')->default(0);
                 $table->string('photo', 1024)->default('');
-                $table->string('caption', 255)->default('');
+                $table->boolean('is_profile')->default(false);
                 $table->integer('sortorder')->default(0);
                 $table->integer('created_at')->default(0);
                 $table->integer('updated_at')->default(0);
                 $table->index('pet_id', 'idx_ownerpetgallery_pet_id');
             });
+        }
+        if (! Schema::hasColumn('ownerpetgallery', 'is_profile')) {
+            Schema::table('ownerpetgallery', fn ($table) => $table->boolean('is_profile')->default(false)->after('photo'));
+            DB::statement('UPDATE ownerpetgallery AS gallery INNER JOIN (SELECT pet_id, MIN(id) AS profile_photo_id FROM ownerpetgallery GROUP BY pet_id) AS first_photo ON first_photo.profile_photo_id = gallery.id SET gallery.is_profile = 1');
+        }
+        if (Schema::hasColumn('ownerpetgallery', 'caption')) {
+            Schema::table('ownerpetgallery', fn ($table) => $table->dropColumn('caption'));
         }
 
         if (! Schema::hasTable('ownerpetdocument')) {
@@ -970,6 +1044,7 @@ class Profile extends Model
                     'user_id' => $userId,
                     'service_id' => $serviceId,
                     'hour_price' => round((float) ($service['hourlyRate'] ?? 0), 2),
+                    'home_photo_enabled' => (int) ($service['homePhotoEnabled'] ?? true),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);

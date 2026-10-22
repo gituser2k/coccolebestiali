@@ -2,14 +2,60 @@
 
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
-$outputPath = __DIR__.'/seed_current_profiles.sql';
 $pdo = DB::connection()->getPdo();
+$generatedAt = new DateTimeImmutable('now', new DateTimeZone('Europe/Rome'));
+
+$systemTables = [
+    'operatortitle',
+    'petbreed',
+    'pettype',
+    'housefeature',
+    'servicefeature',
+    'service',
+    'servicefeaturedata',
+    'portal_policy',
+    'policy_change_log',
+];
+
+$demoTables = [
+    'users',
+    'social_accounts',
+    'personaldata',
+    'operatordata',
+    'operatorassociatedata',
+    'operatortitledata',
+    'petbreeddata',
+    'pettypedata',
+    'housefeaturedata',
+    'operatorgallery',
+    'ownerpet',
+    'ownerpetbreeddata',
+    'ownerpettypedata',
+    'ownerpetgallery',
+    'ownerpetdocument',
+    'operatorservicedata',
+    'operatorservicefeaturedata',
+    'calendar_day',
+    'calendar_day_slot',
+    'calendar_day_slot_service',
+    'user_reputation',
+    'booking_counter',
+    'booking',
+    'booking_reschedule',
+    'booking_review',
+    'reputation_event',
+    'booking_action_token',
+    'message',
+    'messageback',
+    'error',
+];
 
 function cbSqlIdentifier(string $value): string
 {
@@ -21,11 +67,9 @@ function cbSqlValue(mixed $value, PDO $pdo): string
     if ($value === null) {
         return 'NULL';
     }
-
     if (is_bool($value)) {
         return $value ? '1' : '0';
     }
-
     if (is_int($value) || is_float($value)) {
         return (string) $value;
     }
@@ -35,227 +79,153 @@ function cbSqlValue(mixed $value, PDO $pdo): string
     return $quoted === false ? "''" : $quoted;
 }
 
-function cbSqlInsert(string $table, array $values, PDO $pdo, array $rawColumns = []): string
+function cbSqlInsert(string $table, object $row, PDO $pdo): string
 {
-    $columns = array_map(cbSqlIdentifier(...), array_keys($values));
-    $serializedValues = [];
-
-    foreach ($values as $column => $value) {
-        $serializedValues[] = in_array($column, $rawColumns, true)
-            ? (string) $value
-            : cbSqlValue($value, $pdo);
-    }
+    $values = (array) $row;
 
     return sprintf(
         'INSERT INTO %s (%s) VALUES (%s);',
         cbSqlIdentifier($table),
-        implode(', ', $columns),
-        implode(', ', $serializedValues)
+        implode(', ', array_map(cbSqlIdentifier(...), array_keys($values))),
+        implode(', ', array_map(fn ($value) => cbSqlValue($value, $pdo), array_values($values)))
     );
 }
 
-function cbRowWithout(object $row, array $excludedColumns): array
+function cbExportSnapshot(string $path, string $title, array $tables, PDO $pdo, DateTimeImmutable $generatedAt): void
 {
-    $values = (array) $row;
-    foreach ($excludedColumns as $column) {
-        unset($values[$column]);
+    $lines = [
+        '-- Coccole Bestiali - '.$title,
+        '-- Generato il '.$generatedAt->format('Y-m-d H:i:s').' Europe/Rome.',
+        '-- Prerequisito: eseguire prima migration/migration.txt.',
+        '',
+        'SET NAMES utf8mb4;',
+        'START TRANSACTION;',
+        'SET @cb_previous_fk_checks = @@FOREIGN_KEY_CHECKS;',
+        'SET FOREIGN_KEY_CHECKS = 0;',
+        '',
+    ];
+
+    foreach (array_reverse($tables) as $table) {
+        $lines[] = 'DELETE FROM '.cbSqlIdentifier($table).';';
+    }
+    $lines[] = '';
+
+    foreach ($tables as $table) {
+        $query = DB::table($table);
+        $columns = Schema::getColumnListing($table);
+        if (in_array('id', $columns, true)) {
+            $query->orderBy('id');
+        } elseif ($columns !== []) {
+            $query->orderBy($columns[0]);
+        }
+
+        $rows = $query->get();
+        $lines[] = '-- '.$table.': '.$rows->count().' record';
+        foreach ($rows as $row) {
+            $lines[] = cbSqlInsert($table, $row, $pdo);
+        }
+        $lines[] = '';
     }
 
-    return $values;
+    $lines[] = 'SET FOREIGN_KEY_CHECKS = @cb_previous_fk_checks;';
+    $lines[] = 'COMMIT;';
+    $lines[] = '';
+    file_put_contents($path, implode("\n", $lines));
 }
 
-$users = DB::table('users')
-    ->where(function ($query) {
-        $query
-            ->where('email', 'frabe75@gmail.com')
-            ->orWhere(function ($assistantQuery) {
-                $assistantQuery
-                    ->where('role', 'pet_assistant')
-                    ->whereRaw("email REGEXP '^utente([1-9]|[1-3][0-9]|40)@email\\.it$'");
-            });
-    })
-    ->orderByRaw("CASE WHEN email = 'frabe75@gmail.com' THEN 0 ELSE 1 END")
-    ->orderBy('id')
-    ->get();
+function cbResetDirectory(string $path): void
+{
+    if (is_dir($path)) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($iterator as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($path);
+    }
+    mkdir($path, 0775, true);
+}
 
-$owner = $users->firstWhere('email', 'frabe75@gmail.com');
-$assistants = $users->filter(fn ($user) => (string) $user->role === 'pet_assistant');
+function cbCopyStorageFile(string $relativePath, string $sourceRoot, string $targetRoot): bool
+{
+    $relativePath = ltrim(str_replace('\\', '/', trim($relativePath)), '/');
+    if ($relativePath === '' || str_contains($relativePath, '..') || preg_match('#^https?://#i', $relativePath)) {
+        return false;
+    }
 
-if (! $owner || $assistants->count() !== 40 || $users->count() !== 41) {
-    fwrite(STDERR, sprintf(
-        "Dataset incompleto: owner=%s, pet assistant=%d, utenti totali=%d.\n",
-        $owner ? 'presente' : 'assente',
-        $assistants->count(),
-        $users->count()
-    ));
+    $source = $sourceRoot.'/'.$relativePath;
+    if (! is_file($source)) {
+        return false;
+    }
+
+    $target = $targetRoot.'/'.$relativePath;
+    if (! is_dir(dirname($target))) {
+        mkdir(dirname($target), 0775, true);
+    }
+
+    return copy($source, $target);
+}
+
+$ownerCount = DB::table('users')->where('role', 'pet_owner')->count();
+$assistantCount = DB::table('users')->where('role', 'pet_assistant')->count();
+if ($ownerCount !== 1 || $assistantCount !== 40 || DB::table('users')->count() !== 41) {
+    fwrite(STDERR, "Dataset demo non valido: sono richiesti 1 Pet Owner e 40 Pet Assistant.\n");
     exit(1);
 }
 
-$emails = $users->pluck('email')->map(fn ($email) => (string) $email)->all();
-$emailList = implode(', ', array_map(fn ($email) => cbSqlValue($email, $pdo), $emails));
-$generatedAt = new DateTimeImmutable('now', new DateTimeZone('Europe/Rome'));
-$lines = [
-    '-- Coccole Bestiali - snapshot profili di sviluppo',
-    '-- Generato il '.$generatedAt->format('Y-m-d H:i:s').' Europe/Rome.',
-    '-- Prerequisito: eseguire prima migration/migration.txt sul database di destinazione.',
-    '-- Lo script sostituisce esclusivamente frabe75@gmail.com e i 40 account utenteN@email.it.',
-    '-- I percorsi storage sono inclusi nel database, ma i file fisici devono essere copiati separatamente.',
-    '',
-    'SET NAMES utf8mb4;',
-    'START TRANSACTION;',
-    'SET @cb_previous_fk_checks = @@FOREIGN_KEY_CHECKS;',
-    'SET FOREIGN_KEY_CHECKS = 0;',
-    '',
-    'DROP TEMPORARY TABLE IF EXISTS `cb_seed_existing_users`;',
-    'CREATE TEMPORARY TABLE `cb_seed_existing_users` (`id` int unsigned NOT NULL PRIMARY KEY);',
-    'INSERT INTO `cb_seed_existing_users` (`id`) SELECT `id` FROM `users` WHERE `email` IN ('.$emailList.');',
-    '',
-    '-- Rimozione idempotente del precedente snapshot.',
-    'DELETE token FROM `booking_action_token` AS token INNER JOIN `booking` AS booking_row ON booking_row.id = token.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
-    'DELETE review FROM `booking_review` AS review INNER JOIN `booking` AS booking_row ON booking_row.id = review.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
-    'DELETE event_row FROM `reputation_event` AS event_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (event_row.user_id, event_row.actor_user_id);',
-    'DELETE proposal FROM `booking_reschedule` AS proposal INNER JOIN `booking` AS booking_row ON booking_row.id = proposal.booking_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
-    'DELETE booking_row FROM `booking` AS booking_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id IN (booking_row.owner_user_id, booking_row.assistant_user_id);',
-    'DELETE reputation FROM `user_reputation` AS reputation INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = reputation.user_id;',
-    'DELETE slot_service FROM `calendar_day_slot_service` AS slot_service INNER JOIN `calendar_day_slot` AS slot ON slot.id = slot_service.slot_id INNER JOIN `calendar_day` AS day_row ON day_row.id = slot.calendar_day_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
-    'DELETE slot FROM `calendar_day_slot` AS slot INNER JOIN `calendar_day` AS day_row ON day_row.id = slot.calendar_day_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
-    'DELETE day_row FROM `calendar_day` AS day_row INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = day_row.user_id;',
-    'DELETE pet_document FROM `ownerpetdocument` AS pet_document INNER JOIN `ownerpet` AS pet ON pet.id = pet_document.pet_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = pet.user_id;',
-    'DELETE pet_gallery FROM `ownerpetgallery` AS pet_gallery INNER JOIN `ownerpet` AS pet ON pet.id = pet_gallery.pet_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = pet.user_id;',
-    'DELETE pet_breed FROM `ownerpetbreeddata` AS pet_breed INNER JOIN `ownerpet` AS pet ON pet.id = pet_breed.pet_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = pet.user_id;',
-    'DELETE pet_type FROM `ownerpettypedata` AS pet_type INNER JOIN `ownerpet` AS pet ON pet.id = pet_type.pet_id INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = pet.user_id;',
-    'DELETE pet FROM `ownerpet` AS pet INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = pet.user_id;',
-];
+cbExportSnapshot(__DIR__.'/seed_system_configuration.sql', 'snapshot sistema e configurazione', $systemTables, $pdo, $generatedAt);
+cbExportSnapshot(__DIR__.'/seed_demo_data.sql', 'snapshot dati demo', $demoTables, $pdo, $generatedAt);
 
-$directUserTables = [
-    'operatorservicefeaturedata',
-    'operatorservicedata',
-    'operatorgallery',
-    'housefeaturedata',
-    'pettypedata',
-    'petbreeddata',
-    'operatortitledata',
-    'operatorassociatedata',
-    'operatordata',
-    'personaldata',
-    'social_accounts',
-];
+$snapshotStorage = __DIR__.'/demo_storage';
+cbResetDirectory($snapshotStorage);
+mkdir($snapshotStorage.'/public', 0775, true);
+mkdir($snapshotStorage.'/private', 0775, true);
 
-foreach ($directUserTables as $table) {
-    $lines[] = sprintf(
-        'DELETE target FROM %s AS target INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = target.user_id;',
-        cbSqlIdentifier($table)
-    );
+$publicPaths = [];
+$privatePaths = [];
+foreach (DB::table('users')->pluck('avatar') as $path) {
+    $publicPaths[(string) $path] = true;
+}
+foreach (DB::table('personaldata')->pluck('photo') as $path) {
+    $publicPaths[(string) $path] = true;
+}
+foreach (DB::table('operatorgallery')->pluck('photo') as $path) {
+    $publicPaths[(string) $path] = true;
+}
+foreach (DB::table('ownerpetgallery')->pluck('photo') as $path) {
+    $publicPaths[(string) $path] = true;
+}
+foreach (DB::table('ownerpetdocument')->pluck('file_path') as $path) {
+    $privatePaths[(string) $path] = true;
 }
 
-$lines[] = 'DELETE target FROM `users` AS target INNER JOIN `cb_seed_existing_users` AS seed_user ON seed_user.id = target.id;';
-$lines[] = 'DROP TEMPORARY TABLE `cb_seed_existing_users`;';
-$lines[] = '';
-
-$storagePaths = [];
-
-foreach ($users as $user) {
-    $sourceUserId = (int) $user->id;
-    $userVariable = '@cb_user_'.$sourceUserId;
-    $userValues = cbRowWithout($user, ['id']);
-
-    $lines[] = '-- Account '.$userValues['email'];
-    $lines[] = cbSqlInsert('users', $userValues, $pdo);
-    $lines[] = 'SET '.$userVariable.' = LAST_INSERT_ID();';
-
-    $reputation = DB::table('user_reputation')->where('user_id', $sourceUserId)->first();
-    if ($reputation) {
-        $reputationValues = cbRowWithout($reputation, ['user_id']);
-        $reputationValues = ['user_id' => $userVariable, ...$reputationValues];
-        $lines[] = cbSqlInsert('user_reputation', $reputationValues, $pdo, ['user_id']);
+$copiedPublic = [];
+$copiedPrivate = [];
+foreach (array_keys($publicPaths) as $path) {
+    if (cbCopyStorageFile($path, storage_path('app/public'), $snapshotStorage.'/public')) {
+        $copiedPublic[] = $path;
     }
-
-    foreach ($directUserTables as $table) {
-        $rows = DB::table($table)->where('user_id', $sourceUserId)->orderBy('id')->get();
-        foreach ($rows as $row) {
-            $values = cbRowWithout($row, ['id', 'user_id']);
-            $values = ['user_id' => $userVariable, ...$values];
-            $lines[] = cbSqlInsert($table, $values, $pdo, ['user_id']);
-
-            if ($table === 'personaldata' && trim((string) ($row->photo ?? '')) !== '') {
-                $storagePaths[(string) $row->photo] = true;
-            }
-            if ($table === 'operatorgallery' && trim((string) ($row->photo ?? '')) !== '') {
-                $storagePaths[(string) $row->photo] = true;
-            }
-        }
+}
+foreach (array_keys($privatePaths) as $path) {
+    if (cbCopyStorageFile($path, storage_path('app/private'), $snapshotStorage.'/private')) {
+        $copiedPrivate[] = $path;
     }
-
-    $pets = DB::table('ownerpet')->where('user_id', $sourceUserId)->orderBy('sortorder')->orderBy('id')->get();
-    foreach ($pets as $pet) {
-        $sourcePetId = (int) $pet->id;
-        $petVariable = '@cb_pet_'.$sourcePetId;
-        $petValues = cbRowWithout($pet, ['id', 'user_id']);
-        $petValues = ['user_id' => $userVariable, ...$petValues];
-        $lines[] = cbSqlInsert('ownerpet', $petValues, $pdo, ['user_id']);
-        $lines[] = 'SET '.$petVariable.' = LAST_INSERT_ID();';
-
-        foreach (['ownerpetbreeddata', 'ownerpettypedata', 'ownerpetgallery', 'ownerpetdocument'] as $table) {
-            $rows = DB::table($table)->where('pet_id', $sourcePetId)->orderBy('id')->get();
-            foreach ($rows as $row) {
-                $values = cbRowWithout($row, ['id', 'pet_id']);
-                $values = ['pet_id' => $petVariable, ...$values];
-                $lines[] = cbSqlInsert($table, $values, $pdo, ['pet_id']);
-
-                if ($table === 'ownerpetgallery' && trim((string) ($row->photo ?? '')) !== '') {
-                    $storagePaths[(string) $row->photo] = true;
-                }
-                if ($table === 'ownerpetdocument' && trim((string) ($row->file_path ?? '')) !== '') {
-                    $storagePaths[(string) $row->file_path] = true;
-                }
-            }
-        }
-    }
-
-    $calendarDays = DB::table('calendar_day')->where('user_id', $sourceUserId)->orderBy('date')->orderBy('id')->get();
-    foreach ($calendarDays as $day) {
-        $sourceDayId = (int) $day->id;
-        $dayVariable = '@cb_day_'.$sourceDayId;
-        $dayValues = cbRowWithout($day, ['id', 'user_id']);
-        $dayValues = ['user_id' => $userVariable, ...$dayValues];
-        $lines[] = cbSqlInsert('calendar_day', $dayValues, $pdo, ['user_id']);
-        $lines[] = 'SET '.$dayVariable.' = LAST_INSERT_ID();';
-
-        $slots = DB::table('calendar_day_slot')->where('calendar_day_id', $sourceDayId)->orderBy('sortorder')->orderBy('id')->get();
-        foreach ($slots as $slot) {
-            $sourceSlotId = (int) $slot->id;
-            $slotVariable = '@cb_slot_'.$sourceSlotId;
-            $slotValues = cbRowWithout($slot, ['id', 'calendar_day_id']);
-            $slotValues = ['calendar_day_id' => $dayVariable, ...$slotValues];
-            $lines[] = cbSqlInsert('calendar_day_slot', $slotValues, $pdo, ['calendar_day_id']);
-            $lines[] = 'SET '.$slotVariable.' = LAST_INSERT_ID();';
-
-            $slotServices = DB::table('calendar_day_slot_service')->where('slot_id', $sourceSlotId)->orderBy('id')->get();
-            foreach ($slotServices as $slotService) {
-                $serviceValues = cbRowWithout($slotService, ['id', 'slot_id']);
-                $serviceValues = ['slot_id' => $slotVariable, ...$serviceValues];
-                $lines[] = cbSqlInsert('calendar_day_slot_service', $serviceValues, $pdo, ['slot_id']);
-            }
-        }
-    }
-
-    $lines[] = '';
 }
 
-$lines[] = 'SET FOREIGN_KEY_CHECKS = @cb_previous_fk_checks;';
-$lines[] = 'COMMIT;';
-$lines[] = '';
-$lines[] = '-- File storage referenziati da copiare separatamente:';
-foreach (array_keys($storagePaths) as $path) {
-    $lines[] = '-- '.$path;
-}
-$lines[] = '';
-
-file_put_contents($outputPath, implode("\n", $lines));
+sort($copiedPublic);
+sort($copiedPrivate);
+file_put_contents($snapshotStorage.'/manifest.json', json_encode([
+    'generatedAt' => $generatedAt->format(DateTimeInterface::ATOM),
+    'public' => $copiedPublic,
+    'private' => $copiedPrivate,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
 
 fwrite(STDOUT, sprintf(
-    "Snapshot creato: %s (%d utenti, %d riferimenti storage).\n",
-    $outputPath,
-    $users->count(),
-    count($storagePaths)
+    "Snapshot creati: sistema=%d tabelle, demo=%d tabelle, utenti=%d, file=%d.\n",
+    count($systemTables),
+    count($demoTables),
+    $ownerCount + $assistantCount,
+    count($copiedPublic) + count($copiedPrivate)
 ));

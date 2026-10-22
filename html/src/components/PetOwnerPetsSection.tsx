@@ -11,7 +11,7 @@ type PetGalleryItem = {
   id: string
   photo: string
   photoUrl: string
-  caption: string
+  isProfile: boolean
   file: File | null
 }
 
@@ -46,6 +46,7 @@ type OwnerPet = {
 
 type Props = {
   onToast: (message: string, type: 'error' | 'success') => void
+  onProfilePhotoChange: (photo: { photo: string, photoUrl: string } | null) => void
 }
 
 const PET_SIZE_OPTIONS = [
@@ -133,7 +134,7 @@ function normalizePet(item: Record<string, unknown>, index: number): OwnerPet {
         id: String(normalized.id ?? `gallery-${index}-${galleryIndex}`),
         photo: sanitizeText(normalized.photo ?? ''),
         photoUrl: sanitizeText(normalized.photoUrl ?? ''),
-        caption: sanitizeText(normalized.caption ?? ''),
+        isProfile: Boolean(normalized.isProfile),
         file: null,
       }
     }),
@@ -171,7 +172,7 @@ function PetsIcon() {
 
 export { PetsIcon }
 
-export default function PetOwnerPetsSection({ onToast }: Props) {
+export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: Props) {
   const [pets, setPets] = useState<OwnerPet[]>([])
   const [petBreeds, setPetBreeds] = useState<PetOption[]>([])
   const [petTypes, setPetTypes] = useState<PetOption[]>([])
@@ -180,6 +181,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isProfilePhotoSaving, setIsProfilePhotoSaving] = useState(false)
 
   const selectedPetIndex = useMemo(
     () => pets.findIndex((pet) => pet.id === selectedPetId),
@@ -275,7 +277,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
       id: `new-gallery-${Date.now()}`,
       photo: '',
       photoUrl: '',
-      caption: '',
+      isProfile: false,
       file: null,
     }
     updateSelectedPet((pet) => ({ ...pet, gallery: [...pet.gallery, item] }))
@@ -303,8 +305,83 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
       URL.revokeObjectURL(selectedGalleryItem.photoUrl)
     }
     const nextGallery = selectedPet.gallery.filter((item) => item.id !== selectedGalleryItem.id)
+    if (selectedGalleryItem.isProfile) {
+      onProfilePhotoChange(null)
+    }
     updateSelectedPet((pet) => ({ ...pet, gallery: nextGallery }))
     setSelectedGalleryId(nextGallery[0]?.id ?? null)
+  }
+
+  async function persistProfilePhotoSelection(galleryId: number | null) {
+    setIsProfilePhotoSaving(true)
+    try {
+      const response = await fetch('/api/profile/petowner/pets/profile-photo', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ galleryId }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Aggiornamento della foto profilo non completato.')
+      }
+
+      const selectedId = payload?.data?.galleryId == null ? null : String(payload.data.galleryId)
+      setPets((current) => current.map((pet) => ({
+        ...pet,
+        gallery: pet.gallery.map((item) => ({ ...item, isProfile: item.id === selectedId })),
+      })))
+      const personalPhoto = payload?.data?.profile
+      onProfilePhotoChange(personalPhoto
+        ? { photo: sanitizeText(personalPhoto.photo ?? ''), photoUrl: sanitizeText(personalPhoto.photoUrl ?? '') }
+        : null)
+      onToast(galleryId === null ? 'Foto profilo rimossa.' : 'Foto profilo aggiornata.', 'success')
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : 'Aggiornamento della foto profilo non completato.', 'error')
+    } finally {
+      setIsProfilePhotoSaving(false)
+    }
+  }
+
+  async function setGalleryProfilePhoto(galleryId: string) {
+    if (!selectedPet) return
+    const profilePetId = selectedPet.id
+    const profileItem = selectedPet.gallery.find((item) => item.id === galleryId)
+    if (!profileItem) return
+
+    const persistedGalleryId = Number(galleryId)
+    if (Number.isInteger(persistedGalleryId) && persistedGalleryId > 0) {
+      await persistProfilePhotoSelection(persistedGalleryId)
+      return
+    }
+
+    setPets((current) => current.map((pet) => ({
+      ...pet,
+      gallery: pet.gallery.map((item) => ({
+        ...item,
+        isProfile: pet.id === profilePetId && item.id === galleryId,
+      })),
+    })))
+    onProfilePhotoChange({ photo: profileItem.photo, photoUrl: profileItem.photoUrl })
+  }
+
+  async function selectGalleryItem(item: PetGalleryItem) {
+    setSelectedGalleryId(item.id)
+    if (!item.isProfile) return
+
+    const persistedGalleryId = Number(item.id)
+    if (Number.isInteger(persistedGalleryId) && persistedGalleryId > 0) {
+      await persistProfilePhotoSelection(null)
+      return
+    }
+
+    updateSelectedPet((pet) => ({
+      ...pet,
+      gallery: pet.gallery.map((galleryItem) => ({ ...galleryItem, isProfile: false })),
+    }))
+    onProfilePhotoChange(null)
   }
 
   function reorderGallery(event: DragEvent<HTMLButtonElement>, targetId: string) {
@@ -396,7 +473,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
       pet.petBreedIds.forEach((id, index) => body.append(`pets[${petIndex}][petBreedIds][${index}]`, String(id)))
       pet.petTypeIds.forEach((id, index) => body.append(`pets[${petIndex}][petTypeIds][${index}]`, String(id)))
       pet.gallery.forEach((item, galleryIndex) => {
-        body.append(`pets[${petIndex}][gallery][${galleryIndex}][caption]`, sanitizeText(item.caption))
+        body.append(`pets[${petIndex}][gallery][${galleryIndex}][isProfile]`, item.isProfile ? '1' : '0')
         if (item.file) {
           body.append(`petGalleryPhotos[${petIndex}][${galleryIndex}]`, item.file)
         } else if (item.photo) {
@@ -431,12 +508,18 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.message || 'Salvataggio dei pet non completato.')
       }
-      const nextPets = Array.isArray(payload.data)
+      const nextPets: OwnerPet[] = Array.isArray(payload.data)
         ? payload.data.map((item: Record<string, unknown>, index: number) => normalizePet(item, index))
         : []
       setPets(nextPets)
       setSelectedPetId(nextPets[0]?.id ?? null)
       setSelectedGalleryId(nextPets[0]?.gallery[0]?.id ?? null)
+      const savedProfilePhoto = nextPets
+        .flatMap((pet) => pet.gallery)
+        .find((item) => item.isProfile)
+      onProfilePhotoChange(savedProfilePhoto
+        ? { photo: savedProfilePhoto.photo, photoUrl: savedProfilePhoto.photoUrl }
+        : null)
       onToast(payload?.message || 'I tuoi pet sono stati salvati con successo.', 'success')
     } catch (error) {
       onToast(error instanceof Error ? error.message : 'Salvataggio dei pet non completato.', 'error')
@@ -588,7 +671,10 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
                     key={item.id}
                     type="button"
                     className={`profile-gallery-thumb ${item.id === selectedGalleryId ? 'is-active' : ''} ${item.id === draggedGalleryId ? 'is-dragging' : ''}`}
-                    onClick={() => setSelectedGalleryId(item.id)}
+                    onClick={() => void selectGalleryItem(item)}
+                    aria-label={item.isProfile
+                      ? `Rimuovi Foto ${index + 1} di ${selectedPet.name} come foto profilo`
+                      : `Seleziona Foto ${index + 1} di ${selectedPet.name}`}
                     draggable
                     onDragStart={() => setDraggedGalleryId(item.id)}
                     onDragEnd={() => setDraggedGalleryId(null)}
@@ -596,6 +682,7 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
                     onDrop={(event) => reorderGallery(event, item.id)}
                   >
                     <span className="profile-gallery-thumb-order">{index + 1}</span>
+                    {item.isProfile ? <span className="owner-pet-profile-badge">PROFILO</span> : null}
                     <span className="profile-gallery-thumb-frame">
                       {item.photoUrl ? <img src={item.photoUrl} alt={`Foto ${index + 1} di ${selectedPet.name}`} className="profile-gallery-image" /> : <span className="profile-photo-placeholder">Foto pet</span>}
                     </span>
@@ -612,18 +699,14 @@ export default function PetOwnerPetsSection({ onToast }: Props) {
                       Carica foto
                       <input type="file" accept="image/*" onChange={updateGalleryFile} />
                     </label>
-                    <label className="profile-field">
-                      <span>Testo foto</span>
-                      <textarea
-                        className="profile-textarea"
-                        rows={3}
-                        value={selectedGalleryItem.caption}
-                        onChange={(event) => updateSelectedPet((pet) => ({
-                          ...pet,
-                          gallery: pet.gallery.map((item) => item.id === selectedGalleryItem.id ? { ...item, caption: event.target.value } : item),
-                        }))}
-                      />
-                    </label>
+                    <button
+                      type="button"
+                      className={`owner-pet-profile-photo-button ${selectedGalleryItem.isProfile ? 'is-active' : ''}`}
+                      disabled={isProfilePhotoSaving || (!selectedGalleryItem.photoUrl && !selectedGalleryItem.file)}
+                      onClick={() => void setGalleryProfilePhoto(selectedGalleryItem.id)}
+                    >
+                      {selectedGalleryItem.isProfile ? 'Foto profilo' : 'Imposta come foto profilo'}
+                    </button>
                     <button type="button" className="profile-gallery-remove" onClick={removeGalleryItem}>Rimuovi foto</button>
                   </div>
                 ) : <div className="profile-gallery-empty profile-gallery-empty-editor">Aggiungi o seleziona una foto.</div>}

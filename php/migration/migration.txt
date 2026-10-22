@@ -327,18 +327,55 @@ CREATE TABLE IF NOT EXISTS `ownerpettypedata` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Gallery fotografica del singolo pet.
--- photo contiene il percorso relativo al disco Laravel public; sortorder definisce l'ordine delle immagini.
+-- photo contiene il percorso relativo al disco Laravel public; is_profile identifica la foto principale.
 CREATE TABLE IF NOT EXISTS `ownerpetgallery` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
   `photo` varchar(1024) NOT NULL DEFAULT '',
-  `caption` varchar(255) NOT NULL DEFAULT '',
+  `is_profile` tinyint(1) NOT NULL DEFAULT 0,
   `sortorder` int NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_ownerpetgallery_pet_id` (`pet_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @ownerpetgallery_add_is_profile = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpetgallery' AND `COLUMN_NAME` = 'is_profile'
+  ),
+  'ALTER TABLE `ownerpetgallery` ADD COLUMN `is_profile` tinyint(1) NOT NULL DEFAULT 0 AFTER `photo`',
+  'SELECT 1'
+);
+PREPARE ownerpetgallery_add_profile_stmt FROM @ownerpetgallery_add_is_profile;
+EXECUTE ownerpetgallery_add_profile_stmt;
+DEALLOCATE PREPARE ownerpetgallery_add_profile_stmt;
+
+UPDATE `ownerpetgallery` AS gallery
+INNER JOIN (
+  SELECT `pet_id`, MIN(`id`) AS `profile_photo_id`
+  FROM `ownerpetgallery`
+  GROUP BY `pet_id`
+) AS first_photo ON first_photo.profile_photo_id = gallery.id
+SET gallery.is_profile = 1
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM `ownerpetgallery` AS selected_photo
+  WHERE selected_photo.pet_id = gallery.pet_id AND selected_photo.is_profile = 1
+);
+
+SET @ownerpetgallery_drop_caption = IF(
+  EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'ownerpetgallery' AND `COLUMN_NAME` = 'caption'
+  ),
+  'ALTER TABLE `ownerpetgallery` DROP COLUMN `caption`',
+  'SELECT 1'
+);
+PREPARE ownerpetgallery_drop_caption_stmt FROM @ownerpetgallery_drop_caption;
+EXECUTE ownerpetgallery_drop_caption_stmt;
+DEALLOCATE PREPARE ownerpetgallery_drop_caption_stmt;
 
 -- Archivio privato dei documenti associati al singolo pet.
 -- file_path contiene il percorso sul disco Laravel local (storage/app/private).
@@ -365,10 +402,23 @@ CREATE TABLE IF NOT EXISTS `service` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL DEFAULT '',
   `description` varchar(4096) NOT NULL DEFAULT '',
+  `requires_home_photo` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @service_add_requires_home_photo = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'service' AND `COLUMN_NAME` = 'requires_home_photo'
+  ),
+  'ALTER TABLE `service` ADD COLUMN `requires_home_photo` tinyint(1) NOT NULL DEFAULT 0 AFTER `description`',
+  'SELECT 1'
+);
+PREPARE service_add_requires_home_photo_stmt FROM @service_add_requires_home_photo;
+EXECUTE service_add_requires_home_photo_stmt;
+DEALLOCATE PREPARE service_add_requires_home_photo_stmt;
 
 CREATE TABLE IF NOT EXISTS `servicefeature` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -395,6 +445,7 @@ CREATE TABLE IF NOT EXISTS `operatorservicedata` (
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
   `service_id` int(10) unsigned NOT NULL DEFAULT 0,
   `hour_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `home_photo_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -402,6 +453,18 @@ CREATE TABLE IF NOT EXISTS `operatorservicedata` (
   KEY `idx_operatorservicedata_user_id` (`user_id`),
   KEY `idx_operatorservicedata_service_id` (`service_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @operatorservice_add_home_photo_enabled = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'operatorservicedata' AND `COLUMN_NAME` = 'home_photo_enabled'
+  ),
+  'ALTER TABLE `operatorservicedata` ADD COLUMN `home_photo_enabled` tinyint(1) NOT NULL DEFAULT 1 AFTER `hour_price`',
+  'SELECT 1'
+);
+PREPARE operatorservice_home_photo_stmt FROM @operatorservice_add_home_photo_enabled;
+EXECUTE operatorservice_home_photo_stmt;
+DEALLOCATE PREPARE operatorservice_home_photo_stmt;
 
 -- L'esclusiva e gestita come funzionalita del servizio, non come colonna dedicata.
 SET @operatorservice_drop_is_exclusive = IF(
@@ -752,3 +815,9 @@ ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `sortorder` = VALUES(`sortorder`),
   `updated_at` = VALUES(`updated_at`);
+
+-- Dopo questa migration strutturale applicare, quando richiesto:
+-- 1. migration/seed_system_configuration.sql per cataloghi e policy;
+-- 2. migration/seed_demo_data.sql per i 40 Pet Assistant e il Pet Owner demo.
+-- Le immagini e i documenti del dataset sono conservati in migration/demo_storage
+-- e vengono ripristinati automaticamente dal pulsante CREA DATI DEMO del CMS.

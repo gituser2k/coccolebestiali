@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use App\Models\DemoData;
 use App\Models\Utility;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
+use Throwable;
 
 class AdminController extends Controller
 {
@@ -43,6 +45,51 @@ class AdminController extends Controller
     public function session(Request $request): JsonResponse
     {
         return response()->json(['ok' => (bool) $request->session()->get(self::ADMIN_SESSION_KEY, false)]);
+    }
+
+    public function restoreSystemData(Request $request): JsonResponse
+    {
+        if (! $request->session()->get(self::ADMIN_SESSION_KEY, false)) {
+            return response()->json(['ok' => false, 'message' => 'Sessione amministrativa non disponibile.'], 401);
+        }
+
+        try {
+            return response()->json(['ok' => true, 'data' => (new DemoData)->restoreSystemConfiguration()]);
+        } catch (Throwable $exception) {
+            Utility::saveError([], $exception->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'message' => 'Ripristino della configurazione non completato.'], 500);
+        }
+    }
+
+    public function clearAllData(Request $request): JsonResponse
+    {
+        if (! $request->session()->get(self::ADMIN_SESSION_KEY, false)) {
+            return response()->json(['ok' => false, 'message' => 'Sessione amministrativa non disponibile.'], 401);
+        }
+
+        try {
+            return response()->json(['ok' => true, 'data' => (new DemoData)->clearAll()]);
+        } catch (Throwable $exception) {
+            Utility::saveError([], $exception->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'message' => 'Svuotamento completo del database non riuscito.'], 500);
+        }
+    }
+
+    public function seedDemoData(Request $request): JsonResponse
+    {
+        if (! $request->session()->get(self::ADMIN_SESSION_KEY, false)) {
+            return response()->json(['ok' => false, 'message' => 'Sessione amministrativa non disponibile.'], 401);
+        }
+
+        try {
+            return response()->json(['ok' => true, 'data' => (new DemoData)->seed()]);
+        } catch (Throwable $exception) {
+            Utility::saveError([], $exception->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'message' => 'Creazione dati demo non completata.'], 500);
+        }
     }
 
     public function getAdminPolicies(Request $request): JsonResponse
@@ -417,6 +464,7 @@ class AdminController extends Controller
                     'id' => (int) $row->id,
                     'name' => (string) $row->name,
                     'description' => (string) $row->description,
+                    'requires_home_photo' => (bool) $row->requires_home_photo,
                     'feature_ids' => $featureIds,
                     'feature_names' => $featureNames,
                 ];
@@ -452,11 +500,13 @@ class AdminController extends Controller
                 'id' => ['nullable', 'integer', 'min:1'],
                 'name' => ['required', 'string', 'max:255'],
                 'description' => ['required', 'string', 'max:4096'],
+                'requires_home_photo' => ['nullable', 'boolean'],
                 'feature_ids' => ['nullable', 'array'],
                 'feature_ids.*' => ['integer', 'min:1'],
             ]);
 
             $validated['feature_ids'] = $validated['feature_ids'] ?? [];
+            $validated['requires_home_photo'] = (bool) ($validated['requires_home_photo'] ?? false);
 
             $m = new Admin;
             $serviceId = $m->saveAdminService($validated);

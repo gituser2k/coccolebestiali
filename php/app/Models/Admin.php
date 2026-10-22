@@ -355,10 +355,11 @@ class Admin extends Model
                 's.id',
                 's.name',
                 's.description',
+                's.requires_home_photo',
                 DB::raw("GROUP_CONCAT(DISTINCT sf.id ORDER BY sf.name SEPARATOR ',') as feature_ids"),
                 DB::raw("GROUP_CONCAT(DISTINCT sf.name ORDER BY sf.name SEPARATOR '||') as feature_names"),
             ])
-            ->groupBy('s.id', 's.name', 's.description')
+            ->groupBy('s.id', 's.name', 's.description', 's.requires_home_photo')
             ->orderBy('s.name')
             ->get();
     }
@@ -375,12 +376,14 @@ class Admin extends Model
                     ->update([
                         'name' => $params['name'],
                         'description' => $params['description'],
+                        'requires_home_photo' => (int) ($params['requires_home_photo'] ?? false),
                         'updated_at' => $now,
                     ]);
             } else {
                 $serviceId = (int) DB::table('service')->insertGetId([
                     'name' => $params['name'],
                     'description' => $params['description'],
+                    'requires_home_photo' => (int) ($params['requires_home_photo'] ?? false),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
