@@ -579,6 +579,7 @@ Le chiamate HTTP hanno timeout applicativi. Quando viene aggiunta un'integrazion
 Gruppi rilevanti, senza valori:
 
 - applicazione: `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_URL`, `APP_TIMEZONE`, locale/debug;
+- feature flag: `CB_MULTI_PROFILE_ENABLED`, disattivato fino all'approvazione delle milestone multi-profilo;
 - database: `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`;
 - sessione: `SESSION_DRIVER`, lifetime, domain, secure, http-only, same-site;
 - cache/queue: `CACHE_STORE`, `QUEUE_CONNECTION` e relativi parametri;
@@ -739,7 +740,8 @@ Con la registrazione neutra non sono più necessarie le due card Owner/Assistant
 
 - il click su **Registrati** nella home sostituisce la section `.hero-cta` con un pannello inline “Crea il tuo account”, analogamente al pannello di login già esistente;
 - il pannello contiene un solo form email/password e le alternative Google/Apple, senza selezione permanente del ruolo;
-- un pulsante esplicito **Torna alla home** ripristina la `.hero-cta` predefinita senza ricaricare la pagina;
+- sia il pannello **Accedi** sia il pannello **Registrati** espongono un pulsante esplicito **Torna alla home** che ripristina la `.hero-cta` predefinita senza ricaricare la pagina;
+- il ritorno alla home chiude la vista di autenticazione, rimuove il relativo stato dall'URL, ripristina il focus sul comando che l'aveva aperta e cancella sempre i campi password dalla memoria del componente;
 - login e registrazione sono viste mutuamente esclusive dello stesso contenitore e condividono componenti, validazione, errori e OAuth;
 - lo stato è rappresentato nell'URL, ad esempio `/?auth=register`, affinché refresh, back del browser, deep link e analytics restino corretti;
 - `/register` non deve essere eliminata immediatamente: diventa un alias/redirect compatibile verso `/?auth=register`, preservando bookmark e link esterni;
@@ -764,7 +766,7 @@ La migrazione multi-profilo non deve essere implementata come un unico intervent
 | 5 | Reputazione contestuale | punteggio ed eventi per capability, backfill e query pubbliche | ranking esistente invariato; eventi Owner e Assistant separati |
 | 6 | Discovery dual-role | policy capability centralizzate, ricerca, profilo pubblico, preferiti e divieto self-favorite | stesso account può agire da Owner e risultare Assistant senza commistioni |
 | 7 | Prenotazioni a doppia prospettiva | `perspective=owner|assistant`, azioni autorizzate per lato, divieto self-booking, notifiche e recensioni contestuali | richieste inviate/ricevute visibili e azionabili correttamente |
-| 8 | Registrazione nella home | form unico condiviso nella hero, stato URL, ritorno home, `/register` alias, email/social/mobile | verifica visuale desktop/mobile e flussi email/Google/Apple |
+| 8 | Autenticazione nella home | form registrazione unico condiviso nella hero, uscita esplicita da login/registrazione, stato URL, `/register` alias, email/social/mobile | verifica ritorno alla hero, desktop/mobile e flussi email/Google/Apple |
 | 9 | Onboarding e switch Assistant | “Diventa Pet Assistant”, draft salvabile, checklist server-side, activation gate, switch UI non autorizzativo | bozza non pubblica, attivazione corretta, Owner sempre disponibile |
 | 10 | Consolidamento | CMS, seed/export/snapshot, cancellazione profilo vs account, rimozione fallback/vecchio ruolo dopo osservazione, test end-to-end | collaudo completo e approvazione prima della rimozione legacy |
 
@@ -800,6 +802,8 @@ Regole di esecuzione:
 | 2026-11-09 | Documentazione | Creazione dell'inventario architetturale completo e registrazione della decisione target multi-profilo | `ARCHITECTURE.md`; ricognizione di frontend, backend, route e `migration.txt` | Nessuna modifica runtime o DB | Revisione statica del workspace |
 | 2026-11-09 | UX autenticazione | Registrata la proposta di portare la registrazione neutra nella hero e mantenere `/register` come alias compatibile | `ARCHITECTURE.md`, futura `HomePage`/route registrazione | Decisione documentale; implementazione non ancora eseguita | Verifica visuale di `/` e `/register`, confronto con il pannello login esistente |
 | 2026-11-09 | Piano multi-profilo | Suddivisione della migrazione in undici milestone (0–10) con gate manuale “OK”, compatibilità progressiva e rimozione legacy finale | `ARCHITECTURE.md`; futuro intervento trasversale su DB/backend/frontend | Decisione documentale; nessuna modifica runtime o DB | Revisione degli impatti e definizione dei criteri di avanzamento |
+| 2026-11-09 | STEP 0 multi-profilo | Acquisita baseline Git/test/schema/dati, verificato restore del backup privato e aggiunto feature flag disattivato | `docs/baselines/changeaccount-step0.md`, `php/config/features.php`, `php/.env.example`, `ARCHITECTURE.md` | Nessuna modifica DB o comportamento; dump privato ignorato da Git; rollback documentato | 15 test/71 assertion, lint, build, restore isolato 43 tabelle/41 utenti |
+| 2026-11-09 | Requisito UX autenticazione | Esteso il disegno della hero: login e registrazione devono entrambi offrire “Torna alla home”, ripristino CTA/focus/URL e pulizia password | `ARCHITECTURE.md`; futura `HomePage` e componenti auth condivisi | Requisito documentato per STEP 8; nessuna modifica runtime | Verificata l'assenza del comando nel pannello login attuale |
 
 ### Modello per nuove righe
 
