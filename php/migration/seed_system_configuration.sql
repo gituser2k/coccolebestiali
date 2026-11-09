@@ -74,14 +74,15 @@ INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES (
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES (6, 'Urgenza', 1792251757, 1792329623);
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES (7, 'Periodico', 1792251757, 1792329623);
 
--- service: 5 record
+-- service: 6 record
 INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (1, 'Passeggiata', 'Passeggiate personalizzate per il tuo pet, con attenzione ai ritmi, al benessere e alle abitudini quotidiane.', 0, 1792251757, 1792697361);
 INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (2, 'Soggiorno a domicilio', 'Assistenza direttamente a casa del cliente per garantire continuita, serenita e cura nell\'ambiente abituale del pet.', 0, 1792251757, 1792696619);
 INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (3, 'Soggiorno presso il petassistant', 'Ospitalita in ambiente accogliente e controllato presso il petassistant, con presenza costante e cura dedicata.', 1, 1792251757, 1792696630);
 INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (4, 'Asilo diurno', 'Accoglienza giornaliera con momenti di gioco, relax e attenzione continua, ideale per assenze durante la giornata.', 0, 1792251757, 1792329623);
 INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (5, 'Pet Taxi', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', 0, 1792251757, 1792337762);
+INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES (6, 'Operatore olistico', 'Incontri dedicati al benessere del pet con un operatore olistico.', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
 
--- servicefeaturedata: 35 record
+-- servicefeaturedata: 38 record
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (22, 4, 1, 1792251757, 1792251757);
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (23, 4, 2, 1792251757, 1792251757);
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (24, 4, 3, 1792251757, 1792251757);
@@ -117,6 +118,9 @@ INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (146, 1, 7, 1792697361, 1792697361);
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (147, 1, 1, 1792697361, 1792697361);
 INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (148, 1, 6, 1792697361, 1792697361);
+INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (158, 6, 5, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (159, 6, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
+INSERT INTO `servicefeaturedata` (`id`, `service_id`, `feature_id`, `created_at`, `updated_at`) VALUES (160, 6, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
 
 -- portal_policy: 11 record
 INSERT INTO `portal_policy` (`policy_key`, `value`, `updated_at`) VALUES ('assistant_cutoff_hours', 3, 1792329623);

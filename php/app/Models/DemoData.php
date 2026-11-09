@@ -9,12 +9,19 @@ use Throwable;
 
 class DemoData
 {
+    private const HOLISTIC_SNAPSHOT = 'migration/seed_demo_holistic.sql';
+    private const LEGACY_SNAPSHOT = 'migration/seed_current_profiles.sql';
+
     private const DATA_TABLES = [
         'booking_action_token',
         'booking_review',
         'reputation_event',
         'booking_reschedule',
+        'booking_feature_preference',
         'booking',
+        'booking_batch',
+        'pet_assistant_favorite',
+        'operator_public_profile',
         'user_reputation',
         'booking_counter',
         'calendar_day_slot_service',
@@ -86,7 +93,9 @@ class DemoData
             });
 
             foreach (self::DATA_TABLES as $table) {
-                $connection->statement(sprintf('ALTER TABLE `%s` AUTO_INCREMENT = 1', $table));
+                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite'], true)) {
+                    $connection->statement(sprintf('ALTER TABLE `%s` AUTO_INCREMENT = 1', $table));
+                }
             }
         } finally {
             $connection->statement('SET FOREIGN_KEY_CHECKS = 1');
@@ -96,13 +105,23 @@ class DemoData
     public function seed(): array
     {
         $snapshotPath = base_path('migration/seed_demo_data.sql');
-        if (! is_file($snapshotPath) || ! is_readable($snapshotPath)) {
-            throw new RuntimeException('Snapshot dati demo non disponibile.');
+        $legacySnapshot = ! is_file($snapshotPath);
+        if ($legacySnapshot) {
+            $snapshotPath = base_path(self::LEGACY_SNAPSHOT);
+        }
+
+        $holisticPath = base_path(self::HOLISTIC_SNAPSHOT);
+        foreach ([$snapshotPath, $holisticPath] as $path) {
+            if (! is_file($path) || ! is_readable($path)) {
+                throw new RuntimeException('Snapshot dati demo non disponibile: '.basename($path));
+            }
         }
 
         $this->clear();
-        $this->runSnapshot($snapshotPath);
-        $this->restoreStorageSnapshot();
+        $this->runSnapshot($snapshotPath, $holisticPath);
+        if (! $legacySnapshot) {
+            $this->restoreStorageSnapshot();
+        }
 
         $summary = $this->summary();
         if ($summary['petAssistants'] !== 40 || $summary['petOwners'] !== 1) {
@@ -110,6 +129,11 @@ class DemoData
         }
 
         return $summary;
+    }
+
+    public function seedHolisticOperators(): void
+    {
+        $this->runSnapshot(base_path(self::HOLISTIC_SNAPSHOT));
     }
 
     public function restoreSystemConfiguration(): array
@@ -130,23 +154,19 @@ class DemoData
         ];
     }
 
-    private function runSnapshot(string $snapshotPath): void
+    private function runSnapshot(string ...$snapshotPaths): void
     {
         $connection = DB::connection();
         $connection->statement('SET FOREIGN_KEY_CHECKS = 0');
         $connection->beginTransaction();
 
         try {
-            foreach (file($snapshotPath, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-                $statement = trim($line);
-                if ($statement === '' || str_starts_with($statement, '--')) {
-                    continue;
+            foreach ($snapshotPaths as $snapshotPath) {
+                foreach ($this->snapshotStatements($snapshotPath) as $statement) {
+                    if (! $this->isTransactionControlStatement($statement)) {
+                        $connection->unprepared($statement);
+                    }
                 }
-                if ($this->isTransactionControlStatement($statement)) {
-                    continue;
-                }
-
-                $connection->unprepared($statement);
             }
 
             $connection->commit();
@@ -158,6 +178,55 @@ class DemoData
         } finally {
             $connection->statement('SET FOREIGN_KEY_CHECKS = 1');
         }
+    }
+
+    private function snapshotStatements(string $snapshotPath): iterable
+    {
+        $lines = file($snapshotPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            throw new RuntimeException('Snapshot non leggibile: '.basename($snapshotPath));
+        }
+
+        $legacySnapshot = basename($snapshotPath) === basename(self::LEGACY_SNAPSHOT);
+        $statement = '';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '--')) {
+                continue;
+            }
+
+            $statement .= $line."\n";
+            if (str_ends_with($line, ';')) {
+                $sql = rtrim($statement);
+                if ($legacySnapshot && str_starts_with($sql, 'INSERT INTO `ownerpetgallery`')) {
+                    $sql = $this->upgradeLegacyPetPhoto($sql);
+                }
+                yield $sql;
+                $statement = '';
+            }
+        }
+
+        if ($statement !== '') {
+            throw new RuntimeException('Istruzione SQL incompleta: '.basename($snapshotPath));
+        }
+    }
+
+    private function upgradeLegacyPetPhoto(string $sql): string
+    {
+        // The old export includes a caption on each photo. The current schema stores a profile flag.
+        $quotedValue = "'(?:''|\\\\.|[^'\\\\])*'";
+        $updated = preg_replace(
+            "/(VALUES\\s*\\(\\s*@cb_pet_\\d+\\s*,\\s*{$quotedValue}\\s*,\\s*){$quotedValue}(?=\\s*,)/s",
+            '${1}1',
+            $sql,
+            1,
+            $count,
+        );
+        if ($count !== 1 || $updated === null) {
+            throw new RuntimeException('Foto profilo non valida nello snapshot demo precedente.');
+        }
+
+        return str_replace('`caption`', '`is_profile`', $updated);
     }
 
     private function restoreStorageSnapshot(): void

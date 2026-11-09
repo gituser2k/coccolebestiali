@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -819,12 +820,16 @@ class ProfileController extends Controller
         $validated = [];
 
         try {
-            $userId = $this->resolveCurrentUserId($request);
+            $userId = (int) $request->session()->get('cb_portal_user_id', 0);
             if ($userId <= 0) {
                 return response()->json([
                     'ok' => false,
                     'message' => 'Sessione utente non disponibile.',
                 ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            if (! DB::table('users')->where('id', $userId)->where('role', 'pet_assistant')->exists()) {
+                return response()->json(['ok' => false, 'message' => 'Profilo Pet Assistant richiesto.'], 403);
             }
 
             $validated = $request->validate([
@@ -838,6 +843,12 @@ class ProfileController extends Controller
                 'associates.*.fiscalCode' => ['nullable', 'string', 'max:32'],
                 'bio' => ['nullable', 'string', 'max:4096'],
                 'experienceYears' => ['nullable', 'integer', 'min:0', 'max:80'],
+                'publicProfile' => ['sometimes', 'array:headline,typicalDay,safetyAndHome,ownerInstructions,publishExactLocation'],
+                'publicProfile.headline' => ['nullable', 'string', 'max:120'],
+                'publicProfile.typicalDay' => ['nullable', 'string', 'max:2000'],
+                'publicProfile.safetyAndHome' => ['nullable', 'string', 'max:2000'],
+                'publicProfile.ownerInstructions' => ['nullable', 'string', 'max:2000'],
+                'publicProfile.publishExactLocation' => ['sometimes', 'boolean'],
                 'titleIds' => ['nullable', 'array'],
                 'titleIds.*' => ['required', 'integer', 'min:1'],
                 'petBreedIds' => ['nullable', 'array'],
@@ -916,6 +927,7 @@ class ProfileController extends Controller
                 'associates' => $validated['associates'] ?? [],
                 'bio' => (string) ($validated['bio'] ?? ''),
                 'experienceYears' => isset($validated['experienceYears']) ? (int) $validated['experienceYears'] : 0,
+                'publicProfile' => $validated['publicProfile'] ?? null,
                 'titleIds' => $validated['titleIds'] ?? [],
                 'petBreedIds' => $validated['petBreedIds'] ?? [],
                 'petSize' => $validated['petSize'] ?? '',

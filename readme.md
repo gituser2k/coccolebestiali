@@ -1,5 +1,7 @@
 # Coccolebestiali Demo Stack
 
+La documentazione tecnica vivente del portale, da aggiornare insieme a ogni modifica applicativa o di database, è disponibile in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+
 Questo progetto e stato organizzato in due aree:
 
 - `php/` contiene il backend con **Laravel 13**.

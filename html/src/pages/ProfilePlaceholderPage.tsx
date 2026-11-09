@@ -1,3 +1,4 @@
+import { csrfHeaders } from '../auth/csrf'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import L from 'leaflet'
@@ -98,7 +99,16 @@ type OperatorLinkedAssociation = {
   vatNumber: string
 }
 
+type PublicOperatorSettings = {
+  headline: string
+  typicalDay: string
+  safetyAndHome: string
+  ownerInstructions: string
+  publishExactLocation: boolean
+}
+
 type OperatorProfileData = {
+  publicProfile: PublicOperatorSettings
   operatorType: OperatorType
   fiscalCode: string
   businessName: string
@@ -186,6 +196,7 @@ const DEFAULT_PERSONAL_FIELD_VISIBILITY: PersonalFieldVisibility = {
 }
 
 const EMPTY_OPERATOR_PROFILE: OperatorProfileData = {
+  publicProfile: { headline: '', typicalDay: '', safetyAndHome: '', ownerInstructions: '', publishExactLocation: false },
   operatorType: 'person',
   fiscalCode: '',
   businessName: '',
@@ -397,7 +408,7 @@ function isPasswordValid(password: string): boolean {
 }
 
 export default function ProfilePlaceholderPage() {
-  const [activeMenu, setActiveMenu] = useState<MenuKey>('personal')
+  const [activeMenu, setActiveMenu] = useState<MenuKey>(() => new URLSearchParams(window.location.search).get('section') === 'bookings' ? 'bookings' : 'personal')
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
@@ -874,9 +885,10 @@ export default function ProfilePlaceholderPage() {
     locationMarkerRef.current = marker
     serviceCircleRef.current = circle
 
-    window.setTimeout(() => map.invalidateSize(), 100)
+    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 100)
 
     return () => {
+      window.clearTimeout(resizeTimer)
       map.remove()
       leafletMapRef.current = null
       locationMarkerRef.current = null
@@ -2022,6 +2034,9 @@ export default function ProfilePlaceholderPage() {
     event.preventDefault()
 
     const body = new FormData()
+    for (const [field, value] of Object.entries(operatorProfile.publicProfile)) {
+      body.append(`publicProfile[${field}]`, typeof value === 'boolean' ? (value ? '1' : '0') : value.trim())
+    }
     body.append('operatorType', operatorProfile.operatorType)
     if (sanitizeText(operatorProfile.fiscalCode) !== '') {
       body.append('fiscalCode', sanitizeText(operatorProfile.fiscalCode).toUpperCase())
@@ -2099,6 +2114,7 @@ export default function ProfilePlaceholderPage() {
         method: 'POST',
         headers: {
           Accept: 'application/json',
+          ...csrfHeaders(),
         },
         body,
       })
@@ -2673,6 +2689,33 @@ export default function ProfilePlaceholderPage() {
                             value={operatorProfile.bio}
                             onChange={(event) => updateOperatorField('bio', event.target.value)}
                           />
+                        </label>
+                      </section>
+
+                      <section className="profile-form-section">
+                        <p className="profile-location-kicker">PROFILO PUBBLICO</p>
+                        <label className="profile-field">
+                          <span>Titolo della presentazione</span>
+                          <input maxLength={120} value={operatorProfile.publicProfile.headline}
+                            onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, headline: event.target.value })} />
+                        </label>
+                        {([
+                          ['typicalDay', 'Una giornata tipo'],
+                          ['safetyAndHome', 'Ambiente domestico e sicurezza'],
+                          ['ownerInstructions', 'Cosa vuoi sapere sul pet prima di accoglierlo'],
+                        ] as const).map(([field, label]) => (
+                          <label className="profile-field" key={field}>
+                            <span>{label}</span>
+                            <textarea className="profile-textarea" rows={3} maxLength={2000}
+                              value={operatorProfile.publicProfile[field]}
+                              onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, [field]: event.target.value })} />
+                          </label>
+                        ))}
+                        <label className="profile-public-location">
+                          <input type="checkbox" checked={operatorProfile.publicProfile.publishExactLocation}
+                            onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, publishExactLocation: event.target.checked })} />
+                          <span><strong>Mostra la mia posizione esatta sulla mappa pubblica</strong><br />
+                            Se disattivata, il profilo mostra solo una zona approssimativa. Puoi revocare il consenso in qualsiasi momento.</span>
                         </label>
                       </section>
 

@@ -504,7 +504,16 @@ class UserAccount extends Model
                 if (Schema::hasTable('booking_reschedule')) {
                     DB::table('booking_reschedule')->whereIn('booking_id', $bookingIds)->delete();
                 }
+                if (Schema::hasTable('booking_feature_preference')) {
+                    DB::table('booking_feature_preference')->whereIn('booking_id', $bookingIds)->delete();
+                }
+                $batchIds = Schema::hasTable('booking_batch')
+                    ? DB::table('booking')->whereIn('id', $bookingIds)->whereNotNull('batch_id')->distinct()->pluck('batch_id')
+                    : collect();
                 DB::table('booking')->whereIn('id', $bookingIds)->delete();
+                if ($batchIds->isNotEmpty()) {
+                    DB::table('booking_batch')->whereIn('id', $batchIds)->delete();
+                }
             }
             if (Schema::hasTable('booking_review')) {
                 DB::table('booking_review')->where('reviewer_user_id', $userId)->orWhere('reviewed_user_id', $userId)->delete();
@@ -536,7 +545,11 @@ class UserAccount extends Model
                 }
             }
             $this->deleteByUserId('operatorassociatedata', $userId);
+            $this->deleteByUserId('operator_public_profile', $userId);
             $this->deleteByUserId('operatordata', $userId);
+            if (Schema::hasTable('pet_assistant_favorite')) {
+                DB::table('pet_assistant_favorite')->where('owner_user_id', $userId)->orWhere('assistant_user_id', $userId)->delete();
+            }
 
             if ($petIds !== []) {
                 $this->deleteByPetIds('ownerpetbreeddata', $petIds);

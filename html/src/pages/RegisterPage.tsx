@@ -1,3 +1,4 @@
+import PublicFooter from '../components/PublicFooter'
 import logoImage from '../assets/logo.png'
 import '../css/register.css'
 import { useEffect, useRef, useState } from 'react'
@@ -686,6 +687,7 @@ export default function RegisterPage() {
             onClickApple={handleAppleRegistration}
           />
         </section>
+        <PublicFooter />
       </section>
 
       {toastMessage ? (

@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Admin;
 use App\Models\Booking;
+use App\Models\BookingItemException;
+use App\Models\PetAssistantSearch;
+use App\Models\PublicPetAssistant;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -50,6 +53,23 @@ class BookingFlowTest extends TestCase
 
         $this->assertSame('confirmed', $booking['status']);
         $this->assertGreaterThan(0, DB::table('booking')->where('id', $booking['id'])->value('accepted_at'));
+    }
+
+    public function test_service_preferences_are_frozen_and_unavailable_features_are_rejected(): void
+    {
+        $model = new Booking;
+        $booking = $model->create(1, $this->payload());
+
+        $this->assertSame([['id' => 1, 'name' => 'Tracking GPS']], $booking['preferredFeatures']);
+        $this->assertDatabaseHas('booking_feature_preference', [
+            'booking_id' => $booking['id'],
+            'feature_id' => 1,
+            'feature_name_snapshot' => 'Tracking GPS',
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('BOOKING_FEATURE_NOT_AVAILABLE');
+        $model->create(1, [...$this->payload(), 'featureIds' => [2], 'startTime' => '10:00', 'endTime' => '11:00']);
     }
 
     public function test_late_owner_cancellation_and_reviews_change_reputation(): void
@@ -172,6 +192,86 @@ class BookingFlowTest extends TestCase
             ->assertJsonCount(11, 'data.policies');
     }
 
+    public function test_batch_rolls_back_on_price_change_and_can_be_replayed_once(): void
+    {
+        DB::table('service')->insert(['id' => 2, 'name' => 'Operatore olistico']);
+        DB::table('operatorservicedata')->insert(['user_id' => 2, 'service_id' => 2]);
+        DB::table('calendar_day_slot_service')->insert(['slot_id' => 2, 'service_id' => 2, 'enabled' => 1, 'hour_price' => 30]);
+        $first = [...$this->payload(), 'expectedTotalCents' => 2000];
+        $second = [...$first, 'serviceId' => 2, 'slotId' => 2, 'date' => $this->alternativeDate,
+            'startTime' => '14:00', 'endTime' => '15:00', 'featureIds' => [], 'expectedTotalCents' => 2500];
+        $batch = ['assistantUserId' => 2, 'petId' => 1, 'requestKey' => '11111111-1111-4111-8111-111111111111',
+            'items' => [$first, $second]];
+        $booking = new Booking;
+        try {
+            $booking->createBatch(1, $batch);
+            $this->fail('The changed price should reject the entire batch.');
+        } catch (BookingItemException $e) {
+            $this->assertSame(1, $e->itemIndex);
+            $this->assertSame('BOOKING_PRICE_CHANGED', $e->getMessage());
+        }
+        $this->assertDatabaseCount('booking', 0);
+        $this->assertDatabaseCount('booking_batch', 0);
+        $this->assertDatabaseCount('booking_feature_preference', 0);
+        $batch['items'][1]['expectedTotalCents'] = 3000;
+        $created = $booking->createBatch(1, $batch);
+        $retried = $booking->createBatch(1, $batch);
+        $this->assertSame($created['batchId'], $retried['batchId']);
+        $this->assertSame(array_column($created['bookings'], 'id'), array_column($retried['bookings'], 'id'));
+        $this->assertDatabaseCount('booking', 2);
+        $this->assertDatabaseCount('booking_batch', 1);
+        $this->assertSame([[
+            'serviceId' => 1, 'slotId' => 1, 'date' => $this->date, 'startTime' => '10:00', 'endTime' => '12:00',
+            'hourlyRateCents' => 2000,
+        ]], (new PetAssistantSearch)->assistantAvailability(2, $this->date, $this->date));
+        $this->expectExceptionMessage('BOOKING_REQUEST_KEY_REUSED');
+        $batch['items'][0]['message'] = 'Richiesta diversa';
+        $booking->createBatch(1, $batch);
+    }
+
+    public function test_batch_and_active_bookings_require_server_session(): void
+    {
+        $this->postJson('/api/bookings/batch', $this->payload())->assertUnauthorized();
+        $this->getJson('/api/bookings/active-for-assistant')->assertUnauthorized();
+        $this->withSession(['cb_portal_user_id' => 1])->getJson('/api/bookings/active-for-assistant')->assertForbidden();
+        $created = (new Booking)->create(1, $this->payload());
+        $this->withSession(['cb_portal_user_id' => 2])->getJson('/api/bookings/active-for-assistant')
+            ->assertOk()->assertJsonPath('data.0.id', $created['id']);
+        DB::table('booking')->where('id', $created['id'])->update(['status' => 'cancelled']);
+        $this->getJson('/api/bookings/active-for-assistant')->assertOk()->assertJsonPath('data', []);
+    }
+
+    public function test_first_manual_response_is_stable_and_pending_requests_are_excluded(): void
+    {
+        $booking = new Booking;
+        $first = $booking->create(1, $this->payload());
+        DB::table('booking')->where('id', $first['id'])->update(['created_at' => time() - 120]);
+        $booking->accept($first['id'], 2);
+        $firstResponse = DB::table('booking')->where('id', $first['id'])->value('first_response_at');
+        $this->assertNotNull($firstResponse);
+        $booking->proposeReschedule($first['id'], 2, [
+            'slotId' => 2, 'date' => $this->alternativeDate, 'startTime' => '14:00', 'endTime' => '15:00', 'message' => 'Nuovo orario',
+        ]);
+        $this->assertSame($firstResponse, DB::table('booking')->where('id', $first['id'])->value('first_response_at'));
+
+        $pending = $booking->create(1, [...$this->payload(), 'startTime' => '10:00', 'endTime' => '11:00']);
+        $profiles = new PublicPetAssistant;
+        $this->assertSame(100, $profiles->responseStats(2)['rate']);
+        DB::table('booking')->where('id', $pending['id'])->update(['response_deadline' => time() - 1]);
+        $stats = $profiles->responseStats(2);
+        $this->assertSame(50, $stats['rate']);
+        $this->assertGreaterThanOrEqual(120, $stats['medianSeconds']);
+        $this->assertLessThan(180, $stats['medianSeconds']);
+        $this->assertSame(['rate' => null, 'medianSeconds' => null], $profiles->responseStats(1));
+    }
+
+    public function test_location_requires_consent_for_exact_coordinates(): void
+    {
+        $this->assertSame(['latitude' => 41.9, 'longitude' => 12.5, 'exact' => false], PetAssistantSearch::publicPoint(41.902837, 12.496438, false));
+        $this->assertSame(['latitude' => 41.902837, 'longitude' => 12.496438, 'exact' => true], PetAssistantSearch::publicPoint(41.902837, 12.496438, true));
+        $this->assertNull(PetAssistantSearch::publicPoint(0, 0, true));
+    }
+
     private function payload(): array
     {
         return [
@@ -182,6 +282,7 @@ class BookingFlowTest extends TestCase
             'date' => $this->date,
             'startTime' => '09:00',
             'endTime' => '10:00',
+            'featureIds' => [1],
             'message' => 'Richiesta di prova',
         ];
     }
@@ -202,6 +303,16 @@ class BookingFlowTest extends TestCase
         DB::table('operatordata')->insert(['user_id' => 2, 'booking_confirmation_mode' => 'manual', 'updated_at' => $now]);
         DB::table('ownerpet')->insert(['id' => 1, 'user_id' => 1, 'name' => 'Rex']);
         DB::table('service')->insert(['id' => 1, 'name' => 'Passeggiata']);
+        DB::table('operatorservicedata')->insert(['user_id' => 2, 'service_id' => 1]);
+        DB::table('servicefeature')->insert([
+            ['id' => 1, 'name' => 'Tracking GPS'],
+            ['id' => 2, 'name' => 'Invio foto/video'],
+        ]);
+        DB::table('operatorservicefeaturedata')->insert([
+            'user_id' => 2,
+            'service_id' => 1,
+            'feature_id' => 1,
+        ]);
         DB::table('calendar_day')->insert(['id' => 1, 'user_id' => 2, 'date' => $this->date, 'enabled' => 1]);
         DB::table('calendar_day')->insert(['id' => 2, 'user_id' => 2, 'date' => $this->alternativeDate, 'enabled' => 1]);
         DB::table('calendar_day_slot')->insert(['id' => 1, 'calendar_day_id' => 1, 'start_time' => '09:00', 'end_time' => '12:00', 'enabled' => 1]);
@@ -239,6 +350,29 @@ class BookingFlowTest extends TestCase
             $table->increments('id');
             $table->string('name');
         });
+        Schema::create('servicefeature', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name');
+        });
+        Schema::create('operatorservicedata', function (Blueprint $table) {
+            $table->unsignedInteger('user_id');
+            $table->unsignedInteger('service_id');
+            $table->unique(['user_id', 'service_id']);
+        });
+        Schema::create('booking_batch', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('owner_user_id');
+            $table->string('request_key');
+            $table->string('request_hash');
+            $table->integer('created_at');
+            $table->unique(['owner_user_id', 'request_key']);
+        });
+        Schema::create('operatorservicefeaturedata', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('user_id');
+            $table->unsignedInteger('service_id');
+            $table->unsignedInteger('feature_id');
+        });
         Schema::create('calendar_day', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
@@ -267,6 +401,8 @@ class BookingFlowTest extends TestCase
         Schema::create('booking', function (Blueprint $table) {
             $table->increments('id');
             $table->string('booking_number')->unique();
+            $table->unsignedInteger('batch_id')->nullable();
+            $table->unsignedInteger('first_response_at')->nullable();
             $table->unsignedInteger('owner_user_id');
             $table->unsignedInteger('assistant_user_id');
             $table->unsignedInteger('pet_id');
@@ -288,6 +424,14 @@ class BookingFlowTest extends TestCase
             $table->string('cancellation_reason', 2048);
             $table->integer('created_at');
             $table->integer('updated_at');
+        });
+        Schema::create('booking_feature_preference', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('booking_id');
+            $table->unsignedInteger('feature_id');
+            $table->string('feature_name_snapshot');
+            $table->integer('created_at');
+            $table->unique(['booking_id', 'feature_id']);
         });
         Schema::create('booking_reschedule', function (Blueprint $table) {
             $table->increments('id');
@@ -315,6 +459,7 @@ class BookingFlowTest extends TestCase
             $table->string('sentiment');
             $table->string('comment', 4096);
             $table->smallInteger('score_delta');
+            $table->boolean('publish_comment')->default(false);
             $table->integer('created_at');
             $table->unique(['booking_id', 'reviewer_user_id']);
         });

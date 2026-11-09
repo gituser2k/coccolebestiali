@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import PublicFooter from '../components/PublicFooter'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import logoImage from '../assets/logo.png'
+import RankingStars from '../components/RankingStars'
 import '../css/search.css'
 import '../css/combobox.css'
 
@@ -7,6 +9,12 @@ type ServiceOption = {
   id: number
   name: string
   description: string
+  features: FeatureOption[]
+}
+
+type FeatureOption = {
+  id: number
+  name: string
 }
 
 type PetOption = {
@@ -20,61 +28,60 @@ type SearchOptions = {
   services: ServiceOption[]
   pets: PetOption[]
   authenticatedRole: string
-  policies: PortalPolicies
+  canFilterFavorites: boolean
 }
 
-type PortalPolicies = {
-  bookingMinNoticeHours: number
-  manualResponseHours: number
-  assistantCutoffHours: number
-  ownerFreeCancellationHours: number
-  ownerLateCancellationPenalty: number
-  assistantLateActionPenalty: number
-  positiveReviewPoints: number
-  negativeReviewPenalty: number
-  initialReputationScore: number
-  reviewWindowDays: number
-  maxBookingDurationMinutes: number
+type SortMode = 'ranking' | 'distance' | 'cost' | 'cost_desc'
+
+type SearchQuery = {
+  startDate: string
+  endDate: string
+  serviceIds: number[]
+  petId: number | null
+  durationMinutes: number
+  sortBy: SortMode
+  onlyWithPhoto: boolean
+  onlyFavorites?: boolean
+  optionFilters: { serviceId: number; featureIds: number[] }[]
 }
 
-type AvailabilitySlot = {
-  slotId: number
-  date: string
-  startTime: string
-  endTime: string
-  hourlyRate: number
-  confirmationMode: 'manual' | 'automatic'
+type SearchSnapshot = {
+  query: SearchQuery
+  columns: number
+  visible: number
+  scroll: number
+  controls: {
+    startDate: string
+    endDate: string
+    serviceIds: number[]
+    petId: number
+    useMyPet: boolean
+    sortBy: SortMode
+    onlyWithPhoto: boolean
+    onlyFavorites?: boolean
+    features: Record<number, number[]>
+  }
 }
 
-type MatchedService = {
-  id: number
-  name: string
-  description: string
-  requiresHomePhoto: boolean
-  hourlyRate: number
-  totalCost: number
-  availableDays: number
-  slots: AvailabilitySlot[]
-}
+const SEARCH_STATE_KEY = 'cb_search_state'
 
-type OtherService = {
-  id: number
-  name: string
-  hourlyRate: number
-  features: string[]
-}
+function readSearchSnapshot(): SearchSnapshot | null {
+  const saved = window.history.state?.[SEARCH_STATE_KEY] as SearchSnapshot | undefined
+  if (saved?.query) return saved
+  if (new URLSearchParams(window.location.search).get('restore') !== '1') return null
 
-type HouseGalleryPhoto = {
-  id: number
-  photoUrl: string
-  caption: string
-  sortorder: number
+  try {
+    const stored = window.sessionStorage.getItem(SEARCH_STATE_KEY)
+    return stored ? JSON.parse(stored) as SearchSnapshot : null
+  } catch {
+    return null
+  }
 }
 
 type AssistantResult = {
   id: number
+  favorite: boolean
   name: string
-  alias: string
   photoUrl: string
   city: string
   bio: string
@@ -82,25 +89,10 @@ type AssistantResult = {
   rankingScore: number
   stars: number
   distanceKm: number | null
-  minimumTotalCost: number
   titles: string[]
-  houseGallery: HouseGalleryPhoto[]
   petMatch: string
-  matchedServices: MatchedService[]
-  otherServices: OtherService[]
-  availableDays: number
+  matchedServices: { id: number; name: string; hourlyRate: number }[]
   firstAvailableDate: string
-}
-
-type BookingSelection = {
-  assistant: AssistantResult
-  service: MatchedService
-  slot: AvailabilitySlot
-}
-
-type HouseGallerySelection = {
-  assistantName: string
-  photos: HouseGalleryPhoto[]
 }
 
 type SearchResponse = {
@@ -113,19 +105,7 @@ const EMPTY_OPTIONS: SearchOptions = {
   services: [],
   pets: [],
   authenticatedRole: '',
-  policies: {
-    bookingMinNoticeHours: 24,
-    manualResponseHours: 24,
-    assistantCutoffHours: 3,
-    ownerFreeCancellationHours: 24,
-    ownerLateCancellationPenalty: 5,
-    assistantLateActionPenalty: 5,
-    positiveReviewPoints: 5,
-    negativeReviewPenalty: 5,
-    initialReputationScore: 60,
-    reviewWindowDays: 30,
-    maxBookingDurationMinutes: 480,
-  },
+  canFilterFavorites: false,
 }
 
 function toIsoDate(date: Date): string {
@@ -161,39 +141,6 @@ function formatPrice(value: number): string {
   }).format(value)
 }
 
-function formatDuration(minutes: number): string {
-  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`
-}
-
-function timeToMinutes(value: string): number {
-  const [hours, minutes] = value.split(':').map(Number)
-  return (hours * 60) + minutes
-}
-
-function minutesToTime(value: number): string {
-  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
-}
-
-function buildTimeOptions(start: string, end: string): string[] {
-  const options: string[] = []
-  for (let value = timeToMinutes(start); value <= timeToMinutes(end); value += 30) {
-    options.push(minutesToTime(value))
-  }
-  return options
-}
-
-function RankingStars({ score, stars }: { score: number; stars: number }) {
-  return (
-    <span className="assistant-ranking" aria-label={`Ranking ${score} su 100, equivalente a ${stars} stelle su 5`}>
-      <span className="assistant-stars" aria-hidden="true">
-        <span>★★★★★</span>
-        <span className="assistant-stars-fill" style={{ width: `${Math.max(0, Math.min(100, (stars / 5) * 100))}%` }}>★★★★★</span>
-      </span>
-      <strong>{score}/100</strong>
-    </span>
-  )
-}
-
 function SearchIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -224,49 +171,86 @@ function CalendarIcon() {
   )
 }
 
-function HomePhotoIcon() {
+function FavoriteHeart() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3.5 10.5 12 3.8l8.5 6.7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5.5 9.5v10h13v-10M9 19.5v-6h6v6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="16.8" cy="8.2" r="2.2" fill="currentColor" />
+    <svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20.2 4.6 13a4.6 4.6 0 0 1 6.5-6.5l.9.9.9-.9a4.6 4.6 0 0 1 6.5 6.5z" />
     </svg>
+  )
+}
+
+function AssistantPhoto({ assistant }: { assistant: AssistantResult }) {
+  return (
+    <div className="assistant-photo-wrap" aria-hidden="true">
+      {assistant.photoUrl ? (
+        <img src={assistant.photoUrl} alt="" loading="lazy" />
+      ) : (
+        <span>{assistant.name.charAt(0).toUpperCase()}</span>
+      )}
+    </div>
   )
 }
 
 export default function PetAssistantSearchPage() {
   const today = useMemo(() => new Date(), [])
-  const [startDate, setStartDate] = useState(toIsoDate(today))
-  const [endDate, setEndDate] = useState(toIsoDate(addDays(today, 14)))
+  const [snapshot] = useState(readSearchSnapshot)
+  const restored = useRef(false)
+  const pendingScroll = useRef(snapshot?.scroll ?? null)
+  const [lastQuery, setLastQuery] = useState<SearchQuery | null>(null)
+  const [startDate, setStartDate] = useState(snapshot?.controls.startDate ?? toIsoDate(today))
+  const [endDate, setEndDate] = useState(snapshot?.controls.endDate ?? toIsoDate(addDays(today, 14)))
   const [options, setOptions] = useState<SearchOptions>(EMPTY_OPTIONS)
-  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
-  const [useMyPet, setUseMyPet] = useState(false)
-  const [selectedPetId, setSelectedPetId] = useState(0)
-  const [durationMinutes, setDurationMinutes] = useState(60)
-  const [sortBy, setSortBy] = useState<'ranking' | 'distance' | 'cost'>('ranking')
-  const [onlyWithPhoto, setOnlyWithPhoto] = useState(false)
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>(snapshot?.controls.serviceIds ?? [])
+  const [isServiceMenuOpen, setIsServiceMenuOpen] = useState(false)
+  const [isCommandsOpen, setIsCommandsOpen] = useState(false)
+  const serviceMenuRef = useRef<HTMLDivElement>(null)
+  const serviceTriggerRef = useRef<HTMLButtonElement>(null)
+  const [useMyPet, setUseMyPet] = useState(snapshot?.controls.useMyPet ?? false)
+  const [selectedPetId, setSelectedPetId] = useState(snapshot?.controls.petId ?? 0)
+  const [sortBy, setSortBy] = useState<SortMode>(snapshot?.controls.sortBy ?? 'ranking')
+  const [onlyWithPhoto, setOnlyWithPhoto] = useState(snapshot?.controls.onlyWithPhoto ?? false)
+  const [onlyFavorites, setOnlyFavorites] = useState(snapshot?.controls.onlyFavorites ?? false)
+  const [resultsPerRow, setResultsPerRow] = useState(snapshot?.columns ?? 3)
+  const [selectedFeatureIdsByService, setSelectedFeatureIdsByService] = useState<Record<number, number[]>>(snapshot?.controls.features ?? {})
+  const [searchedFeatureIdsByService, setSearchedFeatureIdsByService] = useState<Record<number, number[]>>({})
   const [results, setResults] = useState<AssistantResult[]>([])
   const [visibleResultCount, setVisibleResultCount] = useState(8)
   const [matchedPetName, setMatchedPetName] = useState('')
-  const [searchedPetId, setSearchedPetId] = useState(0)
   const [isLoadingOptions, setIsLoadingOptions] = useState(true)
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [toast, setToast] = useState<{ message: string; tone: 'error' | 'success' } | null>(null)
-  const [bookingSelection, setBookingSelection] = useState<BookingSelection | null>(null)
-  const [houseGallerySelection, setHouseGallerySelection] = useState<HouseGallerySelection | null>(null)
-  const [bookingStartTime, setBookingStartTime] = useState('')
-  const [bookingEndTime, setBookingEndTime] = useState('')
-  const [bookingMessage, setBookingMessage] = useState('')
-  const [isBooking, setIsBooking] = useState(false)
-  const [createdBookingNumber, setCreatedBookingNumber] = useState('')
-  const bookingTotal = bookingSelection
-    ? bookingSelection.slot.hourlyRate * Math.max(0, timeToMinutes(bookingEndTime) - timeToMinutes(bookingStartTime)) / 60
-    : 0
+  const toastNotice = toast ? <div className={`search-toast ${toast.tone}`} role="status">{toast.message}</div> : null
+  const selectedOptionCount = Object.values(selectedFeatureIdsByService).reduce((total, featureIds) => total + featureIds.length, 0)
+  const selectedServices = options.services.filter((service) => selectedServiceIds.includes(service.id))
+  const serviceMenuValue = selectedServices.length > 1
+    ? `${selectedServices.length} servizi selezionati`
+    : selectedServices[0]?.name ?? 'Seleziona i servizi'
+  const appliedOptionFilters = selectedServices.flatMap((service) =>
+    service.features
+      .filter((feature) => searchedFeatureIdsByService[service.id]?.includes(feature.id))
+      .map((feature) => ({ serviceId: service.id, serviceName: service.name, feature }))
+  )
+
+  useLayoutEffect(() => {
+    if (results.length > 0 && pendingScroll.current !== null) {
+      window.scrollTo(0, pendingScroll.current)
+      pendingScroll.current = null
+    }
+  }, [results])
 
   useEffect(() => {
-    void loadOptions()
-  }, [])
+    if (!isServiceMenuOpen) return
+
+    function closeServiceMenu(event: PointerEvent) {
+      if (event.target instanceof Node && !serviceMenuRef.current?.contains(event.target)) {
+        setIsServiceMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeServiceMenu)
+    return () => document.removeEventListener('pointerdown', closeServiceMenu)
+  }, [isServiceMenuOpen])
 
   useEffect(() => {
     if (!toast) {
@@ -277,48 +261,13 @@ export default function PetAssistantSearchPage() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  useEffect(() => {
-    if (!houseGallerySelection) {
-      return
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setHouseGallerySelection(null)
-      }
-    }
-
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [houseGallerySelection])
-
-  async function loadOptions() {
-    setIsLoadingOptions(true)
-    try {
-      const response = await fetch('/api/search/pet-assistants/options', {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-      })
-      const payload = await response.json()
-      if (!response.ok || !payload?.ok) {
-        throw new Error('OPTIONS_NOT_AVAILABLE')
-      }
-
-      const nextOptions = payload.data as SearchOptions
-      const initialServiceIds = nextOptions.services.map((service) => service.id)
-      setOptions(nextOptions)
-      setSelectedServiceIds(initialServiceIds)
-      if (nextOptions.pets.length > 0) {
-        setSelectedPetId(nextOptions.pets[0].id)
-      }
-    } catch {
-      setToast({ message: 'Ricerca momentaneamente non disponibile.', tone: 'error' })
-    } finally {
-      setIsLoadingOptions(false)
-    }
-  }
-
-  async function executeSearch(serviceIds: number[], petId: number, from: string, to: string) {
+  async function executeSearch(
+    serviceIds: number[],
+    petId: number,
+    from: string,
+    to: string,
+    featureFilters: Record<number, number[]> = selectedFeatureIdsByService,
+  ) {
     if (!from || !to) {
       setToast({ message: 'Indica la data di inizio e la data di fine.', tone: 'error' })
       return
@@ -336,24 +285,29 @@ export default function PetAssistantSearchPage() {
       return
     }
 
+    await runSearch({
+      startDate: from,
+      endDate: to,
+      serviceIds,
+      petId: useMyPet ? petId : null,
+      durationMinutes: 30,
+      sortBy,
+      onlyWithPhoto,
+      onlyFavorites,
+      optionFilters: Object.entries(featureFilters)
+        .map(([serviceId, featureIds]) => ({ serviceId: Number(serviceId), featureIds }))
+        .filter((filter) => serviceIds.includes(filter.serviceId) && filter.featureIds.length > 0),
+    })
+  }
+
+  const runSearch = useCallback(async (query: SearchQuery, visible = 8) => {
     setIsSearching(true)
     try {
       const response = await fetch('/api/search/pet-assistants', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({
-          startDate: from,
-          endDate: to,
-          serviceIds,
-          petId: useMyPet ? petId : null,
-          durationMinutes,
-          sortBy,
-          onlyWithPhoto,
-        }),
+        body: JSON.stringify(query),
       })
       const payload = await response.json()
       if (!response.ok || !payload?.ok) {
@@ -362,14 +316,18 @@ export default function PetAssistantSearchPage() {
 
       const data = payload.data as SearchResponse
       setResults(data.results)
-      setVisibleResultCount(8)
+      setVisibleResultCount(visible)
       setMatchedPetName(data.pet?.name ?? '')
-      setSearchedPetId(useMyPet ? petId : 0)
+      setLastQuery(query)
+      setSearchedFeatureIdsByService(Object.fromEntries(query.optionFilters.map(({ serviceId, featureIds }) => [serviceId, featureIds])))
       setHasSearched(true)
     } catch (error) {
       setResults([])
       setVisibleResultCount(8)
-      setSearchedPetId(0)
+      setMatchedPetName('')
+      setLastQuery(null)
+      pendingScroll.current = null
+      setSearchedFeatureIdsByService({})
       setHasSearched(true)
       setToast({
         message: error instanceof Error ? error.message : 'Ricerca non completata.',
@@ -378,78 +336,134 @@ export default function PetAssistantSearchPage() {
     } finally {
       setIsSearching(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+
+    async function loadOptions() {
+      setIsLoadingOptions(true)
+      try {
+        const response = await fetch('/api/search/pet-assistants/options', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        })
+        const payload = await response.json()
+        if (!response.ok || !payload?.ok) {
+          throw new Error('OPTIONS_NOT_AVAILABLE')
+        }
+
+        const nextOptions = payload.data as SearchOptions
+        setOptions(nextOptions)
+        if (!nextOptions.canFilterFavorites) setOnlyFavorites(false)
+        if (nextOptions.pets.length > 0) {
+          setSelectedPetId((current) => nextOptions.pets.some((pet) => pet.id === current) ? current : nextOptions.pets[0].id)
+        }
+        if (snapshot) {
+          await runSearch({ ...snapshot.query, onlyFavorites: Boolean(snapshot.query.onlyFavorites && nextOptions.canFilterFavorites) }, snapshot.visible)
+        }
+      } catch {
+        setToast({ message: 'Ricerca momentaneamente non disponibile.', tone: 'error' })
+      } finally {
+        setIsLoadingOptions(false)
+      }
+    }
+
+    void loadOptions()
+  }, [snapshot, runSearch])
+
+  useEffect(() => {
+    if (!lastQuery) return
+
+    function refreshRestoredResults(event: PageTransitionEvent) {
+      if (event.persisted && lastQuery) void runSearch(lastQuery, visibleResultCount)
+    }
+
+    window.addEventListener('pageshow', refreshRestoredResults)
+    return () => window.removeEventListener('pageshow', refreshRestoredResults)
+  }, [lastQuery, runSearch, visibleResultCount])
 
   function toggleService(serviceId: number) {
-    setSelectedServiceIds((current) =>
-      current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId]
-    )
+    if (!selectedServiceIds.includes(serviceId)) {
+      setSelectedServiceIds([...selectedServiceIds, serviceId])
+      return
+    }
+
+    setSelectedServiceIds(selectedServiceIds.filter((id) => id !== serviceId))
+    setSelectedFeatureIdsByService((selected) => {
+      const next = { ...selected }
+      delete next[serviceId]
+      return next
+    })
   }
 
-  function openBooking(assistant: AssistantResult, service: MatchedService, slot: AvailabilitySlot) {
-    if (options.authenticatedRole !== 'pet_owner') {
-      setToast({ message: 'Accedi come Pet Owner per prenotare.', tone: 'error' })
-      return
-    }
-    if (options.pets.length === 0) {
-      setToast({ message: 'Inserisci prima un pet nel tuo profilo.', tone: 'error' })
-      return
-    }
-    if (!useMyPet || selectedPetId <= 0 || searchedPetId !== selectedPetId) {
-      setToast({
-        message: 'Per prenotare, seleziona il tuo pet e avvia nuovamente la ricerca.',
-        tone: 'error',
-      })
-      return
-    }
-    const start = slot.startTime
-    const end = minutesToTime(Math.min(timeToMinutes(slot.endTime), timeToMinutes(start) + durationMinutes))
-    setBookingSelection({ assistant, service, slot })
-    setBookingStartTime(start)
-    setBookingEndTime(end)
-    setBookingMessage('')
-    setCreatedBookingNumber('')
+  function toggleServiceFeature(serviceId: number, featureId: number) {
+    setSelectedFeatureIdsByService((current) => {
+      const selected = current[serviceId] ?? []
+      const nextSelected = selected.includes(featureId)
+        ? selected.filter((id) => id !== featureId)
+        : [...selected, featureId]
+
+      if (nextSelected.length === 0) {
+        const next = { ...current }
+        delete next[serviceId]
+        return next
+      }
+
+      return { ...current, [serviceId]: nextSelected }
+    })
   }
 
-  async function confirmBooking() {
-    if (!bookingSelection || !useMyPet || selectedPetId <= 0 || searchedPetId !== selectedPetId) {
-      setToast({ message: 'Seleziona il pet per cui prenotare.', tone: 'error' })
-      return
+  function clearOptionFilters() {
+    setSelectedFeatureIdsByService({})
+  }
+
+  function removeAppliedOption(serviceId: number, featureId: number) {
+    const nextFilters = { ...selectedFeatureIdsByService }
+    const nextFeatureIds = (nextFilters[serviceId] ?? []).filter((id) => id !== featureId)
+    if (nextFeatureIds.length > 0) {
+      nextFilters[serviceId] = nextFeatureIds
+    } else {
+      delete nextFilters[serviceId]
     }
-    if (timeToMinutes(bookingEndTime) <= timeToMinutes(bookingStartTime)) {
-      setToast({ message: 'Seleziona un intervallo valido.', tone: 'error' })
-      return
+
+    setSelectedFeatureIdsByService(nextFilters)
+    void executeSearch(selectedServiceIds, selectedPetId, startDate, endDate, nextFilters)
+  }
+
+  function profileHref(assistant: AssistantResult): string {
+    const base = `/pet-assistants/${assistant.id}`
+    if (!lastQuery) return base
+    const matches = assistant.matchedServices.map(({ id }) => id)
+    const params = new URLSearchParams({
+      from: lastQuery.startDate,
+      to: lastQuery.endDate,
+      services: matches.join(','),
+    })
+    for (const filter of lastQuery.optionFilters) {
+      if (matches.includes(filter.serviceId)) {
+        params.append('options', `${filter.serviceId}:${filter.featureIds.join(',')}`)
+      }
     }
-    setIsBooking(true)
+    return `${base}?${params}`
+  }
+
+  function saveSearch() {
+    if (!lastQuery) return
+    const state: SearchSnapshot = {
+      query: lastQuery,
+      columns: resultsPerRow,
+      visible: visibleResultCount,
+      scroll: window.scrollY,
+      controls: { startDate, endDate, serviceIds: selectedServiceIds, petId: selectedPetId, useMyPet, sortBy,
+        onlyWithPhoto, onlyFavorites, features: selectedFeatureIdsByService },
+    }
+    window.history.replaceState({ ...window.history.state, [SEARCH_STATE_KEY]: state }, '')
     try {
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          assistantUserId: bookingSelection.assistant.id,
-          petId: selectedPetId,
-          serviceId: bookingSelection.service.id,
-          slotId: bookingSelection.slot.slotId,
-          date: bookingSelection.slot.date,
-          startTime: bookingStartTime,
-          endTime: bookingEndTime,
-          message: bookingMessage,
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Prenotazione non completata.')
-      setCreatedBookingNumber(payload.data.bookingNumber)
-      setToast({
-        message: payload.data.notificationWarning
-          ? 'Prenotazione registrata. Invio email non completato.'
-          : payload.data.status === 'confirmed' ? 'Prenotazione confermata.' : 'Richiesta di prenotazione inviata.',
-        tone: payload.data.notificationWarning ? 'error' : 'success',
-      })
-    } catch (error) {
-      setToast({ message: error instanceof Error ? error.message : 'Prenotazione non completata.', tone: 'error' })
-    } finally {
-      setIsBooking(false)
+      window.sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state))
+    } catch {
+      // Browser history remains available when tab storage is disabled.
     }
   }
 
@@ -480,7 +494,56 @@ export default function PetAssistantSearchPage() {
         </header>
 
         <section className="search-filter-panel" aria-label="Filtri di ricerca">
-          <div className="search-date-grid">
+          <div className="search-primary-grid">
+            <div
+              ref={serviceMenuRef}
+              className="search-field search-services"
+              onBlur={(event) => {
+                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) {
+                  setIsServiceMenuOpen(false)
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && isServiceMenuOpen) {
+                  setIsServiceMenuOpen(false)
+                  serviceTriggerRef.current?.focus()
+                }
+              }}
+            >
+              <span id="search-services-label">Servizi</span>
+              <button
+                ref={serviceTriggerRef}
+                className={`portal-combobox-trigger${isServiceMenuOpen ? ' is-open' : ''}`}
+                type="button"
+                aria-labelledby="search-services-label search-services-value"
+                aria-controls="search-services-menu"
+                aria-expanded={isServiceMenuOpen}
+                disabled={isLoadingOptions || options.services.length === 0}
+                onClick={(event) => {
+                  event.currentTarget.focus()
+                  setIsServiceMenuOpen((open) => !open)
+                }}
+              >
+                <span id="search-services-value">{serviceMenuValue}</span>
+              </button>
+              <fieldset id="search-services-menu" className="search-service-options" aria-labelledby="search-services-label" hidden={!isServiceMenuOpen}>
+                {options.services.map((service) => (
+                  <label className="search-service-option" key={service.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedServiceIds.includes(service.id)}
+                      onChange={() => toggleService(service.id)}
+                    />
+                    <span className="search-service-check" aria-hidden="true">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m4 8 2.5 2.5L12 5" />
+                      </svg>
+                    </span>
+                    <span>{service.name}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
             <label className="search-field">
               <span><CalendarIcon /> Data inizio</span>
               <input
@@ -505,7 +568,8 @@ export default function PetAssistantSearchPage() {
                 onChange={(event) => setEndDate(event.target.value)}
               />
             </label>
-            <div className="search-pet-control">
+            <div className="search-field">
+              <span>Pet</span>
               <button
                 className={`search-pet-toggle${useMyPet ? ' is-active' : ''}`}
                 type="button"
@@ -516,65 +580,129 @@ export default function PetAssistantSearchPage() {
                 Ricerca per il mio Pet
               </button>
               {useMyPet ? (
-                <label className="search-pet-select">
-                  <span>Seleziona il pet</span>
-                  <select className="portal-combobox" value={selectedPetId} onChange={(event) => setSelectedPetId(Number(event.target.value))}>
-                    {options.pets.map((pet) => (
-                      <option key={pet.id} value={pet.id}>{pet.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <select aria-label="Seleziona il pet" className="portal-combobox" value={selectedPetId} onChange={(event) => setSelectedPetId(Number(event.target.value))}>
+                  {options.pets.map((pet) => (
+                    <option key={pet.id} value={pet.id}>{pet.name}</option>
+                  ))}
+                </select>
               ) : null}
+            </div>
+            <div className="search-field">
+              <span>Funzioni</span>
+              <button
+                className={`portal-combobox-trigger${isCommandsOpen ? ' is-open' : ''}`}
+                type="button"
+                aria-controls="search-service-commands"
+                aria-expanded={isCommandsOpen}
+                onClick={() => setIsCommandsOpen((open) => !open)}
+              >
+                Comandi{selectedOptionCount > 0 ? ` (${selectedOptionCount})` : ''}
+              </button>
             </div>
           </div>
 
-          <fieldset className="search-services-fieldset" aria-label="Servizi richiesti" disabled={isLoadingOptions}>
-            <p>Puoi selezionare uno o più servizi.</p>
-            <div className="search-service-options">
-              {options.services.map((service) => {
-                const selected = selectedServiceIds.includes(service.id)
+          <div id="search-service-commands" className="search-options-panel" hidden={!isCommandsOpen}>
+            <div className="search-options-panel-heading">
+              <div>
+                <strong>Funzioni per servizio</strong>
+                <p>{selectedServices.length > 0
+                  ? 'Il Pet Assistant dovrà offrire tutte le funzioni selezionate per ciascun servizio.'
+                  : 'Seleziona uno o più servizi per vedere le funzioni disponibili.'}</p>
+              </div>
+              {selectedOptionCount > 0 ? (
+                <button type="button" onClick={clearOptionFilters}>Rimuovi selezioni</button>
+              ) : null}
+            </div>
+            <div className="search-options-services">
+              {selectedServices.map((service) => {
+                const selectedIds = selectedFeatureIdsByService[service.id] ?? []
                 return (
-                  <label className={`search-service-option${selected ? ' is-selected' : ''}`} key={service.id}>
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleService(service.id)}
-                    />
-                    <span className="search-service-check" aria-hidden="true">✓</span>
-                    <span>{service.name}</span>
-                  </label>
+                  <fieldset className="search-option-service" key={service.id}>
+                    <legend>
+                      {service.name}
+                      {selectedIds.length > 0 ? <span>{selectedIds.length}</span> : null}
+                    </legend>
+                    <div className="search-option-chips">
+                      {service.features.length === 0 ? <p>Nessuna funzione configurata.</p> : null}
+                      {service.features.map((feature) => {
+                        const selected = selectedIds.includes(feature.id)
+                        return (
+                          <label className={selected ? 'is-selected' : ''} key={feature.id}>
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleServiceFeature(service.id, feature.id)}
+                            />
+                            <span aria-hidden="true">✓</span>
+                            {feature.name}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </fieldset>
                 )
               })}
             </div>
-          </fieldset>
+          </div>
 
           <div className="search-submit-row">
-            <div className="search-order-controls">
-              <label>
-                <span>Durata</span>
-                <select className="portal-combobox" value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))}>
-                  {Array.from({ length: Math.max(1, Math.floor(options.policies.maxBookingDurationMinutes / 30)) }, (_, index) => (index + 1) * 30).map((minutes) => (
-                    <option key={minutes} value={minutes}>{minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Ordina per</span>
-                <select className="portal-combobox" value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
-                  <option value="ranking">Miglior ranking</option>
-                  <option value="distance">Più vicino</option>
-                  <option value="cost">Costo minore</option>
-                </select>
-              </label>
-              <label className="search-photo-filter">
-                <input
-                  type="checkbox"
-                  checked={onlyWithPhoto}
-                  onChange={(event) => setOnlyWithPhoto(event.target.checked)}
-                />
-                <span className="search-photo-filter-check" aria-hidden="true">✓</span>
-                <span>Solo con Foto</span>
-              </label>
+            <label className="search-field search-sort">
+              <span>Ordina per</span>
+              <select className="portal-combobox" value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
+                <option value="ranking">Miglior ranking</option>
+                <option value="distance">Più vicino</option>
+                <option value="cost">Costo minore</option>
+                <option value="cost_desc">Costo maggiore</option>
+              </select>
+            </label>
+            <label className="search-photo-filter">
+              <input
+                type="checkbox"
+                checked={onlyWithPhoto}
+                onChange={(event) => setOnlyWithPhoto(event.target.checked)}
+              />
+              <span className="search-photo-filter-check" aria-hidden="true">✓</span>
+              <span>Solo profili con foto</span>
+            </label>
+            <label className="search-favorites-filter">
+              <input
+                type="checkbox"
+                checked={onlyFavorites && options.canFilterFavorites}
+                disabled={isLoadingOptions}
+                onChange={(event) => {
+                  if (options.canFilterFavorites) setOnlyFavorites(event.target.checked)
+                  else setToast({ message: 'Accedi come Pet Owner per cercare tra i preferiti.', tone: 'error' })
+                }}
+              />
+              <span className="search-photo-filter-check" aria-hidden="true">
+                <FavoriteHeart />
+              </span>
+              <span>Solo profili preferiti</span>
+            </label>
+            <div className="search-field">
+              <span id="search-result-layout-label">Card per riga</span>
+              <div className="search-result-layout" role="radiogroup" aria-labelledby="search-result-layout-label">
+                {[1, 2, 3].map((columns) => {
+                  const cardWidth = (20 - 2 * (columns - 1)) / columns
+                  const label = `${columns} card per riga`
+                  return (
+                    <label key={columns} title={label}>
+                      <input
+                        type="radio"
+                        name="results-per-row"
+                        aria-label={label}
+                        checked={resultsPerRow === columns}
+                        onChange={() => setResultsPerRow(columns)}
+                      />
+                      <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                        {Array.from({ length: columns }, (_, index) => (
+                          <rect key={index} x={2 + index * (cardWidth + 2)} y="4" width={cardWidth} height="12" rx="1" />
+                        ))}
+                      </svg>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
             <button
               className="search-submit"
@@ -601,118 +729,116 @@ export default function PetAssistantSearchPage() {
             {matchedPetName ? <strong>Compatibilità verificata per {matchedPetName}</strong> : null}
           </div>
 
+          {hasSearched && appliedOptionFilters.length > 0 ? (
+            <div className="search-applied-options" aria-label="Opzioni applicate alla ricerca">
+              <span>Opzioni richieste</span>
+              <div>
+                {appliedOptionFilters.map(({ serviceId, serviceName, feature }) => (
+                  <button
+                    type="button"
+                    key={`${serviceId}-${feature.id}`}
+                    onClick={() => removeAppliedOption(serviceId, feature.id)}
+                    title={`Rimuovi ${feature.name} da ${serviceName}`}
+                  >
+                    <span>{serviceName}</span> · {feature.name} <b aria-hidden="true">×</b>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {!hasSearched && !isSearching ? (
             <div className="search-empty-state search-initial-state">
               <SearchIcon />
               <h3>Trova il Pet Assistant più adatto</h3>
-              <p>Seleziona le date, uno o più servizi e, se vuoi, il tuo pet. Poi avvia la ricerca.</p>
+              <p>Seleziona uno o più servizi, le date e, se vuoi, il tuo pet. Poi avvia la ricerca.</p>
             </div>
           ) : null}
 
           {hasSearched && !isSearching && results.length === 0 ? (
             <div className="search-empty-state">
               <PetIcon />
-              <h3>Nessun Pet Assistant disponibile</h3>
-              <p>Prova ad ampliare l’intervallo di date oppure seleziona altri servizi.</p>
+              {lastQuery?.onlyFavorites ? (
+                <h3>Nessun profilo preferito corrisponde ai filtri selezionati</h3>
+              ) : <>
+                <h3>Nessun Pet Assistant disponibile</h3>
+                <p>Prova ad ampliare l’intervallo di date oppure seleziona altri servizi.</p>
+              </>}
             </div>
           ) : null}
 
-          <div className="assistant-results-list">
-            {results.slice(0, visibleResultCount).map((assistant) => (
-              <article className="assistant-card" key={assistant.id}>
-                <div className="assistant-identity">
-                  <div className="assistant-photo-wrap">
-                    {assistant.photoUrl ? (
-                      <img src={assistant.photoUrl} alt={`Foto di ${assistant.name}`} />
-                    ) : (
-                      <span>{assistant.name.charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="assistant-name-block">
-                    <div className="assistant-name-row">
-                      <h3>{assistant.name}</h3>
-                      {assistant.petMatch ? <span className="assistant-match-badge">{assistant.petMatch}</span> : null}
-                    </div>
-                    <p className="assistant-meta">
-                      {assistant.city || 'Città non indicata'}
-                      <span aria-hidden="true">•</span>
-                      {assistant.experienceYears > 0
-                        ? `${assistant.experienceYears} ${assistant.experienceYears === 1 ? 'anno' : 'anni'} di esperienza`
-                        : 'Nuovo professionista'}
-                    </p>
-                    <div className="assistant-ranking-row">
+          <div className="assistant-results-list" data-columns={resultsPerRow}>
+            {results.slice(0, visibleResultCount).map((assistant) => {
+              const rates = assistant.matchedServices.map((service) => service.hourlyRate).filter((rate) => rate > 0)
+              const hourlyRate = rates.length > 0 ? Math.min(...rates) : null
+              const isWide = resultsPerRow === 1
+              const showCredentials = isWide && (assistant.titles.length > 0 || Boolean(assistant.petMatch))
+              const previewServices = assistant.matchedServices.slice(0, isWide ? 3 : 2)
+              const remainingServices = assistant.matchedServices.length - previewServices.length
+
+              return (
+                <article className="assistant-card" key={assistant.id}>
+                  <div className="assistant-identity">
+                    <AssistantPhoto assistant={assistant} />
+                    <div>
+                      <h3><a className="assistant-card-link" href={profileHref(assistant)} title="Apri profilo" onClick={saveSearch} onAuxClick={saveSearch}>{assistant.name}</a></h3>
+                      <p className="assistant-meta">
+                        {assistant.city || 'Città non indicata'}
+                        {assistant.distanceKm === null ? null : ` · ${assistant.distanceKm.toLocaleString('it-IT')} km`}
+                      </p>
                       <RankingStars score={assistant.rankingScore} stars={assistant.stars} />
-                      <span>{assistant.distanceKm === null ? 'Distanza non disponibile' : `${assistant.distanceKm.toLocaleString('it-IT')} km`}</span>
+                      {isWide && assistant.experienceYears > 0 ? (
+                        <p className="assistant-meta">
+                          {assistant.experienceYears} {assistant.experienceYears === 1 ? 'anno' : 'anni'} di esperienza
+                        </p>
+                      ) : null}
                     </div>
-                    {assistant.titles.length > 0 ? (
-                      <div className="assistant-title-list">
-                        {assistant.titles.map((title) => <span key={title}>{title}</span>)}
-                      </div>
-                    ) : null}
-                    {assistant.bio ? <p className="assistant-bio">{assistant.bio}</p> : null}
                   </div>
-                </div>
-
-                <div className="assistant-service-area">
-                  <div className="assistant-service-heading">
-                    <span>SERVIZI TROVATI</span>
-                    <strong>{assistant.availableDays} {assistant.availableDays === 1 ? 'giorno disponibile' : 'giorni disponibili'}</strong>
-                  </div>
-                  <div className="assistant-matched-services">
-                    {assistant.matchedServices.map((service) => (
-                      <section className={`assistant-service-card${service.requiresHomePhoto ? ' has-home-photo' : ''}`} key={service.id}>
-                        <div className="assistant-service-title">
-                          <div>
-                            <h4>{service.name}</h4>
-                            <p>{service.description}</p>
-                          </div>
-                          <div className="assistant-service-price">
-                            {service.hourlyRate > 0 ? (
-                              <strong>{formatPrice(service.totalCost)}<small>{formatDuration(durationMinutes)} · {formatPrice(service.hourlyRate)}/ora</small></strong>
-                            ) : null}
-                            {service.requiresHomePhoto ? (
-                              <button
-                                type="button"
-                                className="assistant-home-photo"
-                                title="Visualizza le foto dell'abitazione"
-                                aria-haspopup="dialog"
-                                onClick={() => setHouseGallerySelection({
-                                  assistantName: assistant.name,
-                                  photos: assistant.houseGallery,
-                                })}
-                              >
-                                <HomePhotoIcon />
-                                <small>CON FOTO</small>
-                              </button>
-                            ) : null}
-                          </div>
+                  {resultsPerRow < 3 ? (
+                    <div className="assistant-card-preview">
+                      {assistant.bio || showCredentials ? (
+                        <div>
+                          {assistant.bio ? <p className="assistant-bio">{assistant.bio}</p> : null}
+                          {showCredentials ? (
+                            <div className="assistant-title-list">
+                              {assistant.titles.slice(0, 3).map((title) => <span key={title}>{title}</span>)}
+                              {assistant.petMatch ? <span className="assistant-match-badge">{assistant.petMatch}</span> : null}
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="assistant-slots">
-                          {service.slots.map((slot, index) => (
-                            <button type="button" key={`${slot.slotId}-${slot.date}-${slot.startTime}-${index}`} onClick={() => openBooking(assistant, service, slot)}>
-                              {formatDate(slot.date)} <strong>{slot.startTime}–{slot.endTime}</strong>
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-
-                  {assistant.otherServices.length > 0 ? (
-                    <div className="assistant-other-services">
-                      <span>Altri servizi attivi</span>
-                      <div>
-                        {assistant.otherServices.map((service) => (
-                          <span key={service.id} title={service.features.join(', ')}>
-                            {service.name}{service.hourlyRate > 0 ? ` · ${formatPrice(service.hourlyRate)}` : ''}
-                          </span>
-                        ))}
+                      ) : null}
+                      <div className="assistant-card-preview-services">
+                        <strong>Servizi trovati</strong>
+                        <ul>
+                          {previewServices.map((service) => <li key={service.id}>{service.name}</li>)}
+                          {remainingServices > 0 ? <li>+{remainingServices} {remainingServices === 1 ? 'altro' : 'altri'}</li> : null}
+                        </ul>
+                        {assistant.firstAvailableDate ? (
+                          <p>Prima disponibilità <time dateTime={assistant.firstAvailableDate}>{formatDate(assistant.firstAvailableDate)}</time></p>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}
-                </div>
-              </article>
-            ))}
+                  <div className="assistant-card-footer">
+                    <p className="assistant-card-rate">
+                      {hourlyRate === null ? 'Tariffa non indicata' : <>Da <strong>{formatPrice(hourlyRate)}</strong> / ora</>}
+                    </p>
+                    <div className="assistant-card-icons">
+                      <span className={`assistant-card-favorite${assistant.favorite ? ' is-favorite' : ''}`} role="img" aria-label={assistant.favorite ? 'Nei preferiti' : 'Non nei preferiti'}>
+                        <FavoriteHeart />
+                      </span>
+                      <span className="assistant-card-profile-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2.75" y="5.5" width="18.5" height="13" rx="2.8" />
+                          <circle cx="8.7" cy="10.1" r="1.65" />
+                          <path d="M5.8 15.35a3 3 0 0 1 5.8 0M14.4 10.25h3.4m-3.4 3.5h3.4" />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
           </div>
           {visibleResultCount < results.length ? (
             <button
@@ -725,71 +851,10 @@ export default function PetAssistantSearchPage() {
             </button>
           ) : null}
         </section>
+        <PublicFooter />
       </section>
 
-      {toast ? <div className={`search-toast ${toast.tone}`}>{toast.message}</div> : null}
-      {houseGallerySelection ? (
-        <div className="booking-modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setHouseGallerySelection(null)
-        }}>
-          <section className="house-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="house-gallery-modal-title">
-            <button className="booking-modal-close" type="button" onClick={() => setHouseGallerySelection(null)} aria-label="Chiudi">×</button>
-            <span className="booking-modal-kicker">GALLERY FOTO CASA</span>
-            <h2 id="house-gallery-modal-title">L'abitazione di {houseGallerySelection.assistantName}</h2>
-            {houseGallerySelection.photos.length > 0 ? (
-              <div className="house-gallery-list">
-                {houseGallerySelection.photos.map((photo, index) => (
-                  <figure className="house-gallery-item" key={photo.id}>
-                    <img src={photo.photoUrl} alt={photo.caption || `Foto abitazione ${index + 1}`} />
-                    {photo.caption ? <figcaption>{photo.caption}</figcaption> : null}
-                  </figure>
-                ))}
-              </div>
-            ) : (
-              <p className="house-gallery-empty">Le foto dell'abitazione non sono ancora disponibili.</p>
-            )}
-          </section>
-        </div>
-      ) : null}
-      {bookingSelection ? (
-        <div className="booking-modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget && !isBooking) setBookingSelection(null)
-        }}>
-          <section className="booking-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
-            <button className="booking-modal-close" type="button" onClick={() => setBookingSelection(null)} aria-label="Chiudi">×</button>
-            {createdBookingNumber ? (
-              <div className="booking-success">
-                <span>PRENOTAZIONE REGISTRATA</span>
-                <h2 id="booking-modal-title">{createdBookingNumber}</h2>
-                <p>{bookingSelection.slot.confirmationMode === 'automatic' ? 'La prenotazione è già confermata.' : 'La richiesta è stata inviata al Pet Assistant.'}</p>
-                <button type="button" onClick={() => setBookingSelection(null)}>Chiudi</button>
-              </div>
-            ) : (
-              <>
-                <span className="booking-modal-kicker">CONFERMA PRENOTAZIONE</span>
-                <h2 id="booking-modal-title">{bookingSelection.service.name} con {bookingSelection.assistant.name}</h2>
-                <div className="booking-summary-grid">
-                  <div><span>Data</span><strong>{formatDate(bookingSelection.slot.date)}</strong></div>
-                  <div><span>Tariffa</span><strong>{formatPrice(bookingSelection.slot.hourlyRate)}/ora</strong></div>
-                  <div><span>Modalità</span><strong>{bookingSelection.slot.confirmationMode === 'automatic' ? 'Conferma automatica' : 'Richiede accettazione'}</strong></div>
-                </div>
-                <div className="booking-time-grid">
-                  <label><span>Inizio</span><select className="portal-combobox" value={bookingStartTime} onChange={(event) => {
-                    const nextStart = event.target.value
-                    setBookingStartTime(nextStart)
-                    if (timeToMinutes(bookingEndTime) <= timeToMinutes(nextStart)) setBookingEndTime(minutesToTime(timeToMinutes(nextStart) + 30))
-                  }}>{buildTimeOptions(bookingSelection.slot.startTime, minutesToTime(timeToMinutes(bookingSelection.slot.endTime) - 30)).map((value) => <option key={value}>{value}</option>)}</select></label>
-                  <label><span>Fine</span><select className="portal-combobox" value={bookingEndTime} onChange={(event) => setBookingEndTime(event.target.value)}>{buildTimeOptions(minutesToTime(timeToMinutes(bookingStartTime) + 30), bookingSelection.slot.endTime).map((value) => <option key={value}>{value}</option>)}</select></label>
-                  <div className="booking-time-total"><span>Totale</span><strong>{formatPrice(bookingTotal)}</strong></div>
-                </div>
-                <label className="booking-message"><span>Messaggio per il Pet Assistant</span><textarea value={bookingMessage} onChange={(event) => setBookingMessage(event.target.value)} maxLength={4096} placeholder="Aggiungi esigenze, abitudini o informazioni utili." /></label>
-                <p className="booking-policy">Prenotazione possibile con almeno {options.policies.bookingMinNoticeHours} ore di anticipo. {bookingSelection.slot.confirmationMode === 'manual' ? `Il Pet Assistant dovrà rispondere entro ${options.policies.manualResponseHours} ore dalla richiesta e comunque almeno ${options.policies.assistantCutoffHours} ore prima del servizio. ` : 'La prenotazione sarà confermata immediatamente; il Pet Assistant potrà annullare entro la scadenza prevista. '}Puoi annullare senza penalità fino a {options.policies.ownerFreeCancellationHours} ore prima; successivamente il ranking diminuisce di {options.policies.ownerLateCancellationPenalty} punti.</p>
-                <div className="booking-modal-actions"><button type="button" className="is-secondary" onClick={() => setBookingSelection(null)}>Annulla</button><button type="button" className="is-primary" onClick={() => void confirmBooking()} disabled={isBooking}>{isBooking ? 'Conferma in corso...' : 'Conferma prenotazione'}</button></div>
-              </>
-            )}
-          </section>
-        </div>
-      ) : null}
+      {toastNotice}
     </main>
   )
 }

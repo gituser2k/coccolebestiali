@@ -58,6 +58,7 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | --- | --- |
 | `booking_counter` | Progressivo annuale utilizzato dai numeri di prenotazione. |
 | `booking` | Prenotazione, partecipanti, pet, servizio, orario, costo e stato. |
+| `booking_feature_preference` | Opzioni del servizio richieste dal Pet Owner, con nome congelato al momento della prenotazione. |
 | `booking_reschedule` | Proposte strutturate di riprogrammazione. |
 | `booking_review` | Recensioni reciproche collegate a servizi conclusi. |
 | `booking_action_token` | Token monouso per le azioni sicure inviate via email. |
@@ -186,6 +187,7 @@ Gli snapshot riproducono lo stato corrente del portale in due blocchi indipenden
 
 - [`seed_system_configuration.sql`](./seed_system_configuration.sql) ripristina servizi, funzionalita, qualifiche, razze, tipi di pet, caratteristiche casa e policy;
 - [`seed_demo_data.sql`](./seed_demo_data.sql) ripristina 1 Pet Owner, Rex, 40 Pet Assistant e tutti i dati operativi collegati, inclusi profili, calendari, ranking e prenotazioni;
+- [`seed_demo_holistic.sql`](./seed_demo_holistic.sql) configura sei Pet Assistant demo come operatori olistici, con tariffe, funzioni e disponibilità nelle quattro settimane successive all'esecuzione. Si può rieseguire sul dataset esistente per aggiungere disponibilità, conservando i dati già presenti;
 - [`demo_storage`](./demo_storage) contiene le immagini pubbliche e i documenti privati referenziati dal dataset demo; `manifest.json` ne descrive i percorsi.
 
 Prima degli snapshot deve essere sempre applicato `migration.txt`. I pulsanti nella sezione **Dati demo** del CMS eseguono separatamente i due ripristini; **CREA DATI DEMO** ripulisce i dati operativi prima dell'importazione e ricopia automaticamente immagini e documenti nelle cartelle Laravel.
@@ -194,7 +196,7 @@ La stessa sezione offre tre operazioni distinte:
 
 - **SVUOTA TUTTO IL DATABASE** elimina tutti i record da tutte le tabelle, mantenendone la struttura;
 - **RIPRISTINA DATI DI SISTEMA** ricrea esclusivamente cataloghi, configurazione e policy;
-- **CREA DATI DEMO** ricrea account e dati operativi esattamente come nello snapshot corrente.
+- **CREA DATI DEMO** ricrea account e dati operativi dallo snapshot e aggiunge le disponibilità future degli operatori olistici.
 
 Il collaudo completo deve eseguire i tre comandi in questo ordine e confrontare tutte le tabelle con lo stato precedente allo svuotamento. Lo snapshot corrente non contiene prenotazioni pregresse.
 
@@ -221,6 +223,13 @@ DB_PORT=$(sed -n 's/^DB_PORT=//p' .env | head -1)
   --user="${DB_USER}" \
   --password="${DB_PASSWORD}" \
   "${DB_NAME}" < migration/seed_demo_data.sql
+
+/Applications/MAMP/Library/bin/mysql80/bin/mysql \
+  --host=127.0.0.1 \
+  --port="${DB_PORT}" \
+  --user="${DB_USER}" \
+  --password="${DB_PASSWORD}" \
+  "${DB_NAME}" < migration/seed_demo_holistic.sql
 ```
 
 Per rigenerare lo snapshot a partire dal database corrente:
@@ -290,3 +299,9 @@ Per verificare nello specifico l'aggiornamento dei dati anagrafici:
 SHOW COLUMNS FROM ownerpet
 WHERE Field IN ('sex', 'birth_date', 'microchip_code', 'general_notes');
 ```
+
+## Profilo pubblico e prenotazioni multiple
+
+Il blocco finale di `migration.txt` dedicato al profilo pubblico aggiunge le tabelle `operator_public_profile`, `pet_assistant_favorite` e `booking_batch`. La migrazione registra inoltre la prima risposta manuale in `booking.first_response_at` e il consenso alla pubblicazione del testo in `booking_review.publish_comment`.
+
+Il profilo usa la zona approssimativa finché il Pet Assistant non abilita il punto esatto in Dati operatore. Il consenso al punto esatto e quello alla pubblicazione del testo delle recensioni sono disattivati per i dati esistenti. Il ripristino demo svuota anche i preferiti, gli invii multipli e le impostazioni pubbliche aggiunti dopo l’ultimo snapshot.

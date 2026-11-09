@@ -1,3 +1,4 @@
+import { csrfHeaders } from '../auth/csrf'
 import { useEffect, useState } from 'react'
 
 export function BookingsIcon() {
@@ -24,6 +25,7 @@ type BookingData = {
   endTime: string
   totalPrice: number
   message: string
+  preferredFeatures: { id: number; name: string }[]
   status: BookingStatus
   confirmationMode: 'manual' | 'automatic'
   responseDeadline: number
@@ -76,6 +78,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
   const [reviewBooking, setReviewBooking] = useState<BookingData | null>(null)
   const [reviewSentiment, setReviewSentiment] = useState<'positive' | 'negative'>('positive')
   const [reviewComment, setReviewComment] = useState('')
+  const [publishReview, setPublishReview] = useState(false)
   const [rescheduleBooking, setRescheduleBooking] = useState<BookingData | null>(null)
   const [alternatives, setAlternatives] = useState<AlternativeSlot[]>([])
   const [selectedAlternative, setSelectedAlternative] = useState(0)
@@ -114,7 +117,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
       const response = await fetch(`/api/bookings/${bookingId}/${action}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeaders() },
         body: JSON.stringify(body),
       })
       const payload = await response.json()
@@ -169,7 +172,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
       setToast({ message: 'Scrivi una breve spiegazione della recensione.', error: true })
       return
     }
-    const ok = await runAction(reviewBooking.id, 'review', { sentiment: reviewSentiment, comment: reviewComment })
+    const ok = await runAction(reviewBooking.id, 'review', { sentiment: reviewSentiment, comment: reviewComment, publishComment: publishReview })
     if (ok) setReviewBooking(null)
   }
 
@@ -235,6 +238,12 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
                 <div><span>Quando</span><strong>{formatDate(booking.date)} · {booking.startTime}–{booking.endTime}</strong></div>
                 <div><span>Totale</span><strong>{formatPrice(booking.totalPrice)}</strong></div>
               </div>
+              {booking.preferredFeatures.length > 0 ? (
+                <div className="profile-booking-preferences">
+                  <strong>Preferenze richieste</strong>
+                  <div>{booking.preferredFeatures.map((feature) => <span key={feature.id}>{feature.name}</span>)}</div>
+                </div>
+              ) : null}
               {booking.message ? <p className="profile-booking-message">{booking.message}</p> : null}
               {booking.reschedule?.status === 'pending' ? <div className="profile-booking-proposal"><strong>Nuova proposta</strong><span>{formatDate(booking.reschedule.date)} · {booking.reschedule.startTime}–{booking.reschedule.endTime} · {formatPrice(booking.reschedule.totalPrice)}</span><p>{booking.reschedule.message}</p></div> : null}
               <div className="profile-booking-actions">
@@ -244,14 +253,17 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
                 {role === 'pet_owner' && booking.status === 'reschedule_pending' ? <button onClick={() => void runAction(booking.id, 'reschedule/respond', { accept: true })} disabled={busyId === booking.id}>Accetta proposta</button> : null}
                 {role === 'pet_owner' && booking.status === 'reschedule_pending' ? <button className="is-outline" onClick={() => void runAction(booking.id, 'reschedule/respond', { accept: false })} disabled={busyId === booking.id}>Rifiuta proposta</button> : null}
                 {actionable ? <button className="is-danger" onClick={() => setCancellationBooking(booking)} disabled={busyId === booking.id}>Annulla</button> : null}
-                {booking.canReview ? <button onClick={() => { setReviewBooking(booking); setReviewComment(''); setReviewSentiment('positive') }}>Lascia una recensione</button> : null}
+                {booking.canReview ? <button onClick={() => { setReviewBooking(booking); setReviewComment(''); setReviewSentiment('positive'); setPublishReview(false) }}>Lascia una recensione</button> : null}
               </div>
             </article>
           )
         })}
       </div>
 
-      {reviewBooking ? <div className="profile-booking-modal-backdrop"><section className="profile-booking-modal" role="dialog" aria-modal="true"><h2>Recensione {reviewBooking.bookingNumber}</h2><div className="profile-review-choice"><button className={reviewSentiment === 'positive' ? 'is-selected' : ''} onClick={() => setReviewSentiment('positive')}>Positiva +5</button><button className={reviewSentiment === 'negative' ? 'is-selected is-negative' : ''} onClick={() => setReviewSentiment('negative')}>Negativa -5</button></div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={4096} placeholder="Racconta la tua esperienza." /><div className="profile-booking-modal-actions"><button className="is-outline" onClick={() => setReviewBooking(null)}>Chiudi</button><button onClick={() => void submitReview()}>Invia recensione</button></div></section></div> : null}
+      {reviewBooking ? <div className="profile-booking-modal-backdrop"><section className="profile-booking-modal" role="dialog" aria-modal="true"><h2>Recensione {reviewBooking.bookingNumber}</h2><div className="profile-review-choice"><button className={reviewSentiment === 'positive' ? 'is-selected' : ''} onClick={() => setReviewSentiment('positive')}>Positiva +5</button><button className={reviewSentiment === 'negative' ? 'is-selected is-negative' : ''} onClick={() => setReviewSentiment('negative')}>Negativa -5</button></div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={4096} placeholder="Racconta la tua esperienza." />
+        {role === 'pet_owner' ? <label className="profile-public-location"><input type="checkbox" checked={publishReview} onChange={(event) => setPublishReview(event.target.checked)} />
+          <span>Acconsento a mostrare il testo di questa recensione sul profilo pubblico del Pet Assistant.</span></label> : null}
+        <div className="profile-booking-modal-actions"><button className="is-outline" onClick={() => setReviewBooking(null)}>Chiudi</button><button onClick={() => void submitReview()}>Invia recensione</button></div></section></div> : null}
 
       {rescheduleBooking ? <div className="profile-booking-modal-backdrop"><section className="profile-booking-modal" role="dialog" aria-modal="true"><h2>Proponi un nuovo orario</h2>{alternatives.length > 0 ? <select className="portal-combobox" value={selectedAlternative} onChange={(event) => setSelectedAlternative(Number(event.target.value))}>{alternatives.map((slot) => <option key={slot.slotId} value={slot.slotId}>{formatDate(slot.date)} · {slot.startTime}–{slot.endTime}</option>)}</select> : <p>Nessuna fascia alternativa disponibile.</p>}<textarea value={rescheduleMessage} onChange={(event) => setRescheduleMessage(event.target.value)} maxLength={4096} placeholder="Spiega la proposta al Pet Owner." /><div className="profile-booking-modal-actions"><button className="is-outline" onClick={() => setRescheduleBooking(null)}>Chiudi</button><button onClick={() => void submitReschedule()} disabled={alternatives.length === 0}>Invia proposta</button></div></section></div> : null}
       {cancellationBooking ? (

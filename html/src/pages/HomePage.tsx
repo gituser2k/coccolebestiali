@@ -1,3 +1,5 @@
+import PublicFooter from '../components/PublicFooter'
+import HomeActiveBookings from '../components/HomeActiveBookings'
 import '../css/home.css'
 import animaliImage from '../assets/animali.png'
 import logoImage from '../assets/logo.png'
@@ -13,6 +15,11 @@ import {
   promptGoogleIdentity,
 } from '../auth/googleOAuth'
 import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
+
+function publicProfileReturnPath(): string {
+  const path = new URLSearchParams(window.location.search).get('returnTo') ?? ''
+  return /^\/pet-assistants\/[1-9]\d*(?:\?[^\r\n]*)?$/.test(path) ? path : ''
+}
 
 const PORTAL_USER_STORAGE_KEY = 'cb_portal_user'
 const GENERIC_AUTH_ERROR_MESSAGE = 'Si è verificato un errore. Riprova più tardi.'
@@ -121,7 +128,6 @@ function isPasswordValid(password: string): boolean {
 }
 
 function HomePage() {
-  const currentYear = new Date().getFullYear()
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig>({
     googleClientId: '',
     appleClientId: '',
@@ -129,7 +135,7 @@ function HomePage() {
     appleMockAuth: false,
   })
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false)
-  const [isLoginPanelOpen, setIsLoginPanelOpen] = useState(false)
+  const [isLoginPanelOpen, setIsLoginPanelOpen] = useState(() => new URLSearchParams(window.location.search).get('login') === '1' && Boolean(publicProfileReturnPath()))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoginBusy, setIsLoginBusy] = useState(false)
   const [isCredentialLoginBusy, setIsCredentialLoginBusy] = useState(false)
@@ -413,7 +419,9 @@ function HomePage() {
       }
 
       setLoginData({ email: '', password: '' })
-      showToast('Login completato.', 'success')
+      const returnPath = publicProfileReturnPath()
+      if (returnPath) window.location.assign(returnPath)
+      else showToast('Login completato.', 'success')
     } catch (error) {
       const message = error instanceof DOMException && error.name === 'AbortError'
         ? 'Login non completato. Riprova.'
@@ -503,7 +511,9 @@ function HomePage() {
       setIsTemporaryPasswordModalOpen(false)
       setTemporaryNewPassword('')
       setTemporaryConfirmPassword('')
-      showToast('Password aggiornata. Accesso completato.', 'success')
+      const returnPath = publicProfileReturnPath()
+      if (returnPath) window.location.assign(returnPath)
+      else showToast('Password aggiornata. Accesso completato.', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Cambio password non completato.'
       showToast(message, 'error')
@@ -859,6 +869,8 @@ function HomePage() {
               </div>
               {isLoginPanelOpen ? (
                 renderCredentialLogin()
+              ) : currentUser?.role === 'pet_assistant' ? (
+                <HomeActiveBookings key={currentUser.id} />
               ) : (
                 <section className="hero-cta" aria-label="Call to action principale">
                   <p className="hero-kicker">SERVIZI PROFESSIONALI PER ANIMALI DOMESTICI</p>
@@ -873,18 +885,7 @@ function HomePage() {
                   </div>
                 </section>
               )}
-              <footer className="hero-legal" aria-label="Informazioni legali">
-                <small>© {currentYear} Coccole Bestiali. Tutti i diritti riservati.</small>
-                <a
-                  href="https://www.iubenda.com"
-                  className="hero-privacy-link"
-                  aria-label="Privacy Policy - iubenda"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Privacy Policy
-                </a>
-              </footer>
+              <PublicFooter className="hero-legal" />
             </div>
           </div>
         </div>

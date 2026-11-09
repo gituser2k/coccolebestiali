@@ -352,18 +352,18 @@ PREPARE ownerpetgallery_add_profile_stmt FROM @ownerpetgallery_add_is_profile;
 EXECUTE ownerpetgallery_add_profile_stmt;
 DEALLOCATE PREPARE ownerpetgallery_add_profile_stmt;
 
+DROP TEMPORARY TABLE IF EXISTS `ownerpetgallery_profile_seed`;
+CREATE TEMPORARY TABLE `ownerpetgallery_profile_seed` AS
+SELECT `pet_id`, MIN(`id`) AS `profile_photo_id`
+FROM `ownerpetgallery`
+GROUP BY `pet_id`
+HAVING SUM(`is_profile` = 1) = 0;
+
 UPDATE `ownerpetgallery` AS gallery
-INNER JOIN (
-  SELECT `pet_id`, MIN(`id`) AS `profile_photo_id`
-  FROM `ownerpetgallery`
-  GROUP BY `pet_id`
-) AS first_photo ON first_photo.profile_photo_id = gallery.id
-SET gallery.is_profile = 1
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM `ownerpetgallery` AS selected_photo
-  WHERE selected_photo.pet_id = gallery.pet_id AND selected_photo.is_profile = 1
-);
+INNER JOIN `ownerpetgallery_profile_seed` AS first_photo ON first_photo.profile_photo_id = gallery.id
+SET gallery.is_profile = 1;
+
+DROP TEMPORARY TABLE IF EXISTS `ownerpetgallery_profile_seed`;
 
 SET @ownerpetgallery_drop_caption = IF(
   EXISTS(
@@ -583,6 +583,18 @@ CREATE TABLE IF NOT EXISTS `booking` (
   KEY `idx_booking_schedule` (`assistant_user_id`, `booking_date`, `start_time`, `end_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `booking_feature_preference` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `feature_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `feature_name_snapshot` varchar(255) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_booking_feature_preference` (`booking_id`, `feature_id`),
+  KEY `idx_booking_feature_preference_booking` (`booking_id`),
+  KEY `idx_booking_feature_preference_feature` (`feature_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `booking_reschedule` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
@@ -766,6 +778,18 @@ INSERT IGNORE INTO `servicefeaturedata` (`service_id`, `feature_id`, `created_at
   (5, 6, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (5, 7, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
 
+-- Catalogo Operatore olistico
+INSERT INTO `service` (`name`, `description`, `created_at`, `updated_at`)
+SELECT 'Operatore olistico', 'Incontri dedicati al benessere del pet con un operatore olistico.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
+WHERE NOT EXISTS (SELECT 1 FROM `service` WHERE `name` = 'Operatore olistico');
+
+INSERT IGNORE INTO `servicefeaturedata` (`service_id`, `feature_id`, `created_at`, `updated_at`)
+SELECT `service`.`id`, `servicefeature`.`id`, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
+FROM `service`
+CROSS JOIN `servicefeature`
+WHERE `service`.`name` = 'Operatore olistico'
+  AND `servicefeature`.`id` IN (5, 6, 7);
+
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
   (1, 'Addestratore', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (2, 'Educatore', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
@@ -821,3 +845,69 @@ ON DUPLICATE KEY UPDATE
 -- 2. migration/seed_demo_data.sql per i 40 Pet Assistant e il Pet Owner demo.
 -- Le immagini e i documenti del dataset sono conservati in migration/demo_storage
 -- e vengono ripristinati automaticamente dal pulsante CREA DATI DEMO del CMS.
+
+-- BEGIN public Pet Assistant profile
+CREATE TABLE IF NOT EXISTS `operator_public_profile` (
+  `user_id` int unsigned NOT NULL,
+  `headline` varchar(120) NOT NULL DEFAULT '',
+  `typical_day` varchar(2000) NOT NULL DEFAULT '',
+  `safety_and_home` varchar(2000) NOT NULL DEFAULT '',
+  `owner_instructions` varchar(2000) NOT NULL DEFAULT '',
+  `publish_exact_location` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `pet_assistant_favorite` (
+  `owner_user_id` int unsigned NOT NULL,
+  `assistant_user_id` int unsigned NOT NULL,
+  `created_at` int NOT NULL,
+  PRIMARY KEY (`owner_user_id`, `assistant_user_id`),
+  KEY `idx_favorite_assistant` (`assistant_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `booking_batch` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `owner_user_id` int unsigned NOT NULL,
+  `request_key` char(36) NOT NULL,
+  `request_hash` char(64) NOT NULL,
+  `created_at` int NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_booking_batch_request` (`owner_user_id`, `request_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @cb_public_profile_sql = IF(EXISTS(
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking' AND COLUMN_NAME = 'batch_id'
+), 'SELECT 1', 'ALTER TABLE booking ADD COLUMN batch_id int unsigned NULL, ADD INDEX idx_booking_batch (batch_id)');
+PREPARE cb_public_profile_stmt FROM @cb_public_profile_sql;
+EXECUTE cb_public_profile_stmt;
+DEALLOCATE PREPARE cb_public_profile_stmt;
+
+SET @cb_public_profile_sql = IF(EXISTS(
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking' AND COLUMN_NAME = 'first_response_at'
+), 'SELECT 1', 'ALTER TABLE booking ADD COLUMN first_response_at int unsigned NULL, ADD INDEX idx_booking_response (assistant_user_id, confirmation_mode, created_at)');
+PREPARE cb_public_profile_stmt FROM @cb_public_profile_sql;
+EXECUTE cb_public_profile_stmt;
+DEALLOCATE PREPARE cb_public_profile_stmt;
+
+SET @cb_public_profile_sql = IF(EXISTS(
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND COLUMN_NAME = 'publish_comment'
+), 'SELECT 1', 'ALTER TABLE booking_review ADD COLUMN publish_comment tinyint(1) NOT NULL DEFAULT 0');
+PREPARE cb_public_profile_stmt FROM @cb_public_profile_sql;
+EXECUTE cb_public_profile_stmt;
+DEALLOCATE PREPARE cb_public_profile_stmt;
+
+UPDATE booking AS b
+LEFT JOIN (
+  SELECT r.booking_id, MIN(r.created_at) AS first_proposal
+  FROM booking_reschedule AS r
+  JOIN booking AS original ON original.id = r.booking_id AND original.assistant_user_id = r.proposed_by_user_id
+  WHERE r.previous_status = 'pending' AND r.created_at >= original.created_at
+  GROUP BY r.booking_id
+) AS p ON p.booking_id = b.id
+SET b.first_response_at = NULLIF(LEAST(
+  COALESCE(p.first_proposal, 4294967295),
+  IF(b.accepted_at > 0 AND b.accepted_at >= b.created_at, b.accepted_at, 4294967295),
+  IF(b.status = 'declined' AND b.cancelled_by_user_id = b.assistant_user_id AND b.cancelled_at >= b.created_at AND b.cancelled_at > 0, b.cancelled_at, 4294967295)
+), 4294967295)
+WHERE b.confirmation_mode = 'manual' AND b.first_response_at IS NULL;
+-- END public Pet Assistant profile

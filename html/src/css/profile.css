@@ -208,6 +208,32 @@
   line-height: 1.45;
 }
 
+.profile-booking-preferences {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-left: 4px solid #1f5fa7;
+  border-radius: 0 0.85rem 0.85rem 0;
+  background: rgb(31 95 167 / 8%);
+  color: #36516a;
+}
+
+.profile-booking-preferences > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.profile-booking-preferences span {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgb(31 95 167 / 20%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 68%);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .profile-booking-proposal {
   display: grid;
   gap: 0.25rem;
@@ -4045,4 +4071,54 @@
   .profile-modal-button {
     width: 100%;
   }
+}
+
+.profile-public-location {
+  display: flex;
+  align-items: start;
+  gap: 0.55rem;
+  margin-block: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.profile-public-location input {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  accent-color: #2f7a4a;
+}
+
+.profile-favorite-list {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-favorite-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem;
+  border: 1px solid #dce8ef;
+  border-radius: 0.8rem;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.profile-favorite-list p {
+  margin: 0;
+}
+
+.profile-favorite-list img,
+.profile-favorite-initial {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e4f2e9;
+  color: #2f7a4a;
+  font-weight: 900;
 }

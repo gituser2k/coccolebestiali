@@ -1,3 +1,4 @@
+import PetAssistantFavorites from '../components/PetAssistantFavorites'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import L from 'leaflet'
@@ -104,7 +105,10 @@ function isPasswordValid(password: string): boolean {
 }
 
 export default function PetOwnerProfilePage() {
-  const [activeMenu, setActiveMenu] = useState<'personal' | 'pets' | 'bookings'>('personal')
+  const [activeMenu, setActiveMenu] = useState<'personal' | 'pets' | 'bookings' | 'favorites'>(() => {
+    const section = new URLSearchParams(window.location.search).get('section')
+    return section === 'pets' || section === 'bookings' || section === 'favorites' ? section : 'personal'
+  })
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [isLoading, setIsLoading] = useState(true)
@@ -258,9 +262,10 @@ export default function PetOwnerProfilePage() {
     leafletMapRef.current = map
     locationMarkerRef.current = marker
 
-    window.setTimeout(() => map.invalidateSize(), 100)
+    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 100)
 
     return () => {
+      window.clearTimeout(resizeTimer)
       map.remove()
       leafletMapRef.current = null
       locationMarkerRef.current = null
@@ -747,6 +752,14 @@ export default function PetOwnerProfilePage() {
                 <span className="profile-menu-copy"><strong>LE MIE PRENOTAZIONI</strong><small>Richieste, conferme e recensioni</small></span>
               </button>
               <button
+                className={`profile-menu-item is-operator ${activeMenu === 'favorites' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveMenu('favorites')}
+              >
+                <span className="profile-menu-badge" aria-hidden="true">♥</span>
+                <span className="profile-menu-copy"><strong>PREFERITI</strong><small>Pet Assistant salvati</small></span>
+              </button>
+              <button
                 className="profile-menu-item is-remove-account"
                 type="button"
                 onClick={() => setIsRemoveAccountModalOpen(true)}
@@ -1002,6 +1015,8 @@ export default function PetOwnerProfilePage() {
                     onProfilePhotoChange={handlePetProfilePhotoChange}
                   />
                 </>
+              ) : activeMenu === 'favorites' ? (
+                <PetAssistantFavorites />
               ) : (
                 <BookingsSection role="pet_owner" />
               )}

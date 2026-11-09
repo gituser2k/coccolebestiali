@@ -6,6 +6,8 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PetAssistantSearchController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicPetAssistantController;
+use App\Models\PublicPetAssistant;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
@@ -68,6 +70,25 @@ Route::get('/search', function () {
     }
 
     return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+});
+
+Route::get('/pet-assistants/{assistantId}', function (int $assistantId) {
+    abort_unless((new PublicPetAssistant)->exists($assistantId), 404);
+    $file = base_path('../html/dist/src/html/pet-assistant-detail.html');
+    abort_unless(File::exists($file), 503, 'Profilo pubblico non compilato.');
+
+    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+})->whereNumber('assistantId');
+
+Route::prefix('api')->group(function () {
+    Route::get('/pet-assistants/{assistantId}', [PublicPetAssistantController::class, 'show'])->whereNumber('assistantId');
+    Route::get('/pet-assistants/{assistantId}/availability', [PublicPetAssistantController::class, 'availability'])->whereNumber('assistantId');
+    Route::get('/pet-assistant-favorites', [PublicPetAssistantController::class, 'favorites']);
+    Route::put('/pet-assistants/{assistantId}/favorite', [PublicPetAssistantController::class, 'setFavorite'])->whereNumber('assistantId');
+    Route::get('/bookings/active-for-assistant', [BookingController::class, 'activeForAssistant']);
+    Route::post('/bookings/batch', [BookingController::class, 'storeBatch']);
+    Route::post('/bookings/{bookingId}/review', [BookingController::class, 'review'])->whereNumber('bookingId');
+    Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
 });
 
 Route::get('/asset/{path}', function (string $path) {
@@ -167,7 +188,6 @@ Route::middleware('api')
         Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
         Route::post('/profile/petassistant/password', [ProfileController::class, 'changePetAssistantPassword']);
         Route::get('/profile/petassistant/operator', [ProfileController::class, 'getPetAssistantOperatorProfile']);
-        Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
         Route::get('/profile/petassistant/calendar', [ProfileController::class, 'getPetAssistantCalendarMonth']);
         Route::get('/profile/petassistant/calendar/day', [ProfileController::class, 'getPetAssistantCalendarDay']);
         Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
@@ -183,7 +203,6 @@ Route::middleware('api')
         Route::get('/bookings/{bookingId}/alternatives', [BookingController::class, 'alternatives'])->whereNumber('bookingId');
         Route::post('/bookings/{bookingId}/reschedule', [BookingController::class, 'proposeReschedule'])->whereNumber('bookingId');
         Route::post('/bookings/{bookingId}/reschedule/respond', [BookingController::class, 'respondReschedule'])->whereNumber('bookingId');
-        Route::post('/bookings/{bookingId}/review', [BookingController::class, 'review'])->whereNumber('bookingId');
         Route::get('/bookings/action/{token}', [BookingController::class, 'showEmailAction'])->where('token', '[a-f0-9]{64}');
         Route::post('/bookings/action/{token}', [BookingController::class, 'consumeEmailAction'])->where('token', '[a-f0-9]{64}');
 

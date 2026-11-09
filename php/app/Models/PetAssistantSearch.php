@@ -11,6 +11,12 @@ class PetAssistantSearch
 {
     public function getOptions(int $userId = 0): array
     {
+        $featuresByService = DB::table('servicefeaturedata as data')
+            ->join('servicefeature as feature', 'feature.id', '=', 'data.feature_id')
+            ->orderBy('feature.name')
+            ->get(['data.service_id', 'feature.id', 'feature.name'])
+            ->groupBy('service_id');
+
         $services = DB::table('service')
             ->select(['id', 'name', 'description'])
             ->orderBy('name')
@@ -19,6 +25,10 @@ class PetAssistantSearch
                 'id' => (int) $service->id,
                 'name' => (string) $service->name,
                 'description' => (string) $service->description,
+                'features' => collect($featuresByService->get($service->id, []))->map(fn ($feature) => [
+                    'id' => (int) $feature->id,
+                    'name' => (string) $feature->name,
+                ])->values()->all(),
             ])
             ->all();
 
@@ -57,9 +67,16 @@ class PetAssistantSearch
         ];
     }
 
-    public function search(string $startDate, string $endDate, array $serviceIds, int $petId = 0, int $userId = 0, int $durationMinutes = 60, string $sortBy = 'ranking', bool $onlyWithPhoto = false): array
+    public function search(string $startDate, string $endDate, array $serviceIds, int $petId = 0, int $userId = 0, int $durationMinutes = 60, string $sortBy = 'ranking', bool $onlyWithPhoto = false, array $optionFilters = [], bool $onlyFavorites = false, bool $showFavoriteStatus = false): array
     {
+        $canReadFavorites = ($onlyFavorites || $showFavoriteStatus)
+            && DB::table('users')->where('id', $userId)->where('role', 'pet_owner')->exists();
+        if ($onlyFavorites && ! $canReadFavorites) {
+            throw new RuntimeException('FAVORITES_OWNER_REQUIRED');
+        }
+
         $serviceIds = array_values(array_unique(array_filter(array_map('intval', $serviceIds), fn ($id) => $id > 0)));
+        $requiredFeatures = $this->normalizeOptionFilters($optionFilters, $serviceIds);
 
         $pet = $petId > 0 ? $this->getOwnedPet($userId, $petId) : null;
 
@@ -71,6 +88,7 @@ class PetAssistantSearch
             ->join('operatordata as operator', 'operator.user_id', '=', 'user.id')
             ->join('service', 'service.id', '=', 'slot_service.service_id')
             ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'user.id')
+            ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'user.id')
             ->join('operatorservicedata as operator_service', function ($join) {
                 $join->on('operator_service.user_id', '=', 'user.id')
                     ->on('operator_service.service_id', '=', 'service.id');
@@ -82,6 +100,7 @@ class PetAssistantSearch
             ->whereBetween('day.date', [$startDate, $endDate])
             ->whereIn('slot_service.service_id', $serviceIds)
             ->when($onlyWithPhoto, fn ($query) => $query->whereRaw("TRIM(COALESCE(personal.photo, '')) <> ''"))
+            ->when($onlyFavorites, fn ($query) => $query->whereIn('user.id', (new PublicPetAssistant)->favorites($userId)->select('assistant_user_id')))
             ->select([
                 'user.id as user_id',
                 'user.name as alias',
@@ -90,6 +109,7 @@ class PetAssistantSearch
                 'personal.city',
                 'personal.location_lat',
                 'personal.location_lng',
+                'public_profile.publish_exact_location',
                 'operator.operator_type',
                 'operator.business_name',
                 'operator.bio',
@@ -112,6 +132,8 @@ class PetAssistantSearch
             ->orderBy('day.date')
             ->orderBy('slot.start_time')
             ->get();
+
+        $availability = $this->filterAvailabilityByOptions($availability, $requiredFeatures);
 
         if ($availability->isEmpty()) {
             return [
@@ -142,6 +164,14 @@ class PetAssistantSearch
             ];
         }
 
+        $favoriteIds = [];
+        if ($onlyFavorites) {
+            $favoriteIds = array_fill_keys($candidateIds, true);
+        } elseif ($canReadFavorites) {
+            $favoriteIds = (new PublicPetAssistant)->favorites($userId)->whereIn('assistant_user_id', $candidateIds)
+                ->pluck('assistant_user_id')->flip()->all();
+        }
+
         $titles = DB::table('operatortitledata as data')
             ->join('operatortitle as title', 'title.id', '=', 'data.title_id')
             ->whereIn('data.user_id', $candidateIds)
@@ -164,10 +194,11 @@ class PetAssistantSearch
             ->groupBy('user_id');
 
         $ownerLocation = $this->getOwnerLocation($userId);
-        $results = $rowsByAssistant->map(function ($rows, $assistantId) use ($compatibility, $titles, $houseGalleries, $allServices, $durationMinutes, $ownerLocation) {
+        $results = $rowsByAssistant->map(function ($rows, $assistantId) use ($compatibility, $titles, $houseGalleries, $allServices, $durationMinutes, $ownerLocation, $requiredFeatures, $favoriteIds) {
             $first = $rows->first();
-            $matchedServices = $rows->groupBy('service_id')->map(function ($serviceRows) use ($durationMinutes) {
+            $matchedServices = $rows->groupBy('service_id')->map(function ($serviceRows) use ($durationMinutes, $allServices, $assistantId, $requiredFeatures) {
                 $service = $serviceRows->first();
+                $serviceDetails = collect($allServices->get((int) $assistantId, []))->firstWhere('id', (int) $service->service_id);
                 $rates = $serviceRows->map(function ($row) {
                     $slotRate = (float) $row->slot_hour_price;
 
@@ -178,6 +209,8 @@ class PetAssistantSearch
                     'id' => (int) $service->service_id,
                     'name' => (string) $service->service_name,
                     'description' => (string) $service->service_description,
+                    'features' => $serviceDetails['features'] ?? [],
+                    'requestedFeatureIds' => $requiredFeatures[(int) $service->service_id] ?? [],
                     'requiresHomePhoto' => (bool) $service->service_requires_home_photo
                         && (bool) $service->operator_home_photo_enabled,
                     'hourlyRate' => $rates->isEmpty() ? 0 : round((float) $rates->min(), 2),
@@ -192,7 +225,7 @@ class PetAssistantSearch
                         'confirmationMode' => (string) ($row->booking_confirmation_mode ?? 'manual'),
                     ])->values()->all(),
                 ];
-            })->values()->all();
+            })->sortByDesc(fn ($service) => count($service['requestedFeatureIds']))->values()->all();
 
             $matchedServiceIds = collect($matchedServices)->pluck('id')->all();
             $otherServices = collect($allServices->get((int) $assistantId, []))
@@ -204,8 +237,11 @@ class PetAssistantSearch
                 $displayName = (string) $first->alias;
             }
 
+            $point = self::publicPoint((float) $first->location_lat, (float) $first->location_lng, (bool) $first->publish_exact_location);
+
             return [
                 'id' => (int) $assistantId,
+                'favorite' => isset($favoriteIds[$assistantId]),
                 'name' => $displayName,
                 'alias' => (string) $first->alias,
                 'photoUrl' => $this->normalizePhotoUrl((string) ($first->photo ?: $first->avatar)),
@@ -214,7 +250,7 @@ class PetAssistantSearch
                 'experienceYears' => (int) $first->experience_years,
                 'rankingScore' => (int) $first->ranking_score,
                 'stars' => round(((int) $first->ranking_score / 20) * 2) / 2,
-                'distanceKm' => $this->distanceKm($ownerLocation, (float) $first->location_lat, (float) $first->location_lng),
+                'distanceKm' => $this->distanceToPoint($ownerLocation, $point),
                 'titles' => collect($titles->get((int) $assistantId, []))->pluck('name')->values()->all(),
                 'houseGallery' => collect($houseGalleries->get((int) $assistantId, []))->map(fn ($photo) => [
                     'id' => (int) $photo->id,
@@ -238,6 +274,112 @@ class PetAssistantSearch
         ];
     }
 
+    private function normalizeOptionFilters(array $optionFilters, array $serviceIds): array
+    {
+        $selectedServices = array_flip($serviceIds);
+        $allowedFeatures = DB::table('servicefeaturedata')
+            ->whereIn('service_id', $serviceIds)
+            ->get(['service_id', 'feature_id'])
+            ->groupBy('service_id')
+            ->map(fn ($rows) => $rows->pluck('feature_id')->map(fn ($id) => (int) $id)->all());
+        $normalized = [];
+
+        foreach ($optionFilters as $filter) {
+            $serviceId = (int) ($filter['serviceId'] ?? 0);
+            if ($serviceId <= 0 || ! isset($selectedServices[$serviceId])) {
+                continue;
+            }
+
+            $featureIds = array_values(array_unique(array_filter(
+                array_map('intval', $filter['featureIds'] ?? []),
+                fn ($featureId) => $featureId > 0
+            )));
+            $featureIds = array_values(array_intersect($featureIds, $allowedFeatures->get($serviceId, [])));
+            if ($featureIds !== []) {
+                $normalized[$serviceId] = $featureIds;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function filterAvailabilityByOptions($availability, array $requiredFeatures)
+    {
+        if ($availability->isEmpty() || $requiredFeatures === []) {
+            return $availability;
+        }
+
+        $assistantIds = $availability->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $featureRows = DB::table('operatorservicefeaturedata')
+            ->whereIn('user_id', $assistantIds)
+            ->whereIn('service_id', array_keys($requiredFeatures))
+            ->get(['user_id', 'service_id', 'feature_id'])
+            ->groupBy(fn ($row) => $row->user_id.'|'.$row->service_id);
+
+        $matchingAssistantsByService = [];
+        foreach ($requiredFeatures as $serviceId => $featureIds) {
+            $availableAssistantIds = $availability
+                ->where('service_id', $serviceId)
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->all();
+            $matchingAssistantsByService[$serviceId] = collect($availableAssistantIds)->filter(function ($assistantId) use ($featureRows, $serviceId, $featureIds) {
+                $enabledFeatureIds = collect($featureRows->get($assistantId.'|'.$serviceId, []))
+                    ->pluck('feature_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+
+                return array_diff($featureIds, $enabledFeatureIds) === [];
+            })->all();
+        }
+
+        $matchingAssistantIds = collect($assistantIds)->filter(function ($assistantId) use ($matchingAssistantsByService) {
+            foreach ($matchingAssistantsByService as $serviceAssistantIds) {
+                if (! in_array($assistantId, $serviceAssistantIds, true)) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->all();
+
+        return $availability->filter(function ($row) use ($requiredFeatures, $matchingAssistantIds, $matchingAssistantsByService) {
+            $assistantId = (int) $row->user_id;
+            $serviceId = (int) $row->service_id;
+            if (! in_array($assistantId, $matchingAssistantIds, true)) {
+                return false;
+            }
+
+            return ! isset($requiredFeatures[$serviceId])
+                || in_array($assistantId, $matchingAssistantsByService[$serviceId], true);
+        })->values();
+    }
+
+    public function assistantAvailability(int $assistantId, string $startDate, string $endDate): array
+    {
+        $rows = DB::table('calendar_day as day')
+            ->join('calendar_day_slot as slot', 'slot.calendar_day_id', '=', 'day.id')
+            ->join('calendar_day_slot_service as offered', 'offered.slot_id', '=', 'slot.id')
+            ->join('operatorservicedata as service', function ($join) {
+                $join->on('service.user_id', '=', 'day.user_id')->on('service.service_id', '=', 'offered.service_id');
+            })
+            ->where('day.user_id', $assistantId)
+            ->whereBetween('day.date', [$startDate, $endDate])
+            ->where('day.enabled', 1)->where('slot.enabled', 1)->where('offered.enabled', 1)
+            ->orderBy('day.date')->orderBy('slot.start_time')->orderBy('slot.id')
+            ->get(['day.user_id', 'day.date', 'slot.id as slot_id', 'slot.start_time', 'slot.end_time', 'offered.service_id', 'offered.hour_price']);
+
+        return $this->expandAvailableIntervals($rows, $startDate, $endDate, 30)->map(fn ($row) => [
+            'serviceId' => (int) $row->service_id,
+            'slotId' => (int) $row->slot_id,
+            'date' => (string) $row->date,
+            'startTime' => (string) $row->free_start_time,
+            'endTime' => (string) $row->free_end_time,
+            'hourlyRateCents' => (int) round((float) $row->hour_price * 100),
+        ])->all();
+    }
+
     private function expandAvailableIntervals($availability, string $startDate, string $endDate, int $durationMinutes)
     {
         $assistantIds = $availability->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -245,6 +387,8 @@ class PetAssistantSearch
             ->whereIn('assistant_user_id', $assistantIds)
             ->whereBetween('booking_date', [$startDate, $endDate])
             ->whereIn('status', ['pending', 'confirmed', 'reschedule_pending'])
+            ->where(fn ($query) => $query->where('status', '<>', 'pending')
+                ->orWhere('response_deadline', '>', time())->orWhere('response_deadline', 0))
             ->get(['assistant_user_id', 'booking_date', 'start_time', 'end_time'])
             ->groupBy(fn ($row) => $row->assistant_user_id.'|'.$row->booking_date);
         $proposals = DB::table('booking_reschedule as proposal')
@@ -307,7 +451,7 @@ class PetAssistantSearch
         return $result;
     }
 
-    private function getOwnerLocation(int $userId): ?array
+    public function getOwnerLocation(int $userId): ?array
     {
         if ($userId <= 0) {
             return null;
@@ -320,11 +464,25 @@ class PetAssistantSearch
         return [(float) $row->location_lat, (float) $row->location_lng];
     }
 
-    private function distanceKm(?array $origin, float $latitude, float $longitude): ?float
+    public static function publicPoint(float $latitude, float $longitude, bool $exact): ?array
     {
-        if ($origin === null || $latitude === 0.0 || $longitude === 0.0) {
+        if ($latitude === 0.0 || $longitude === 0.0 || abs($latitude) > 90 || abs($longitude) > 180) {
             return null;
         }
+
+        return [
+            'latitude' => $exact ? $latitude : round($latitude, 2),
+            'longitude' => $exact ? $longitude : round($longitude, 2),
+            'exact' => $exact,
+        ];
+    }
+
+    public function distanceToPoint(?array $origin, ?array $point): ?float
+    {
+        if ($origin === null || $point === null) {
+            return null;
+        }
+        ['latitude' => $latitude, 'longitude' => $longitude] = $point;
         [$originLat, $originLng] = $origin;
         $latDelta = deg2rad($latitude - $originLat);
         $lngDelta = deg2rad($longitude - $originLng);
@@ -339,10 +497,11 @@ class PetAssistantSearch
             $leftValue = $left['distanceKm'] ?? PHP_FLOAT_MAX;
             $rightValue = $right['distanceKm'] ?? PHP_FLOAT_MAX;
             $comparison = $leftValue <=> $rightValue;
-        } elseif ($sortBy === 'cost') {
-            $leftValue = $left['minimumTotalCost'] > 0 ? $left['minimumTotalCost'] : PHP_FLOAT_MAX;
-            $rightValue = $right['minimumTotalCost'] > 0 ? $right['minimumTotalCost'] : PHP_FLOAT_MAX;
-            $comparison = $leftValue <=> $rightValue;
+        } elseif ($sortBy === 'cost' || $sortBy === 'cost_desc') {
+            $fallback = $sortBy === 'cost' ? PHP_FLOAT_MAX : -PHP_FLOAT_MAX;
+            $leftValue = $left['minimumTotalCost'] > 0 ? $left['minimumTotalCost'] : $fallback;
+            $rightValue = $right['minimumTotalCost'] > 0 ? $right['minimumTotalCost'] : $fallback;
+            $comparison = $sortBy === 'cost' ? $leftValue <=> $rightValue : $rightValue <=> $leftValue;
         } else {
             $comparison = $right['rankingScore'] <=> $left['rankingScore'];
         }
@@ -432,26 +591,30 @@ class PetAssistantSearch
         return $result;
     }
 
-    private function getAssistantServices(array $assistantIds)
+    public function getAssistantServices(array $assistantIds)
     {
         $features = DB::table('operatorservicefeaturedata as data')
             ->join('servicefeature as feature', 'feature.id', '=', 'data.feature_id')
             ->whereIn('data.user_id', $assistantIds)
             ->orderBy('feature.name')
-            ->get(['data.user_id', 'data.service_id', 'feature.name'])
+            ->get(['data.user_id', 'data.service_id', 'feature.id', 'feature.name'])
             ->groupBy(fn ($row) => $row->user_id.'-'.$row->service_id);
 
         return DB::table('operatorservicedata as data')
             ->join('service', 'service.id', '=', 'data.service_id')
             ->whereIn('data.user_id', $assistantIds)
             ->orderBy('service.name')
-            ->get(['data.user_id', 'service.id', 'service.name', 'data.hour_price'])
+            ->get(['data.user_id', 'service.id', 'service.name', 'service.description', 'data.hour_price'])
             ->groupBy('user_id')
             ->map(fn ($rows) => $rows->map(fn ($row) => [
                 'id' => (int) $row->id,
                 'name' => (string) $row->name,
+                'description' => (string) $row->description,
                 'hourlyRate' => round((float) $row->hour_price, 2),
-                'features' => collect($features->get($row->user_id.'-'.$row->id, []))->pluck('name')->values()->all(),
+                'features' => collect($features->get($row->user_id.'-'.$row->id, []))->map(fn ($feature) => [
+                    'id' => (int) $feature->id,
+                    'name' => (string) $feature->name,
+                ])->values()->all(),
             ])->values()->all());
     }
 
@@ -464,7 +627,7 @@ class PetAssistantSearch
         ];
     }
 
-    private function normalizePhotoUrl(string $value): string
+    public function normalizePhotoUrl(string $value): string
     {
         $value = trim($value);
         if ($value === '') {

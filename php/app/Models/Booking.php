@@ -4,6 +4,7 @@ namespace App\Models;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
@@ -31,9 +32,13 @@ class Booking
             ->map(fn ($id) => (int) $id)
             ->all();
         if ($expiredIds !== []) {
-            DB::table('booking')->whereIn('id', $expiredIds)->update(['status' => 'expired', 'updated_at' => $now]);
             $penalty = PortalPolicy::value('assistant_late_action_penalty');
             foreach ($expiredIds as $bookingId) {
+                $expired = DB::table('booking')->where('id', $bookingId)->where('status', 'pending')
+                    ->where('response_deadline', '<=', $now)->update(['status' => 'expired', 'updated_at' => $now]);
+                if (! $expired) {
+                    continue;
+                }
                 $booking = $this->getById($bookingId);
                 if ($penalty > 0) {
                     DB::transaction(function () use ($bookingId, $booking, $penalty) {
@@ -58,87 +63,180 @@ class Booking
             ->pluck('id')
             ->all();
         if ($completedIds !== []) {
-            DB::table('booking')->whereIn('id', $completedIds)->update(['status' => 'completed', 'updated_at' => $now]);
+            DB::table('booking')->whereIn('id', $completedIds)->where('status', 'confirmed')->update(['status' => 'completed', 'updated_at' => $now]);
         }
     }
 
     public function create(int $ownerUserId, array $payload): array
     {
-        $policies = PortalPolicy::values();
         $this->assertRole($ownerUserId, 'pet_owner');
         $petId = (int) ($payload['petId'] ?? 0);
+        $this->assertOwnedPet($ownerUserId, $petId);
         $assistantUserId = (int) ($payload['assistantUserId'] ?? 0);
+        $id = DB::transaction(function () use ($ownerUserId, $petId, $assistantUserId, $payload) {
+            $operator = $this->lockAssistantSchedule($assistantUserId);
+
+            return $this->insertBooking($ownerUserId, $petId, $assistantUserId, $operator, $payload);
+        }, 3);
+
+        return $this->notifyAndReturn($this->getById($id), 'created');
+    }
+
+    public function createBatch(int $ownerUserId, array $payload): array
+    {
+        $this->assertRole($ownerUserId, 'pet_owner');
+        $assistantId = (int) $payload['assistantUserId'];
+        $petId = (int) $payload['petId'];
+        $items = $payload['items'];
+        $hash = hash('sha256', json_encode([$assistantId, $petId, $items], JSON_THROW_ON_ERROR));
+        [$batchId, $ids, $replayed] = DB::transaction(function () use ($ownerUserId, $assistantId, $petId, $items, $payload, $hash) {
+            DB::table('users')->where('id', $ownerUserId)->lockForUpdate()->first();
+            $existing = DB::table('booking_batch')->where('owner_user_id', $ownerUserId)
+                ->where('request_key', $payload['requestKey'])->lockForUpdate()->first();
+            if ($existing) {
+                if ($existing->request_hash !== $hash) {
+                    throw new RuntimeException('BOOKING_REQUEST_KEY_REUSED');
+                }
+
+                return [(int) $existing->id, DB::table('booking')->where('batch_id', $existing->id)->orderBy('id')->pluck('id')->all(), true];
+            }
+
+            $this->assertOwnedPet($ownerUserId, $petId, true);
+            $operator = $this->lockAssistantSchedule($assistantId);
+            $services = DB::table('operatorservicedata')->where('user_id', $assistantId)
+                ->pluck('service_id')->map(fn ($id) => (int) $id)->all();
+            $batchId = DB::table('booking_batch')->insertGetId([
+                'owner_user_id' => $ownerUserId,
+                'request_key' => $payload['requestKey'],
+                'request_hash' => $hash,
+                'created_at' => time(),
+            ]);
+
+            $ids = [];
+            foreach ($items as $index => $item) {
+                try {
+                    if (! in_array((int) $item['serviceId'], $services, true)) {
+                        throw new RuntimeException('SLOT_NOT_AVAILABLE');
+                    }
+                    $ids[] = $this->insertBooking($ownerUserId, $petId, $assistantId, $operator, $item, (int) $batchId);
+                } catch (RuntimeException $error) {
+                    if ($error instanceof QueryException) {
+                        throw $error;
+                    }
+                    throw new BookingItemException($index, $error->getMessage());
+                }
+            }
+
+            return [(int) $batchId, $ids, false];
+        }, 3);
+
+        return [
+            'batchId' => $batchId,
+            'bookings' => array_map(function ($id) use ($replayed) {
+                $booking = $this->getById((int) $id);
+
+                return $replayed ? $booking : $this->notifyAndReturn($booking, 'created');
+            }, $ids),
+        ];
+    }
+
+    private function assertOwnedPet(int $ownerUserId, int $petId, bool $lock = false): void
+    {
+        $pet = DB::table('ownerpet')->where('id', $petId)->where('user_id', $ownerUserId);
+        if ($lock) {
+            $pet->lockForUpdate();
+        }
+        if (! $pet->first(['id'])) {
+            throw new RuntimeException('PET_NOT_AVAILABLE');
+        }
+    }
+
+    private function lockAssistantSchedule(int $assistantUserId): object
+    {
+        $operator = DB::table('operatordata')->where('user_id', $assistantUserId)->lockForUpdate()->first();
+        if (! $operator) {
+            throw new RuntimeException('SLOT_NOT_AVAILABLE');
+        }
+
+        return $operator;
+    }
+
+    private function insertBooking(int $ownerUserId, int $petId, int $assistantUserId, object $operator, array $payload, ?int $batchId = null): int
+    {
         $serviceId = (int) ($payload['serviceId'] ?? 0);
         $slotId = (int) ($payload['slotId'] ?? 0);
         $date = (string) ($payload['date'] ?? '');
         $startTime = (string) ($payload['startTime'] ?? '');
         $endTime = (string) ($payload['endTime'] ?? '');
+        $featureIds = array_values(array_unique(array_map('intval', $payload['featureIds'] ?? [])));
+        $policies = PortalPolicy::values();
 
-        if (! DB::table('ownerpet')->where('id', $petId)->where('user_id', $ownerUserId)->exists()) {
-            throw new RuntimeException('PET_NOT_AVAILABLE');
+        $slot = $this->resolveSlot($slotId, $assistantUserId, $serviceId, $date, true);
+        $preferredFeatures = $this->resolvePreferredFeatures($assistantUserId, $serviceId, $featureIds);
+        $timing = $this->validateRequestedInterval($date, $startTime, $endTime, $slot);
+        $this->assertIntervalAvailable($assistantUserId, $date, $startTime, $endTime);
+
+        $mode = $operator->booking_confirmation_mode;
+        $mode = $mode === 'automatic' ? 'automatic' : 'manual';
+        $status = $mode === 'automatic' ? 'confirmed' : 'pending';
+        $now = time();
+        $deadline = min(
+            $now + ($policies['manual_response_hours'] * 3600),
+            $timing['startTimestamp'] - ($policies['assistant_cutoff_hours'] * 3600)
+        );
+        $hourPrice = (float) $slot->hour_price;
+        $totalPrice = round($hourPrice * ($timing['durationMinutes'] / 60), 2);
+
+        if ($batchId !== null && (int) round($totalPrice * 100) !== (int) $payload['expectedTotalCents']) {
+            throw new RuntimeException('BOOKING_PRICE_CHANGED');
         }
 
-        $createdBookingId = DB::transaction(function () use (
-            $ownerUserId,
-            $petId,
-            $assistantUserId,
-            $serviceId,
-            $slotId,
-            $date,
-            $startTime,
-            $endTime,
-            $payload,
-            $policies
-        ) {
-            $slot = $this->resolveSlot($slotId, $assistantUserId, $serviceId, $date, true);
-            $timing = $this->validateRequestedInterval($date, $startTime, $endTime, $slot);
-            $this->assertIntervalAvailable($assistantUserId, $date, $startTime, $endTime);
+        $bookingId = (int) DB::table('booking')->insertGetId([
+            'booking_number' => $this->nextBookingNumber((int) (new DateTimeImmutable('now', $this->timezone))->format('Y')),
+            'owner_user_id' => $ownerUserId,
+            'batch_id' => $batchId,
+            'assistant_user_id' => $assistantUserId,
+            'pet_id' => $petId,
+            'service_id' => $serviceId,
+            'source_slot_id' => $slotId,
+            'booking_date' => $date,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'duration_minutes' => $timing['durationMinutes'],
+            'hour_price' => $hourPrice,
+            'total_price' => $totalPrice,
+            'message' => mb_substr(trim((string) ($payload['message'] ?? '')), 0, 4096),
+            'confirmation_mode' => $mode,
+            'status' => $status,
+            'response_deadline' => $deadline,
+            'accepted_at' => $status === 'confirmed' ? $now : 0,
+            'cancelled_at' => 0,
+            'cancelled_by_user_id' => 0,
+            'cancellation_reason' => '',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
-            $mode = (string) DB::table('operatordata')
-                ->where('user_id', $assistantUserId)
-                ->value('booking_confirmation_mode');
-            $mode = $mode === 'automatic' ? 'automatic' : 'manual';
-            $status = $mode === 'automatic' ? 'confirmed' : 'pending';
-            $now = time();
-            $deadline = min(
-                $now + ($policies['manual_response_hours'] * 3600),
-                $timing['startTimestamp'] - ($policies['assistant_cutoff_hours'] * 3600)
-            );
-            $hourPrice = (float) $slot->hour_price;
-            $totalPrice = round($hourPrice * ($timing['durationMinutes'] / 60), 2);
-
-            return (int) DB::table('booking')->insertGetId([
-                'booking_number' => $this->nextBookingNumber((int) (new DateTimeImmutable('now', $this->timezone))->format('Y')),
-                'owner_user_id' => $ownerUserId,
-                'assistant_user_id' => $assistantUserId,
-                'pet_id' => $petId,
-                'service_id' => $serviceId,
-                'source_slot_id' => $slotId,
-                'booking_date' => $date,
-                'start_time' => $startTime,
-                'end_time' => $endTime,
-                'duration_minutes' => $timing['durationMinutes'],
-                'hour_price' => $hourPrice,
-                'total_price' => $totalPrice,
-                'message' => mb_substr(trim((string) ($payload['message'] ?? '')), 0, 4096),
-                'confirmation_mode' => $mode,
-                'status' => $status,
-                'response_deadline' => $deadline,
-                'accepted_at' => $status === 'confirmed' ? $now : 0,
-                'cancelled_at' => 0,
-                'cancelled_by_user_id' => 0,
-                'cancellation_reason' => '',
+        foreach ($preferredFeatures as $feature) {
+            DB::table('booking_feature_preference')->insert([
+                'booking_id' => $bookingId,
+                'feature_id' => (int) $feature->id,
+                'feature_name_snapshot' => (string) $feature->name,
                 'created_at' => $now,
-                'updated_at' => $now,
             ]);
-        }, 3);
+        }
 
-        $booking = $this->getById($createdBookingId);
-
-        return $this->notifyAndReturn($booking, 'created');
+        return $bookingId;
     }
 
-    public function listForUser(int $userId): array
+    private function firstResponse(object $booking, int $now): ?int
+    {
+        return $booking->first_response_at !== null
+            ? (int) $booking->first_response_at
+            : ($booking->confirmation_mode === 'manual' ? $now : null);
+    }
+
+    public function listForUser(int $userId, bool $activeOnly = false): array
     {
         $this->reconcile();
         $role = $this->getRole($userId);
@@ -153,8 +251,13 @@ class Booking
             $query->where('booking.assistant_user_id', $userId);
         }
 
-        return $query->orderByDesc('booking.booking_date')
-            ->orderByDesc('booking.start_time')
+        if ($activeOnly) {
+            $query->whereIn('booking.status', self::ACTIVE_STATUSES);
+        }
+        $order = $activeOnly ? 'asc' : 'desc';
+
+        return $query->orderBy('booking.booking_date', $order)
+            ->orderBy('booking.start_time', $order)
             ->get()
             ->map(fn ($row) => $this->mapBooking($row, $userId))
             ->all();
@@ -170,11 +273,23 @@ class Booking
             throw new RuntimeException('BOOKING_RESPONSE_EXPIRED');
         }
 
-        DB::table('booking')->where('id', $bookingId)->update([
-            'status' => 'confirmed',
-            'accepted_at' => time(),
-            'updated_at' => time(),
-        ]);
+        DB::transaction(function () use ($bookingId) {
+            $current = DB::table('booking')->where('id', $bookingId)->lockForUpdate()->first();
+            $now = time();
+            if ($current->status !== 'pending') {
+                throw new RuntimeException('BOOKING_NOT_PENDING');
+            }
+            if ((int) $current->response_deadline <= $now) {
+                throw new RuntimeException('BOOKING_RESPONSE_EXPIRED');
+            }
+
+            DB::table('booking')->where('id', $bookingId)->update([
+                'status' => 'confirmed',
+                'accepted_at' => $now,
+                'first_response_at' => $this->firstResponse($current, $now),
+                'updated_at' => $now,
+            ]);
+        }, 3);
         $result = $this->getById($bookingId);
 
         return $this->notifyAndReturn($result, 'accepted');
@@ -187,14 +302,23 @@ class Booking
             throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
         }
 
-        DB::table('booking')->where('id', $bookingId)->update([
-            'status' => 'declined',
-            'cancelled_at' => time(),
-            'cancelled_by_user_id' => $assistantUserId,
-            'cancellation_reason' => mb_substr(trim($reason), 0, 2048),
-            'updated_at' => time(),
-        ]);
-        $this->closePendingReschedules($bookingId, 'rejected');
+        DB::transaction(function () use ($bookingId, $assistantUserId, $reason) {
+            $this->lockAssistantSchedule($assistantUserId);
+            $booking = DB::table('booking')->where('id', $bookingId)->lockForUpdate()->first();
+            if (! in_array($booking->status, ['pending', 'reschedule_pending'], true)) {
+                throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
+            }
+            $now = time();
+            DB::table('booking')->where('id', $bookingId)->update([
+                'status' => 'declined',
+                'cancelled_at' => $now,
+                'cancelled_by_user_id' => $assistantUserId,
+                'cancellation_reason' => mb_substr(trim($reason), 0, 2048),
+                'first_response_at' => $this->firstResponse($booking, $now),
+                'updated_at' => $now,
+            ]);
+            $this->closePendingReschedules($bookingId, 'rejected');
+        }, 3);
         $result = $this->getById($bookingId);
 
         return $this->notifyAndReturn($result, 'declined');
@@ -251,7 +375,12 @@ class Booking
         $startTime = (string) ($payload['startTime'] ?? '');
         $endTime = (string) ($payload['endTime'] ?? '');
 
-        DB::transaction(function () use ($booking, $bookingId, $assistantUserId, $slotId, $date, $startTime, $endTime, $payload) {
+        DB::transaction(function () use ($bookingId, $assistantUserId, $slotId, $date, $startTime, $endTime, $payload) {
+            $this->lockAssistantSchedule($assistantUserId);
+            $booking = DB::table('booking')->where('id', $bookingId)->lockForUpdate()->first();
+            if (! in_array($booking->status, ['pending', 'confirmed'], true)) {
+                throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
+            }
             $slot = $this->resolveSlot($slotId, $assistantUserId, (int) $booking->service_id, $date, true);
             $timing = $this->validateRequestedInterval($date, $startTime, $endTime, $slot);
             $this->assertIntervalAvailable($assistantUserId, $date, $startTime, $endTime, $bookingId);
@@ -277,6 +406,7 @@ class Booking
             ]);
             DB::table('booking')->where('id', $bookingId)->update([
                 'status' => 'reschedule_pending',
+                'first_response_at' => $this->firstResponse($booking, time()),
                 'updated_at' => time(),
             ]);
         });
@@ -292,7 +422,8 @@ class Booking
         if ($booking->status !== 'reschedule_pending') {
             throw new RuntimeException('RESCHEDULE_NOT_PENDING');
         }
-        DB::transaction(function () use ($bookingId, $accept) {
+        DB::transaction(function () use ($booking, $bookingId, $accept) {
+            $this->lockAssistantSchedule((int) $booking->assistant_user_id);
             $proposal = DB::table('booking_reschedule')
                 ->where('booking_id', $bookingId)
                 ->where('status', 'pending')
@@ -333,7 +464,7 @@ class Booking
         return $this->notifyAndReturn($result, $accept ? 'reschedule_accepted' : 'reschedule_rejected');
     }
 
-    public function review(int $bookingId, int $reviewerUserId, string $sentiment, string $comment): array
+    public function review(int $bookingId, int $reviewerUserId, string $sentiment, string $comment, bool $publishComment = false): array
     {
         $policies = PortalPolicy::values();
         $booking = $this->ownedBooking($bookingId, $reviewerUserId);
@@ -355,7 +486,7 @@ class Booking
             ? $policies['positive_review_points']
             : -$policies['negative_review_penalty'];
 
-        DB::transaction(function () use ($bookingId, $reviewerUserId, $reviewedUserId, $sentiment, $comment, $delta) {
+        DB::transaction(function () use ($bookingId, $reviewerUserId, $reviewedUserId, $sentiment, $comment, $delta, $publishComment, $booking) {
             DB::table('booking_review')->insert([
                 'booking_id' => $bookingId,
                 'reviewer_user_id' => $reviewerUserId,
@@ -363,6 +494,7 @@ class Booking
                 'sentiment' => $sentiment,
                 'comment' => mb_substr(trim($comment), 0, 4096),
                 'score_delta' => $delta,
+                'publish_comment' => $publishComment && (int) $booking->owner_user_id === $reviewerUserId ? 1 : 0,
                 'created_at' => time(),
             ]);
             $this->applyReputationDelta($reviewedUserId, $bookingId, $reviewerUserId, 'review_'.$sentiment, $delta, $comment);
@@ -516,6 +648,27 @@ class Booking
         return $slot;
     }
 
+    private function resolvePreferredFeatures(int $assistantUserId, int $serviceId, array $featureIds): array
+    {
+        if ($featureIds === []) {
+            return [];
+        }
+
+        $features = DB::table('operatorservicefeaturedata as selected')
+            ->join('servicefeature as feature', 'feature.id', '=', 'selected.feature_id')
+            ->where('selected.user_id', $assistantUserId)
+            ->where('selected.service_id', $serviceId)
+            ->whereIn('selected.feature_id', $featureIds)
+            ->orderBy('feature.name')
+            ->get(['feature.id', 'feature.name'])
+            ->all();
+        if (count($features) !== count($featureIds)) {
+            throw new RuntimeException('BOOKING_FEATURE_NOT_AVAILABLE');
+        }
+
+        return $features;
+    }
+
     private function validateRequestedInterval(string $date, string $startTime, string $endTime, object $slot): array
     {
         $policies = PortalPolicy::values();
@@ -631,6 +784,15 @@ class Booking
             'hourPrice' => round((float) $row->hour_price, 2),
             'totalPrice' => round((float) $row->total_price, 2),
             'message' => (string) $row->message,
+            'preferredFeatures' => DB::table('booking_feature_preference')
+                ->where('booking_id', $row->id)
+                ->orderBy('id')
+                ->get(['feature_id', 'feature_name_snapshot'])
+                ->map(fn ($feature) => [
+                    'id' => (int) $feature->feature_id,
+                    'name' => (string) $feature->feature_name_snapshot,
+                ])
+                ->all(),
             'confirmationMode' => (string) $row->confirmation_mode,
             'status' => (string) $row->status,
             'responseDeadline' => (int) $row->response_deadline,
@@ -814,6 +976,7 @@ class Booking
                                 .'<div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#2F7A4A;font-weight:800;">Riepilogo</div>'
                                 .'<div style="margin-top:7px;font-size:16px;line-height:1.6;color:#253b53;font-weight:700;">'.e($summary).'</div>'
                             .'</div>'
+                            .($booking['preferredFeatures'] !== [] ? '<div style="margin-bottom:18px;padding:15px 18px;border-left:4px solid #1F5FA7;border-radius:0 14px 14px 0;background:#f1f6fb;"><div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#1F5FA7;font-weight:800;">Preferenze richieste</div><div style="margin-top:6px;font-size:15px;line-height:1.65;color:#425466;">'.e(implode(' · ', array_column($booking['preferredFeatures'], 'name'))).'</div></div>' : '')
                             .($isCancelled ? $informationBlock : '')
                             .($booking['message'] !== '' ? '<div style="margin-bottom:18px;padding:15px 18px;border-left:4px solid #A7D08C;border-radius:0 14px 14px 0;background:#f6faf3;"><div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#2F7A4A;font-weight:800;">Messaggio</div><div style="margin-top:6px;font-size:15px;line-height:1.65;color:#425466;">'.nl2br(e($booking['message'])).'</div></div>' : '')
                             .(! $isCancelled ? $informationBlock : '')

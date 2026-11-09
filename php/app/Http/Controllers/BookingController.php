@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\BookingItemException;
 use App\Models\Utility;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -21,6 +23,20 @@ class BookingController extends Controller
         return $this->run($request, fn (Booking $model, int $userId) => $model->listForUser($userId));
     }
 
+    public function activeForAssistant(Request $request): JsonResponse
+    {
+        $userId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
+        if ($userId <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
+        }
+        if (! DB::table('users')->where('id', $userId)->where('role', 'pet_assistant')->exists()) {
+            return response()->json(['ok' => false, 'message' => 'Profilo Pet Assistant richiesto.'], 403);
+        }
+
+        return $this->run($request, fn (Booking $model, int $id) => $model->listForUser($id, true))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -31,10 +47,38 @@ class BookingController extends Controller
             'date' => ['required', 'date_format:Y-m-d'],
             'startTime' => ['required', 'date_format:H:i'],
             'endTime' => ['required', 'date_format:H:i'],
+            'featureIds' => ['sometimes', 'array', 'max:30'],
+            'featureIds.*' => ['integer', 'min:1', 'distinct'],
             'message' => ['nullable', 'string', 'max:4096'],
         ]);
 
         return $this->run($request, fn (Booking $model, int $userId) => $model->create($userId, $validated), Response::HTTP_CREATED);
+    }
+
+    public function storeBatch(Request $request): JsonResponse
+    {
+        $userId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
+        if ($userId <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Accedi come Pet Owner per prenotare.'], 401);
+        }
+        $payload = $request->validate([
+            'assistantUserId' => ['required', 'integer', 'min:1'],
+            'petId' => ['required', 'integer', 'min:1'],
+            'requestKey' => ['required', 'uuid'],
+            'items' => ['required', 'array', 'list', 'min:1', 'max:20'],
+            'items.*' => ['required', 'array:serviceId,slotId,date,startTime,endTime,featureIds,message,expectedTotalCents'],
+            'items.*.serviceId' => ['required', 'integer', 'min:1', 'distinct'],
+            'items.*.slotId' => ['required', 'integer', 'min:1'],
+            'items.*.date' => ['required', 'date_format:Y-m-d'],
+            'items.*.startTime' => ['required', 'date_format:H:i'],
+            'items.*.endTime' => ['required', 'date_format:H:i'],
+            'items.*.featureIds' => ['sometimes', 'array', 'list', 'max:30'],
+            'items.*.featureIds.*' => ['integer', 'min:1'],
+            'items.*.message' => ['nullable', 'string', 'max:4096'],
+            'items.*.expectedTotalCents' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->run($request, fn (Booking $model, int $ownerId) => $model->createBatch($ownerId, $payload), Response::HTTP_CREATED);
     }
 
     public function accept(Request $request, int $bookingId): JsonResponse
@@ -83,9 +127,13 @@ class BookingController extends Controller
 
     public function review(Request $request, int $bookingId): JsonResponse
     {
+        if ((int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0) <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
+        }
         $validated = $request->validate([
             'sentiment' => ['required', 'string', 'in:positive,negative'],
             'comment' => ['required', 'string', 'max:4096'],
+            'publishComment' => ['sometimes', 'boolean'],
         ]);
 
         return $this->run($request, fn (Booking $model, int $userId) => $model->review($bookingId, $userId, $validated['sentiment'], $validated['comment']));
@@ -142,6 +190,10 @@ class BookingController extends Controller
             return response()->json(['ok' => true, 'data' => $callback($model, $userId)], $successStatus);
         } catch (ValidationException $e) {
             throw $e;
+        } catch (QueryException $e) {
+            Utility::saveError([], $e->getMessage(), __METHOD__);
+
+            return response()->json(['ok' => false, 'message' => 'Operazione non completata.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         } catch (RuntimeException $e) {
             $messages = [
                 'INVALID_ROLE' => 'Operazione non disponibile per questo profilo.',
@@ -150,6 +202,9 @@ class BookingController extends Controller
                 'BOOKING_MINIMUM_NOTICE' => 'La prenotazione richiede almeno 24 ore di anticipo.',
                 'INVALID_BOOKING_INTERVAL' => 'Seleziona un intervallo valido a blocchi di 30 minuti.',
                 'BOOKING_OVERLAP' => 'La fascia è stata appena prenotata. Scegli un altro orario.',
+                'BOOKING_FEATURE_NOT_AVAILABLE' => 'Una delle opzioni selezionate non è disponibile per questo servizio.',
+                'BOOKING_PRICE_CHANGED' => 'La tariffa è cambiata. Aggiorna la fascia e controlla il totale.',
+                'BOOKING_REQUEST_KEY_REUSED' => 'Questo invio è già associato a un’altra richiesta.',
                 'BOOKING_NOT_FOUND' => 'Prenotazione non disponibile.',
                 'BOOKING_NOT_PENDING' => 'La prenotazione non è più in attesa.',
                 'BOOKING_NOT_ACTIONABLE' => 'La prenotazione non può essere modificata.',
@@ -160,11 +215,13 @@ class BookingController extends Controller
                 'REVIEW_ALREADY_SENT' => 'Hai già inviato la recensione per questa prenotazione.',
             ];
 
-            return response()->json(['ok' => false, 'message' => $messages[$e->getMessage()] ?? 'Operazione non completata.'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        } catch (QueryException $e) {
-            Utility::saveError([], $e->getMessage(), __METHOD__);
+            $error = ['ok' => false, 'message' => $messages[$e->getMessage()] ?? 'Operazione non completata.'];
+            if ($e instanceof BookingItemException) {
+                $error['itemIndex'] = $e->itemIndex;
+                $error['code'] = $e->getMessage();
+            }
 
-            return response()->json(['ok' => false, 'message' => 'Operazione non completata.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return response()->json($error, Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (Exception $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 

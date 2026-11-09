@@ -20,6 +20,7 @@ export default defineConfig({
         profilePetOwner: resolve(import.meta.dirname, 'src/html/profile-petowner.html'),
         profilePetAssistant: resolve(import.meta.dirname, 'src/html/profile-petassistant.html'),
         search: resolve(import.meta.dirname, 'src/html/search.html'),
+        petAssistantDetail: resolve(import.meta.dirname, 'src/html/pet-assistant-detail.html'),
         templateEmpty: resolve(import.meta.dirname, 'src/html/template_empty.html'),
       },
     },

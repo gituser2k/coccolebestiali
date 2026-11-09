@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\DemoData;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -56,7 +57,7 @@ $petTypeIds = DB::table('pettype')->where('name', '<>', 'Qualsiasi')->orderBy('i
 $anyPetTypeId = (int) (DB::table('pettype')->where('name', 'Qualsiasi')->value('id') ?? 0);
 $rexPetTypeId = (int) (DB::table('pettype')->where('name', 'Docile')->value('id') ?? 0);
 $houseFeatureIds = DB::table('housefeature')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
-$serviceIds = DB::table('service')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+$serviceIds = DB::table('service')->where('name', '<>', 'Operatore olistico')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $serviceFeatureMap = DB::table('servicefeaturedata')
     ->orderBy('feature_id')
     ->get(['service_id', 'feature_id'])
@@ -64,18 +65,19 @@ $serviceFeatureMap = DB::table('servicefeaturedata')
     ->map(fn ($rows) => $rows->pluck('feature_id')->map(fn ($id) => (int) $id)->values()->all())
     ->all();
 
-if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === [] || $rexPetTypeId <= 0 || $houseFeatureIds === [] || $serviceIds === []) {
+if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === [] || $rexPetTypeId <= 0 || $houseFeatureIds === [] || $serviceIds === []
+    || ! DB::table('service')->where('name', 'Operatore olistico')->exists()) {
     fwrite(STDERR, "Cataloghi CRM incompleti. Esegui prima migration/migration.txt.\n");
     exit(1);
 }
 
 $tablesToReset = [
-    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking', 'booking_counter', 'user_reputation',
+    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking_feature_preference', 'booking', 'booking_batch', 'booking_counter', 'user_reputation',
     'calendar_day_slot_service', 'calendar_day_slot', 'calendar_day',
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
     'housefeaturedata', 'pettypedata', 'petbreeddata', 'operatortitledata',
-    'operatorassociatedata', 'operatordata', 'personaldata', 'social_accounts', 'users',
+    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'personaldata', 'social_accounts', 'users',
 ];
 
 DB::transaction(function () use (
@@ -262,6 +264,7 @@ $seededUserIds = DB::table('users')
     ->map(fn ($id) => (int) $id)
     ->all();
 $calendarStats = cbSeedPetAssistantCalendars($seededUserIds, $calendarStartDate, $calendarEndDate);
+(new DemoData)->seedHolisticOperators();
 
 foreach (array_keys($storagePaths) as $path) {
     Storage::disk('public')->delete($path);
@@ -272,7 +275,7 @@ foreach (array_keys($privateStoragePaths) as $path) {
 }
 
 foreach ($tablesToReset as $table) {
-    if (Schema::hasTable($table)) {
+    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite'], true)) {
         DB::statement('ALTER TABLE `'.$table.'` AUTO_INCREMENT = 1');
     }
 }

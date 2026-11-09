@@ -610,6 +610,8 @@ class Profile extends Model
             ])
             ->all();
 
+        $public = DB::table('operator_public_profile')->where('user_id', $userId)->first();
+
         return [
             'operatorType' => $operatorType,
             'fiscalCode' => (string) ($row->fiscal_code ?? ''),
@@ -619,6 +621,13 @@ class Profile extends Model
             'linkedAssociations' => $linkedAssociations,
             'bio' => (string) ($row->bio ?? ''),
             'experienceYears' => (int) ($row->experience_years ?? 0),
+            'publicProfile' => [
+                'headline' => (string) ($public->headline ?? ''),
+                'typicalDay' => (string) ($public->typical_day ?? ''),
+                'safetyAndHome' => (string) ($public->safety_and_home ?? ''),
+                'ownerInstructions' => (string) ($public->owner_instructions ?? ''),
+                'publishExactLocation' => (bool) ($public->publish_exact_location ?? false),
+            ],
             'titleIds' => $titleIds,
             'petBreedIds' => $petBreedIds,
             'petSize' => (string) ($row->pet_size ?? ''),
@@ -925,6 +934,18 @@ class Profile extends Model
                 'pet_size' => (string) ($payload['petSize'] ?? ''),
                 'updated_at' => $now,
             ];
+
+            if (isset($payload['publicProfile'])) {
+                $public = $payload['publicProfile'];
+                DB::table('operator_public_profile')->upsert([[
+                    'user_id' => $userId,
+                    'headline' => (string) ($public['headline'] ?? ''),
+                    'typical_day' => (string) ($public['typicalDay'] ?? ''),
+                    'safety_and_home' => (string) ($public['safetyAndHome'] ?? ''),
+                    'owner_instructions' => (string) ($public['ownerInstructions'] ?? ''),
+                    'publish_exact_location' => (bool) ($public['publishExactLocation'] ?? false),
+                ]], ['user_id'], ['headline', 'typical_day', 'safety_and_home', 'owner_instructions', 'publish_exact_location']);
+            }
 
             if ($operatorData['operator_type'] === 'person') {
                 $operatorData['business_name'] = '';
