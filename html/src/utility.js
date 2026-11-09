@@ -131,7 +131,7 @@ export function showUtilityModal({
 
   const bodyNode = document.createElement('p')
   bodyNode.className = 'cb-modal-body'
-  bodyNode.innerHTML = String(body ?? '')
+  bodyNode.textContent = String(body ?? '')
 
   const actions = document.createElement('div')
   actions.className = 'cb-modal-actions'

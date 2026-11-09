@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\PetAssistantSearch;
 use App\Models\PortalPolicy;
 use App\Models\Utility;
+use App\Support\PortalSession;
 use DateTimeImmutable;
 use Exception;
 use Illuminate\Database\QueryException;
@@ -16,14 +17,12 @@ use RuntimeException;
 
 class PetAssistantSearchController extends Controller
 {
-    private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
-
     public function getOptions(Request $request): JsonResponse
     {
         try {
             $options = (new PetAssistantSearch)->getOptions($this->resolveCurrentUserId($request));
             $options['canFilterFavorites'] = $options['authenticatedRole'] === 'pet_owner'
-                && (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0) > 0;
+                && PortalSession::userId($request) > 0;
 
             return response()->json([
                 'ok' => true,
@@ -63,7 +62,7 @@ class PetAssistantSearchController extends Controller
             ]);
 
             $onlyFavorites = (bool) ($validated['onlyFavorites'] ?? false);
-            $sessionUserId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
+            $sessionUserId = PortalSession::userId($request);
             $userId = $onlyFavorites
                 ? $sessionUserId
                 : $this->resolveCurrentUserId($request);
@@ -131,13 +130,6 @@ class PetAssistantSearchController extends Controller
 
     private function resolveCurrentUserId(Request $request): int
     {
-        $sessionUserId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
-        if ($sessionUserId > 0) {
-            return $sessionUserId;
-        }
-
-        $requestCookie = (int) $request->cookie(self::PORTAL_USER_ID_COOKIE, 0);
-
-        return $requestCookie > 0 ? $requestCookie : 0;
+        return PortalSession::userId($request);
     }
 }

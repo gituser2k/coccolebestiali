@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
+import { getAppleAuthChallenge } from '../auth/appleOAuth'
 import { sanitizeText, validateEmail } from '../utility.js'
 import {
   fetchAuthRequest,
@@ -7,6 +9,7 @@ import {
   getGooglePopupMessage,
   initializeGoogleIdentity,
   initializeGoogleTokenClient,
+  loadGoogleIdentitySdk,
   promptGoogleIdentity,
 } from '../auth/googleOAuth'
 import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
@@ -52,6 +55,8 @@ declare global {
           scope: string
           redirectURI: string
           usePopup: boolean
+          nonce: string
+          state: string
         }) => void
         signIn: () => Promise<{
           authorization?: {
@@ -236,7 +241,7 @@ export function SocialAccountSwitchActions({
   }
 
   async function handleGoogleAccountChange() {
-    if (!authConfig.googleClientId || !getGoogleAccounts()) {
+    if (!authConfig.googleClientId || !await loadGoogleIdentitySdk()) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }
@@ -286,11 +291,14 @@ export function SocialAccountSwitchActions({
 
     setIsBusy(true)
     try {
+      const challenge = await getAppleAuthChallenge()
       window.AppleID.auth.init({
         clientId: authConfig.appleClientId,
         scope: 'name email',
         redirectURI: authConfig.appleRedirectUri,
         usePopup: true,
+        nonce: challenge.nonce,
+        state: challenge.state,
       })
 
       const response = await window.AppleID.auth.signIn()
@@ -302,6 +310,7 @@ export function SocialAccountSwitchActions({
       await postSocialAccountChange('/api/auth/account/apple', {
         identityToken,
         user: response?.user ?? null,
+        state: challenge.state,
       })
     } catch {
       onError('Cambio account Apple non completato.')
@@ -491,7 +500,7 @@ export default function AccountChangeModal({
   }
 
   async function handleGoogleAccountChange() {
-    if (!authConfig.googleClientId || !getGoogleAccounts()) {
+    if (!authConfig.googleClientId || !await loadGoogleIdentitySdk()) {
       onError('Si è verificato un errore. Riprova più tardi.')
       return
     }
@@ -541,11 +550,14 @@ export default function AccountChangeModal({
 
     setIsBusy(true)
     try {
+      const challenge = await getAppleAuthChallenge()
       window.AppleID.auth.init({
         clientId: authConfig.appleClientId,
         scope: 'name email',
         redirectURI: authConfig.appleRedirectUri,
         usePopup: true,
+        nonce: challenge.nonce,
+        state: challenge.state,
       })
 
       const response = await window.AppleID.auth.signIn()
@@ -557,6 +569,7 @@ export default function AccountChangeModal({
       await postAccountChange('/api/auth/account/apple', {
         identityToken,
         user: response?.user ?? null,
+        state: challenge.state,
       })
     } catch {
       onError('Cambio account Apple non completato.')

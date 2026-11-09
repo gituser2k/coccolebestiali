@@ -3,6 +3,8 @@ import logoImage from '../assets/logo.png'
 import '../css/register.css'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
+import { getAppleAuthChallenge } from '../auth/appleOAuth'
 import { sanitizeText, validateEmail } from '../utility.js'
 import {
   fetchAuthRequest,
@@ -10,6 +12,7 @@ import {
   getGooglePopupMessage,
   initializeGoogleIdentity,
   initializeGoogleTokenClient,
+  loadGoogleIdentitySdk,
   promptGoogleIdentity,
 } from '../auth/googleOAuth'
 import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
@@ -62,6 +65,8 @@ declare global {
           scope: string
           redirectURI: string
           usePopup: boolean
+          nonce: string
+          state: string
         }) => void
         signIn: () => Promise<{
           authorization?: {
@@ -519,11 +524,13 @@ export default function RegisterPage() {
   async function submitAppleRegistration(
     role: 'pet_owner' | 'pet_assistant',
     identityToken: string,
-    user: unknown
+    user: unknown,
+    state: string
   ) {
     await postRegistration('/api/auth/register/apple', role, {
       identityToken,
       user,
+      state,
     }, 'social')
   }
 
@@ -549,7 +556,7 @@ export default function RegisterPage() {
       return
     }
 
-    if (!getGoogleAccounts()) {
+    if (!await loadGoogleIdentitySdk()) {
       await handleGenericAuthTechnicalError(
         role,
         'RegisterPage.handleGoogleRegistration',
@@ -621,11 +628,14 @@ export default function RegisterPage() {
 
     setBusyRole(role)
     try {
+      const challenge = await getAppleAuthChallenge()
       window.AppleID.auth.init({
         clientId: authConfig.appleClientId,
         scope: 'name email',
         redirectURI: authConfig.appleRedirectUri,
         usePopup: true,
+        nonce: challenge.nonce,
+        state: challenge.state,
       })
 
       const response = await window.AppleID.auth.signIn()
@@ -635,7 +645,7 @@ export default function RegisterPage() {
         throw new Error('Token Apple non disponibile.')
       }
 
-      await submitAppleRegistration(role, identityToken, response?.user ?? null)
+      await submitAppleRegistration(role, identityToken, response?.user ?? null, challenge.state)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore autenticazione Apple.'
       if (message === 'Token Apple non disponibile.') {

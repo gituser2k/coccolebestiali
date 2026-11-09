@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PetAssistantSearch;
 use App\Models\PublicPetAssistant;
+use App\Support\PortalSession;
 use DateTimeImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,7 +57,7 @@ class PublicPetAssistantController extends Controller
 
     private function viewerId(Request $request): int
     {
-        return (int) $request->session()->get('cb_portal_user_id', 0);
+        return PortalSession::userId($request);
     }
 
     private function requireOwner(Request $request): int

@@ -103,6 +103,24 @@ class BookingFlowTest extends TestCase
             ->assertJsonPath('ok', false);
     }
 
+    public function test_forged_identity_cookies_are_never_accepted(): void
+    {
+        $this->withUnencryptedCookie('cb_portal_user_id', '2')
+            ->withUnencryptedCookie('cb_portal_user_role', 'pet_assistant')
+            ->getJson('/api/bookings/active-for-assistant')
+            ->assertUnauthorized();
+
+        $this->withSession(['cb_portal_user_id' => 2])
+            ->getJson('/api/bookings/active-for-assistant')
+            ->assertOk();
+    }
+
+    public function test_all_admin_data_routes_require_the_admin_session(): void
+    {
+        $this->getJson('/api/admin/messages')->assertUnauthorized();
+        $this->getJson('/api/admin/services')->assertUnauthorized();
+    }
+
     public function test_minimum_notice_and_half_hour_blocks_are_enforced(): void
     {
         $model = new Booking;

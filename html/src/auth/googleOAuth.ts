@@ -1,3 +1,5 @@
+import { csrfFetch } from './csrf'
+
 export type GoogleTokenResponse = {
   access_token?: string
   error?: string
@@ -43,6 +45,47 @@ declare global {
 
 export function getGoogleAccounts(): GoogleAccounts | undefined {
   return window.google?.accounts
+}
+
+let googleSdkPromise: Promise<boolean> | null = null
+
+export function loadGoogleIdentitySdk(timeoutMs: number = 10000): Promise<boolean> {
+  if (getGoogleAccounts()) return Promise.resolve(true)
+  if (googleSdkPromise) return googleSdkPromise
+
+  googleSdkPromise = new Promise<boolean>((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]')
+    const script = existing ?? document.createElement('script')
+    let settled = false
+    let poll = 0
+    const finish = () => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
+      window.clearInterval(poll)
+      resolve(Boolean(getGoogleAccounts()))
+    }
+    const timeout = window.setTimeout(finish, timeoutMs)
+    poll = window.setInterval(() => {
+      if (getGoogleAccounts()) finish()
+    }, 50)
+
+    script.addEventListener('load', finish, { once: true })
+    script.addEventListener('error', finish, { once: true })
+    if (!existing) {
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+  }).finally(() => {
+    if (!getGoogleAccounts()) {
+      document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]')?.remove()
+      googleSdkPromise = null
+    }
+  })
+
+  return googleSdkPromise!
 }
 
 export function initializeGoogleIdentity(
@@ -113,7 +156,7 @@ export async function fetchAuthRequest(
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    return await fetch(input, {
+    return await csrfFetch(input, {
       ...init,
       signal: controller.signal,
     })

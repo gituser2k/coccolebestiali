@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { csrfHeaders } from '../auth/csrf'
+import { csrfFetch as fetch, csrfHeaders } from '../auth/csrf'
 import { euros, formatDate } from './assistantFormatting'
 
 export type AssistantService = {

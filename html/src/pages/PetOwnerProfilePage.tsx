@@ -1,6 +1,7 @@
 import PetAssistantFavorites from '../components/PetAssistantFavorites'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import logoImage from '../assets/logo.png'

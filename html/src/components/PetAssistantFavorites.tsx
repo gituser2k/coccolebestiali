@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { csrfHeaders } from '../auth/csrf'
+import { csrfFetch as fetch, csrfHeaders } from '../auth/csrf'
 
 type Favorite = { id: number; name: string; city: string; photoUrl: string }
 

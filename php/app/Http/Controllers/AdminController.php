@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Admin;
 use App\Models\DemoData;
 use App\Models\Utility;
+use App\Support\AdminSession;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -22,29 +23,30 @@ class AdminController extends Controller
             'username' => ['required', 'string', 'max:100'],
             'password' => ['required', 'string', 'max:255'],
         ]);
-        $expectedUsername = (string) env('CMS_ADMIN_USERNAME', 'coccoadmin');
-        $expectedPassword = (string) env('CMS_ADMIN_PASSWORD', 'cocco123.');
+        $expectedUsername = trim((string) env('CMS_ADMIN_USERNAME', ''));
+        $expectedPassword = (string) env('CMS_ADMIN_PASSWORD', '');
+        if ($expectedUsername === '' || $expectedPassword === '') {
+            return response()->json(['ok' => false, 'message' => 'Accesso amministrativo non configurato.'], 503);
+        }
         if (! hash_equals($expectedUsername, $validated['username']) || ! hash_equals($expectedPassword, $validated['password'])) {
             return response()->json(['ok' => false, 'message' => 'Credenziali non valide.'], 401);
         }
 
-        $request->session()->put(self::ADMIN_SESSION_KEY, true);
-        $request->session()->regenerate();
+        AdminSession::start($request);
 
         return response()->json(['ok' => true]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $request->session()->forget(self::ADMIN_SESSION_KEY);
-        $request->session()->regenerateToken();
+        AdminSession::end($request);
 
         return response()->json(['ok' => true]);
     }
 
     public function session(Request $request): JsonResponse
     {
-        return response()->json(['ok' => (bool) $request->session()->get(self::ADMIN_SESSION_KEY, false)]);
+        return response()->json(['ok' => AdminSession::authenticated($request)]);
     }
 
     public function restoreSystemData(Request $request): JsonResponse

@@ -5,6 +5,8 @@ import animaliImage from '../assets/animali.png'
 import logoImage from '../assets/logo.png'
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
+import { getAppleAuthChallenge } from '../auth/appleOAuth'
 import { areRequiredFieldsFilled, sanitizeText, validateEmail } from '../utility.js'
 import {
   fetchAuthRequest,
@@ -12,6 +14,7 @@ import {
   getGooglePopupMessage,
   initializeGoogleIdentity,
   initializeGoogleTokenClient,
+  loadGoogleIdentitySdk,
   promptGoogleIdentity,
 } from '../auth/googleOAuth'
 import type { GooglePopupError, GoogleTokenClient } from '../auth/googleOAuth'
@@ -66,6 +69,8 @@ declare global {
           scope: string
           redirectURI: string
           usePopup: boolean
+          nonce: string
+          state: string
         }) => void
         signIn: () => Promise<{
           authorization?: {
@@ -588,10 +593,11 @@ function HomePage() {
     })
   }
 
-  async function submitAppleLogin(identityToken: string, user: unknown) {
+  async function submitAppleLogin(identityToken: string, user: unknown, state: string) {
     await postLogin('/api/auth/login/apple', {
       identityToken,
       user,
+      state,
     })
   }
 
@@ -617,7 +623,7 @@ function HomePage() {
       return
     }
 
-    if (!getGoogleAccounts()) {
+    if (!await loadGoogleIdentitySdk()) {
       await handleGenericAuthTechnicalError('HomePage.handleGoogleLogin', 'SDK Google non disponibile.')
       return
     }
@@ -675,11 +681,14 @@ function HomePage() {
     setIsLoginBusy(true)
 
     try {
+      const challenge = await getAppleAuthChallenge()
       window.AppleID.auth.init({
         clientId: authConfig.appleClientId,
         scope: 'name email',
         redirectURI: authConfig.appleRedirectUri,
         usePopup: true,
+        nonce: challenge.nonce,
+        state: challenge.state,
       })
 
       const response = await window.AppleID.auth.signIn()
@@ -689,7 +698,7 @@ function HomePage() {
         throw new Error('Token Apple non disponibile.')
       }
 
-      await submitAppleLogin(identityToken, response?.user ?? null)
+      await submitAppleLogin(identityToken, response?.user ?? null, challenge.state)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore autenticazione Apple.'
       if (message === 'Token Apple non disponibile.') {

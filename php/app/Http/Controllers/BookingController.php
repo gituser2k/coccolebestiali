@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\BookingItemException;
 use App\Models\Utility;
+use App\Support\PortalSession;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -16,8 +17,6 @@ use RuntimeException;
 
 class BookingController extends Controller
 {
-    private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
-
     public function index(Request $request): JsonResponse
     {
         return $this->run($request, fn (Booking $model, int $userId) => $model->listForUser($userId));
@@ -25,7 +24,7 @@ class BookingController extends Controller
 
     public function activeForAssistant(Request $request): JsonResponse
     {
-        $userId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
+        $userId = PortalSession::userId($request);
         if ($userId <= 0) {
             return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
         }
@@ -57,7 +56,7 @@ class BookingController extends Controller
 
     public function storeBatch(Request $request): JsonResponse
     {
-        $userId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
+        $userId = PortalSession::userId($request);
         if ($userId <= 0) {
             return response()->json(['ok' => false, 'message' => 'Accedi come Pet Owner per prenotare.'], 401);
         }
@@ -127,7 +126,7 @@ class BookingController extends Controller
 
     public function review(Request $request, int $bookingId): JsonResponse
     {
-        if ((int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0) <= 0) {
+        if (PortalSession::userId($request) <= 0) {
             return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
         }
         $validated = $request->validate([
@@ -156,7 +155,7 @@ class BookingController extends Controller
                 .'<main style="max-width:620px;margin:auto;background:white;padding:32px;border-radius:24px">'
                 .'<h1 style="color:#2f7a4a">Conferma annullamento</h1><p>Prenotazione <strong>'.e($booking['bookingNumber']).'</strong></p>'
                 .'<p>'.e($booking['serviceName'].' per '.$booking['petName'].' · '.$booking['date'].' '.$booking['startTime'].'–'.$booking['endTime']).'</p>'
-                .'<form method="post" action="/api/bookings/action/'.e($token).'"><button style="border:0;border-radius:999px;padding:14px 24px;background:#a82323;color:white;font-weight:bold">Conferma annullamento</button></form>'
+                .'<form method="post" action="/api/bookings/action/'.e($token).'"><input type="hidden" name="_token" value="'.e(csrf_token()).'"><button style="border:0;border-radius:999px;padding:14px 24px;background:#a82323;color:white;font-weight:bold">Conferma annullamento</button></form>'
                 .'</main></body></html>';
 
             return response($html, Response::HTTP_OK, ['Content-Type' => 'text/html; charset=UTF-8']);
@@ -231,11 +230,6 @@ class BookingController extends Controller
 
     private function resolveCurrentUserId(Request $request): int
     {
-        $sessionUserId = $request->hasSession() ? (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0) : 0;
-        if ($sessionUserId > 0) {
-            return $sessionUserId;
-        }
-
-        return (int) $request->cookie(self::PORTAL_USER_ID_COOKIE, 0);
+        return PortalSession::userId($request);
     }
 }

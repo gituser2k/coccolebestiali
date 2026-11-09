@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
 import { sanitizeText } from '../utility.js'
 
 type PetOption = {

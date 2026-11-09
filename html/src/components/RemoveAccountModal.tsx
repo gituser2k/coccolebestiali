@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
 
 const PORTAL_USER_STORAGE_KEY = 'cb_portal_user'
 

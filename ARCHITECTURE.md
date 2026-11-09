@@ -88,7 +88,7 @@ Servizi esterni:
   provider email configurato da Laravel
 ```
 
-Laravel carica `php/routes/api.php` come file di route `web` in `php/bootstrap/app.php`. Di conseguenza lo stesso file contiene sia pagine sia API. Una parte delle API è definita prima del gruppo middleware e una seconda parte è nel gruppo `middleware('api')` con CSRF esplicitamente disabilitato.
+Laravel carica `php/routes/api.php` come file di route `web` in `php/bootstrap/app.php`. Di conseguenza lo stesso file contiene sia pagine sia API e applica sessione e CSRF del gruppo `web`. Dallo STEP 1 tutte le API sono registrate una sola volta sotto `/api`: le mutazioni mantengono `VerifyCsrfToken`, le risorse utente usano `portal.auth` e quelle CMS usano `portal.admin`.
 
 In sviluppo Vite inoltra `/api` a `http://127.0.0.1:8000`. In produzione Laravel serve i file generati in `html/dist/src/html/`.
 
@@ -232,22 +232,24 @@ La documentazione di migrazione prescrive `php artisan schedule:work` o cron `ph
 | Metodo e path | Input essenziale | Output/effetto |
 | --- | --- | --- |
 | `GET /api/auth/config` | nessuno | client ID OAuth e flag Apple mock |
-| `GET /api/auth/me` | sessione/cookie | utente corrente |
+| `GET /api/auth/me` | sessione server | utente corrente |
 | `POST /api/auth/register/email` | `role,email,password` | crea account non verificato e invia email |
 | `POST /api/auth/register/google` | `role,idToken/accessToken` | upsert account social e sessione |
 | `POST /api/auth/register/apple` | `role,identityToken,user?` | upsert account social e sessione |
 | `POST /api/auth/login/email` | `email,password` | sessione e utente |
 | `POST /api/auth/login/google` | token | sessione e utente esistente |
 | `POST /api/auth/login/apple` | token | sessione e utente esistente |
-| `GET /api/auth/verify-email` | `email,role,expires,signature` | verifica email, sessione e redirect profilo |
+| `GET /api/auth/verify-email` | `email,role,expires,signature` | verifica email e redirect al login; non crea una sessione |
 | `POST /api/auth/password/forgot` | `email` | password temporanea inviata senza enumerazione esplicita |
 | `POST /api/auth/password/temporary` | password e conferma | sostituzione password temporanea |
 | `POST /api/auth/account/{email|google|apple}` | credenziali/token | cambia metodo di accesso dell'account corrente |
-| `POST /api/auth/logout` | sessione | invalida sessione/cookie |
+| `POST /api/auth/logout` | sessione | invalida la sessione e cancella eventuali cookie applicativi legacy |
 | `DELETE /api/auth/account` | sessione | elimina account, dominio e file associati |
 | `POST /api/auth/frontend-error` | `context,message,details?` | registra diagnostica |
 
 Gli endpoint `apple/mock` replicano registrazione, login e cambio account se `APPLE_MOCK_AUTH` è abilitato.
+
+I token Apple reali sono verificati crittograficamente contro il JWKS ufficiale Apple tramite `firebase/php-jwt`; issuer, audience, scadenza, firma e nonce legato alla sessione devono essere validi. Ogni flusso usa inoltre uno `state` monouso. Il login social usa la coppia esatta provider/subject; per gli account legacy privi del collegamento è ammesso un solo collegamento automatico quando il provider certifica l'email come verificata. Un'email non verificata o proveniente dal solo payload client non è mai sufficiente. Le route pubbliche sensibili applicano rate limiting per IP.
 
 ### 8.3 Profili e pet
 
@@ -339,18 +341,15 @@ La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numer
 
 ### 9.2 Sessione corrente
 
-Il backend salva in sessione:
+Il backend salva esclusivamente `cb_portal_user_id` nella sessione Laravel. `App\Support\PortalSession` è il resolver unico: non consulta cookie applicativi, `$_COOKIE`, header raw o ruolo fornito dal client. Login e verifica email rigenerano l'ID di sessione; logout e cancellazione account invalidano la sessione e rigenerano il token CSRF.
 
-- `cb_portal_user_id`;
-- `cb_portal_user_role`.
+I cookie applicativi legacy `cb_portal_user_id` e `cb_portal_user_role` non vengono più creati. Le risposte di autenticazione li cancellano esplicitamente per bonificare i browser esistenti. L'identità viaggia soltanto tramite il cookie di sessione Laravel, configurato `HttpOnly` e `SameSite=Lax`; in produzione `SESSION_SECURE_COOKIE` deve essere abilitato sotto HTTPS.
 
-Scrive inoltre cookie omonimi per 30 giorni. Il resolver corrente accetta l'ID anche dal cookie o dall'header raw se la sessione non è disponibile. I cookie applicativi sono creati con `secure=false` e `httpOnly=false`.
-
-Questa è una criticità: un identificativo controllabile dal client non deve essere una sorgente attendibile dell'identità. L'architettura target deve usare soltanto la sessione autenticata e policy/capability server-side. Le route mutative devono inoltre adottare una protezione CSRF coerente.
+`App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS. Il form HTML delle azioni prenotazione via email include `_token`.
 
 ### 9.3 Amministrazione
 
-Il CMS usa la chiave di sessione `cb_admin_authenticated`. Le credenziali provengono da `CMS_ADMIN_USERNAME` e `CMS_ADMIN_PASSWORD`; i fallback presenti nel codice sono adatti soltanto allo sviluppo e devono essere sovrascritti in produzione.
+Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\Support\AdminSession`. Login e logout rigenerano rispettivamente sessione/token; `RequireAdminSession` protegge tutte le API dati, messaggi e operazioni demo. Le credenziali provengono da `CMS_ADMIN_USERNAME` e `CMS_ADMIN_PASSWORD`; i fallback presenti nel codice sono adatti soltanto allo sviluppo e devono essere sovrascritti in produzione.
 
 ## 10. Modello di dominio e regole
 
@@ -640,9 +639,9 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 ## 17. Debito tecnico e rischi conosciuti
 
 1. **Ruolo esclusivo**: `users.role` impedisce la coesistenza Owner/Assistant.
-2. **Identità da cookie**: l'ID applicativo è accettato anche da cookie modificabile dal client.
-3. **CSRF**: il gruppo API principale disabilita esplicitamente `VerifyCsrfToken`.
-4. **Resolver duplicati**: più controller implementano autonomamente la risoluzione utente.
+2. **Autorizzazioni di capability**: la sessione è centralizzata, ma i controlli Owner/Assistant restano legati al ruolo esclusivo fino agli step 2–7.
+3. **Copertura end-to-end OAuth**: login email è verificabile localmente; Google e Apple richiedono collaudo manuale con credenziali/provider disponibili.
+4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
 5. **Autorizzazioni distribuite**: controlli `where(role=...)` non centralizzati.
 6. **Login social**: l'upsert può sovrascrivere il ruolo di un account esistente trovato per email.
 7. **Dati personali misti**: `personaldata` combina dati comuni, residenza Owner e area operativa Assistant.
@@ -651,7 +650,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 10. **Assenza di FK SQL**: possibili record orfani se un percorso di cancellazione non è completo.
 11. **Controller/modelli molto estesi**: `AuthController`, `ProfileController`, `Profile` e `Booking` hanno responsabilità ampie.
 12. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
-13. **Duplicazione route**: alcuni endpoint sono registrati fuori e dentro il gruppo API; evitare collisioni e divergenze middleware.
+13. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
 14. **Documentazione versioni**: README e manifest non concordano sulla versione Laravel.
 
 ## 18. Architettura target multi-profilo
@@ -779,7 +778,7 @@ Regole di esecuzione:
 - ogni gate include test automatici, controlli DB e una checklist manuale breve;
 - una mancata approvazione riapre lo stesso step: non si procede accumulando difetti;
 - gli step 0–3, 4–7 e 8–10 possono essere lavorati come macro-fasi tecniche, ma i gate restano separati;
-- la rimozione di `users.role`, dei cookie legacy e della vecchia UI avviene solo dopo un periodo di compatibilità osservato.
+- la rimozione di `users.role` e della vecchia UI avviene solo dopo un periodo di compatibilità osservato; i cookie identità applicativi, essendo insicuri, sono stati rimossi nello STEP 1 e vengono ancora cancellati dalle risposte per compatibilità.
 
 ## 19. Convenzioni per modifiche future
 
@@ -804,6 +803,10 @@ Regole di esecuzione:
 | 2026-11-09 | Piano multi-profilo | Suddivisione della migrazione in undici milestone (0–10) con gate manuale “OK”, compatibilità progressiva e rimozione legacy finale | `ARCHITECTURE.md`; futuro intervento trasversale su DB/backend/frontend | Decisione documentale; nessuna modifica runtime o DB | Revisione degli impatti e definizione dei criteri di avanzamento |
 | 2026-11-09 | STEP 0 multi-profilo | Acquisita baseline Git/test/schema/dati, verificato restore del backup privato e aggiunto feature flag disattivato | `docs/baselines/changeaccount-step0.md`, `php/config/features.php`, `php/.env.example`, `ARCHITECTURE.md` | Nessuna modifica DB o comportamento; dump privato ignorato da Git; rollback documentato | 15 test/71 assertion, lint, build, restore isolato 43 tabelle/41 utenti |
 | 2026-11-09 | Requisito UX autenticazione | Esteso il disegno della hero: login e registrazione devono entrambi offrire “Torna alla home”, ripristino CTA/focus/URL e pulizia password | `ARCHITECTURE.md`; futura `HomePage` e componenti auth condivisi | Requisito documentato per STEP 8; nessuna modifica runtime | Verificata l'assenza del comando nel pannello login attuale |
+| 2026-11-09 | STEP 1 identità e sessione | Identità resa esclusivamente server-side, aggiunti resolver/guardie utente e admin, eliminate route duplicate, riattivato CSRF e centralizzato l'invio token nel frontend/CMS | `PortalSession`, `AdminSession`, middleware, controller, `routes/api.php`, helper auth frontend e test; nessuna tabella modificata | Cookie applicativi ID/ruolo non più emessi e cancellati sulle risposte auth; chiave sessione ID conservata; nessuna migrazione o backfill DB | 18 test/76 assertion, lint PHP, route list e build frontend; aggiunti test cookie forgiato, guardie CMS e CSRF 419 |
+| 2026-11-09 | STEP 1 security hardening | Corretti Apple JWT senza firma e fallback social per email; aggiunti nonce/state Apple, limiter, header HTTP, blocco email injection, session rotation, CMS fail-closed, test bypass HEAD e aggiornamenti dipendenze compatibili | auth/model, route, middleware sicurezza, Composer/npm lock, `docs/security/changeaccount-step1-security.md`; nessuna tabella modificata | Conferma email ora richiede login successivo; social login richiede provider+subject; nessuna migrazione DB | 28 test/172 assertion; audit runtime npm pulito; advisory Symfony risolti; rischi Laravel/reset documentati |
+| 2026-11-09 | Correzione OAuth profili | Caricati gli SDK Google/Apple nelle pagine profilo, aggiunto loader Google resiliente e collegamento just-in-time sicuro degli account social legacy con email attestata dal provider | HTML profili, `googleOAuth.ts`, `AccountChangeModal`, `AuthController`, `UserAccount`, test social | Nessun dato migrato in massa; il collegamento viene creato soltanto dopo prova OAuth valida | 30 test/176 assertion, lint/build e prova reale “Passa a Google” su Pet Assistant completata; quattro test dedicati a provider/subject ed email verificata/non verificata |
+| 2026-11-09 | Gate STEP 1 | Milestone identità, sessione e hardening approvata dall'utente con “OK STEP 1” | Intero changeset STEP 1 sul branch `changeaccount` | Pronto per commit isolato; nessuna migrazione DB | Gate manuale completato dopo verifica Google Pet Assistant |
 
 ### Modello per nuove righe
 

@@ -1,4 +1,4 @@
-import { csrfHeaders } from '../auth/csrf'
+import { csrfFetch as fetch, csrfHeaders } from '../auth/csrf'
 import { useEffect, useState } from 'react'
 
 export function BookingsIcon() {

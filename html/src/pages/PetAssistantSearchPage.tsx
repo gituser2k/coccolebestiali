@@ -1,5 +1,6 @@
 import PublicFooter from '../components/PublicFooter'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
 import logoImage from '../assets/logo.png'
 import RankingStars from '../components/RankingStars'
 import '../css/search.css'

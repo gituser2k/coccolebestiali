@@ -1201,7 +1201,17 @@
       async function laravelFetch(url, options = {}) {
         showLoader()
         try {
-          return await fetch(url, options)
+          const method = String(options.method || 'GET').toUpperCase()
+          const headers = new Headers(options.headers || {})
+          if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+            const token = document.cookie
+              .split('; ')
+              .find((entry) => entry.startsWith('XSRF-TOKEN='))
+              ?.slice('XSRF-TOKEN='.length)
+            if (token) headers.set('X-XSRF-TOKEN', decodeURIComponent(token))
+          }
+
+          return await fetch(url, { ...options, credentials: options.credentials || 'same-origin', headers })
         } finally {
           hideLoader()
         }
@@ -2996,7 +3006,7 @@
         const username = document.getElementById('username').value.trim()
         const password = document.getElementById('password').value
         try {
-          const response = await fetch('/api/admin/auth/login', {
+          const response = await laravelFetch('/api/admin/auth/login', {
             method: 'POST',
             headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
@@ -3043,7 +3053,7 @@
 
       btnLogout.addEventListener('click', async () => {
         try {
-          await fetch('/api/admin/auth/logout', { method: 'POST', headers: { Accept: 'application/json' } })
+          await laravelFetch('/api/admin/auth/logout', { method: 'POST', headers: { Accept: 'application/json' } })
         } catch (error) {
           // La sessione locale viene comunque rimossa.
         }

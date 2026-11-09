@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { csrfFetch as fetch } from '../auth/csrf'
 
 export type DemoPageProps = {
   message?: string

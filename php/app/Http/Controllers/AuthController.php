@@ -4,22 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Models\UserAccount;
 use App\Models\Utility;
+use App\Support\PortalSession;
 use Exception;
+use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 class AuthController extends Controller
 {
-    private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
+    private const APPLE_NONCE_SESSION_KEY = 'cb_apple_oauth_nonce';
 
-    private const PORTAL_USER_ROLE_COOKIE = 'cb_portal_user_role';
+    private const APPLE_STATE_SESSION_KEY = 'cb_apple_oauth_state';
 
     public function getPublicAuthConfig(): JsonResponse
     {
@@ -32,6 +37,21 @@ class AuthController extends Controller
                 'appleMockAuth' => $this->isAppleMockEnabled(),
             ],
         ], 200);
+    }
+
+    public function getAppleAuthChallenge(Request $request): JsonResponse
+    {
+        $nonce = bin2hex(random_bytes(32));
+        $state = bin2hex(random_bytes(32));
+        $request->session()->put([
+            self::APPLE_NONCE_SESSION_KEY => $nonce,
+            self::APPLE_STATE_SESSION_KEY => $state,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'data' => compact('nonce', 'state'),
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function logFrontendError(Request $request): JsonResponse
@@ -175,8 +195,7 @@ class AuthController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (RuntimeException $e) {
             $message = match ($e->getMessage()) {
-                'LOGIN_USER_NOT_FOUND' => 'Account non trovato.',
-                'LOGIN_PASSWORD_INVALID' => 'Password non corretta.',
+                'LOGIN_USER_NOT_FOUND', 'LOGIN_PASSWORD_INVALID' => 'Email o password non corrette.',
                 'LOGIN_EMAIL_NOT_VERIFIED' => 'Email non ancora confermata.',
                 default => 'Login non riuscito.',
             };
@@ -394,7 +413,14 @@ class AuthController extends Controller
             }
 
             $model = new UserAccount;
-            $user = $model->loginSocialUser('google', (string) $claims['sub'], (string) ($claims['email'] ?? ''));
+            $user = $model->loginSocialUser(
+                'google',
+                (string) $claims['sub'],
+                (string) $claims['email'],
+                (bool) $claims['emailVerified'],
+                false,
+                (array) $claims['rawClaims']
+            );
 
             return $this->withPortalUserCookies(response()->json([
                 'ok' => true,
@@ -606,10 +632,7 @@ class AuthController extends Controller
                 ->header('Content-Type', 'text/html; charset=UTF-8');
         }
 
-        return $this->withPortalUserCookies(
-            redirect()->to($this->profileRedirectPathForRoleAndEntry($role, 'register')),
-            $user
-        );
+        return redirect()->to('/?auth=login&verified=1');
     }
 
     public function getCurrentUser(Request $request): JsonResponse
@@ -657,20 +680,13 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         try {
-            if ($request->hasSession()) {
-                $request->session()->forget([
-                    self::PORTAL_USER_ID_COOKIE,
-                    self::PORTAL_USER_ROLE_COOKIE,
-                ]);
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-            }
+            PortalSession::invalidate($request);
 
             return response()->json([
                 'ok' => true,
             ], Response::HTTP_OK)
-                ->withCookie(Cookie::forget(self::PORTAL_USER_ID_COOKIE, '/', null))
-                ->withCookie(Cookie::forget(self::PORTAL_USER_ROLE_COOKIE, '/', null));
+                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
+                ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 
@@ -712,21 +728,14 @@ class AuthController extends Controller
                 );
             }
 
-            if ($request->hasSession()) {
-                $request->session()->forget([
-                    self::PORTAL_USER_ID_COOKIE,
-                    self::PORTAL_USER_ROLE_COOKIE,
-                ]);
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-            }
+            PortalSession::invalidate($request);
 
             return response()->json([
                 'ok' => true,
                 'message' => 'Account rimosso definitivamente.',
             ], Response::HTTP_OK)
-                ->withCookie(Cookie::forget(self::PORTAL_USER_ID_COOKIE, '/', null))
-                ->withCookie(Cookie::forget(self::PORTAL_USER_ROLE_COOKIE, '/', null));
+                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
+                ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 
@@ -753,12 +762,14 @@ class AuthController extends Controller
                 'role' => ['required', 'string'],
                 'identityToken' => ['required', 'string'],
                 'user' => ['nullable'],
+                'state' => ['required', 'string', 'max:128'],
             ]);
 
             $role = $this->normalizeRole($validated['role']);
             $claims = $this->verifyAppleIdentityToken(
                 (string) $validated['identityToken'],
-                $validated['user'] ?? null
+                $validated['user'] ?? null,
+                $this->consumeAppleAuthChallenge($request, (string) $validated['state'])
             );
 
             $m = new UserAccount;
@@ -810,15 +821,24 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'identityToken' => ['required', 'string'],
                 'user' => ['nullable'],
+                'state' => ['required', 'string', 'max:128'],
             ]);
 
             $claims = $this->verifyAppleIdentityToken(
                 (string) $validated['identityToken'],
-                $validated['user'] ?? null
+                $validated['user'] ?? null,
+                $this->consumeAppleAuthChallenge($request, (string) $validated['state'])
             );
 
             $model = new UserAccount;
-            $user = $model->loginSocialUser('apple', (string) $claims['sub'], (string) ($claims['email'] ?? ''));
+            $user = $model->loginSocialUser(
+                'apple',
+                (string) $claims['sub'],
+                (string) $claims['email'],
+                (bool) $claims['emailVerified'],
+                false,
+                (array) $claims['rawClaims']
+            );
 
             return $this->withPortalUserCookies(response()->json([
                 'ok' => true,
@@ -872,11 +892,13 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'identityToken' => ['required', 'string'],
                 'user' => ['nullable'],
+                'state' => ['required', 'string', 'max:128'],
             ]);
 
             $claims = $this->verifyAppleIdentityToken(
                 (string) $validated['identityToken'],
-                $validated['user'] ?? null
+                $validated['user'] ?? null,
+                $this->consumeAppleAuthChallenge($request, (string) $validated['state'])
             );
 
             $model = new UserAccount;
@@ -1030,7 +1052,7 @@ class AuthController extends Controller
             $mockEmail = strtolower(trim((string) ($validated['mockEmail'] ?? '')));
 
             $model = new UserAccount;
-            $user = $model->loginSocialUser('apple', $mockSub, $mockEmail);
+            $user = $model->loginSocialUser('apple', $mockSub, $mockEmail, false, true);
 
             return $this->withPortalUserCookies(response()->json([
                 'ok' => true,
@@ -1174,8 +1196,8 @@ class AuthController extends Controller
             ->connectTimeout(3)
             ->timeout(8)
             ->get('https://oauth2.googleapis.com/tokeninfo', [
-            'id_token' => $idToken,
-        ]);
+                'id_token' => $idToken,
+            ]);
 
         if (! $response->ok()) {
             throw new RuntimeException('GOOGLE_TOKENINFO_ERROR');
@@ -1329,8 +1351,8 @@ class AuthController extends Controller
             ->connectTimeout(3)
             ->timeout(8)
             ->get('https://oauth2.googleapis.com/tokeninfo', [
-            'access_token' => $accessToken,
-        ]);
+                'access_token' => $accessToken,
+            ]);
         if (! $tokenInfoResponse->ok()) {
             throw new RuntimeException('GOOGLE_TOKENINFO_ERROR');
         }
@@ -1381,9 +1403,9 @@ class AuthController extends Controller
         ];
     }
 
-    private function verifyAppleIdentityToken(string $identityToken, mixed $appleUserRaw): array
+    private function verifyAppleIdentityToken(string $identityToken, mixed $appleUserRaw, string $expectedNonce): array
     {
-        $claims = $this->decodeJwtPayload($identityToken);
+        $claims = $this->decodeVerifiedAppleIdentityToken($identityToken);
         $issuer = (string) ($claims['iss'] ?? '');
         $aud = $claims['aud'] ?? '';
         $sub = (string) ($claims['sub'] ?? '');
@@ -1391,6 +1413,7 @@ class AuthController extends Controller
         $emailVerifiedRaw = (string) ($claims['email_verified'] ?? '');
         $isPrivateRaw = (string) ($claims['is_private_email'] ?? '');
         $configuredClientId = (string) env('APPLE_CLIENT_ID', '');
+        $nonce = (string) ($claims['nonce'] ?? '');
 
         if ($sub === '') {
             throw new RuntimeException('APPLE_SUB_MISSING');
@@ -1398,6 +1421,10 @@ class AuthController extends Controller
 
         if ($issuer !== 'https://appleid.apple.com') {
             throw new RuntimeException('APPLE_ISS_MISMATCH');
+        }
+
+        if ($expectedNonce === '' || $nonce === '' || ! hash_equals($expectedNonce, $nonce)) {
+            throw new RuntimeException('APPLE_NONCE_MISMATCH');
         }
 
         if ($configuredClientId !== '') {
@@ -1414,10 +1441,6 @@ class AuthController extends Controller
         }
 
         $appleUser = $this->normalizeAppleUser($appleUserRaw);
-        if ($email === '' && isset($appleUser['email'])) {
-            $email = strtolower((string) $appleUser['email']);
-        }
-
         $name = '';
         if (isset($appleUser['name']) && is_array($appleUser['name'])) {
             $firstName = trim((string) ($appleUser['name']['firstName'] ?? ''));
@@ -1438,28 +1461,63 @@ class AuthController extends Controller
         ];
     }
 
-    private function decodeJwtPayload(string $token): array
+    private function consumeAppleAuthChallenge(Request $request, string $state): string
     {
-        $parts = explode('.', $token);
-        if (count($parts) !== 3) {
-            throw new RuntimeException('JWT_FORMAT_INVALID');
+        $expectedState = (string) $request->session()->pull(self::APPLE_STATE_SESSION_KEY, '');
+        $nonce = (string) $request->session()->pull(self::APPLE_NONCE_SESSION_KEY, '');
+
+        if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state) || $nonce === '') {
+            throw new RuntimeException('APPLE_STATE_MISMATCH');
         }
 
-        $payload = $parts[1];
-        $payload .= str_repeat('=', (4 - strlen($payload) % 4) % 4);
-        $payload = str_replace(['-', '_'], ['+', '/'], $payload);
+        return $nonce;
+    }
 
-        $decoded = base64_decode($payload, true);
-        if ($decoded === false) {
-            throw new RuntimeException('JWT_PAYLOAD_DECODE_ERROR');
+    private function decodeVerifiedAppleIdentityToken(string $identityToken): array
+    {
+        try {
+            $claims = JWT::decode($identityToken, $this->appleSigningKeys());
+        } catch (Throwable) {
+            Cache::forget('auth.apple.signing-keys');
+
+            try {
+                $claims = JWT::decode($identityToken, $this->appleSigningKeys());
+            } catch (Throwable $exception) {
+                throw new RuntimeException('APPLE_TOKEN_SIGNATURE_INVALID', 0, $exception);
+            }
         }
 
-        $claims = json_decode($decoded, true);
-        if (! is_array($claims)) {
-            throw new RuntimeException('JWT_PAYLOAD_JSON_ERROR');
+        $decoded = json_decode(json_encode($claims, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        if (! is_array($decoded)) {
+            throw new RuntimeException('APPLE_INVALID_CLAIMS');
         }
 
-        return $claims;
+        return $decoded;
+    }
+
+    private function appleSigningKeys(): array
+    {
+        return Cache::remember('auth.apple.signing-keys', now()->addHours(6), static function (): array {
+            $response = Http::acceptJson()
+                ->connectTimeout(3)
+                ->timeout(8)
+                ->get('https://appleid.apple.com/auth/keys');
+
+            if (! $response->ok()) {
+                throw new RuntimeException('APPLE_KEYS_UNAVAILABLE');
+            }
+
+            $keySet = $response->json();
+            if (! is_array($keySet) || ! isset($keySet['keys']) || ! is_array($keySet['keys'])) {
+                throw new RuntimeException('APPLE_KEYS_INVALID');
+            }
+
+            try {
+                return JWK::parseKeySet($keySet, 'RS256');
+            } catch (Throwable $exception) {
+                throw new RuntimeException('APPLE_KEYS_INVALID', 0, $exception);
+            }
+        });
     }
 
     private function normalizeAppleUser(mixed $appleUserRaw): array
@@ -1497,60 +1555,16 @@ class AuthController extends Controller
 
     private function withPortalUserCookies($response, array $user)
     {
-        $userId = (string) ((int) ($user['id'] ?? 0));
-        $role = (string) ($user['role'] ?? '');
-        $minutes = 60 * 24 * 30;
-
-        $this->startPortalSession((int) $userId, $role);
+        $userId = (int) ($user['id'] ?? 0);
+        PortalSession::start(request(), $userId);
 
         return $response
-            ->cookie(self::PORTAL_USER_ID_COOKIE, $userId, $minutes, '/', null, false, false, false, 'Lax')
-            ->cookie(self::PORTAL_USER_ROLE_COOKIE, $role, $minutes, '/', null, false, false, false, 'Lax');
+            ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
+            ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
     }
 
     private function resolveCurrentUserId(Request $request): int
     {
-        if ($request->hasSession()) {
-            $sessionUserId = (int) $request->session()->get(self::PORTAL_USER_ID_COOKIE, 0);
-            if ($sessionUserId > 0) {
-                return $sessionUserId;
-            }
-        }
-
-        $requestCookie = (int) $request->cookie(self::PORTAL_USER_ID_COOKIE, 0);
-        if ($requestCookie > 0) {
-            return $requestCookie;
-        }
-
-        $globalCookie = (int) ($_COOKIE[self::PORTAL_USER_ID_COOKIE] ?? 0);
-        if ($globalCookie > 0) {
-            return $globalCookie;
-        }
-
-        $rawCookieHeader = (string) $request->headers->get('cookie', '');
-        if ($rawCookieHeader !== '') {
-            preg_match('/(?:^|;\s*)'.preg_quote(self::PORTAL_USER_ID_COOKIE, '/').'=(\d+)/', $rawCookieHeader, $matches);
-            if (isset($matches[1])) {
-                return (int) $matches[1];
-            }
-        }
-
-        return 0;
-    }
-
-    private function startPortalSession(int $userId, string $role): void
-    {
-        if ($userId <= 0) {
-            return;
-        }
-
-        $request = request();
-        if (! $request->hasSession()) {
-            return;
-        }
-
-        $request->session()->regenerate();
-        $request->session()->put(self::PORTAL_USER_ID_COOKIE, $userId);
-        $request->session()->put(self::PORTAL_USER_ROLE_COOKIE, $role);
+        return PortalSession::userId($request);
     }
 }

@@ -4,14 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Profile;
 use App\Models\Utility;
+use App\Support\PortalSession;
 use DateTimeImmutable;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -20,8 +21,6 @@ use RuntimeException;
 
 class ProfileController extends Controller
 {
-    private const PORTAL_USER_ID_COOKIE = 'cb_portal_user_id';
-
     private const PET_DOCUMENT_TYPES = [
         'health_booklet',
         'registry_microchip',
@@ -820,7 +819,7 @@ class ProfileController extends Controller
         $validated = [];
 
         try {
-            $userId = (int) $request->session()->get('cb_portal_user_id', 0);
+            $userId = PortalSession::userId($request);
             if ($userId <= 0) {
                 return response()->json([
                     'ok' => false,
@@ -1272,25 +1271,7 @@ class ProfileController extends Controller
 
     private function resolveCurrentUserId(Request $request): int
     {
-        $requestCookie = (int) $request->cookie(self::PORTAL_USER_ID_COOKIE, 0);
-        if ($requestCookie > 0) {
-            return $requestCookie;
-        }
-
-        $globalCookie = (int) ($_COOKIE[self::PORTAL_USER_ID_COOKIE] ?? 0);
-        if ($globalCookie > 0) {
-            return $globalCookie;
-        }
-
-        $rawCookieHeader = (string) $request->headers->get('cookie', '');
-        if ($rawCookieHeader !== '') {
-            preg_match('/(?:^|;\s*)'.preg_quote(self::PORTAL_USER_ID_COOKIE, '/').'=(\d+)/', $rawCookieHeader, $matches);
-            if (isset($matches[1])) {
-                return (int) $matches[1];
-            }
-        }
-
-        return 0;
+        return PortalSession::userId($request);
     }
 
     private function normalizeCitySearchValue(string $value): string

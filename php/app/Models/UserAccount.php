@@ -106,7 +106,7 @@ class UserAccount extends Model
 
             if ($social) {
                 $userId = (int) $social->user_id;
-            } elseif ($email !== '') {
+            } elseif ($email !== '' && $emailVerified) {
                 $existingUser = DB::table('users')
                     ->select(['id'])
                     ->where('email', $email)
@@ -180,8 +180,14 @@ class UserAccount extends Model
         });
     }
 
-    public function loginSocialUser(string $provider, string $providerSub, string $email = ''): array
-    {
+    public function loginSocialUser(
+        string $provider,
+        string $providerSub,
+        string $email = '',
+        bool $emailVerified = false,
+        bool $allowLocalMockEmailFallback = false,
+        array $rawClaims = []
+    ): array {
         $social = DB::table('social_accounts')
             ->select(['user_id'])
             ->where('provider', $provider)
@@ -190,7 +196,16 @@ class UserAccount extends Model
 
         $user = $social ? $this->getUserById((int) $social->user_id) : [];
 
-        if ($user === [] && trim($email) !== '') {
+        if ($user === [] && $emailVerified && trim($email) !== '') {
+            $user = $this->linkVerifiedLegacySocialAccount(
+                $provider,
+                $providerSub,
+                strtolower(trim($email)),
+                $rawClaims
+            );
+        }
+
+        if ($allowLocalMockEmailFallback && app()->environment('local') && $user === [] && trim($email) !== '') {
             $user = $this->getUserByEmail($email);
         }
 
@@ -199,6 +214,50 @@ class UserAccount extends Model
         }
 
         return $user;
+    }
+
+    private function linkVerifiedLegacySocialAccount(
+        string $provider,
+        string $providerSub,
+        string $email,
+        array $rawClaims
+    ): array {
+        return DB::transaction(function () use ($provider, $providerSub, $email, $rawClaims): array {
+            $existingUser = DB::table('users')
+                ->select(['id'])
+                ->where('email', $email)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $existingUser) {
+                return [];
+            }
+
+            $userId = (int) $existingUser->id;
+            $providerAlreadyLinked = DB::table('social_accounts')
+                ->where('user_id', $userId)
+                ->where('provider', $provider)
+                ->exists();
+            if ($providerAlreadyLinked) {
+                throw new RuntimeException('SOCIAL_ACCOUNT_ALREADY_LINKED');
+            }
+
+            $now = time();
+            $claimsJson = json_encode($rawClaims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+            DB::table('social_accounts')->insert([
+                'user_id' => $userId,
+                'provider' => $provider,
+                'provider_sub' => $providerSub,
+                'provider_email' => $email,
+                'provider_email_verified' => 1,
+                'is_private_email' => 0,
+                'raw_claims' => mb_substr($claimsJson, 0, 4096),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            return $this->getUserById($userId);
+        });
     }
 
     public function switchCurrentUserToEmail(int $userId, string $email, string $password): array

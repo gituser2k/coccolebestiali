@@ -1,4 +1,4 @@
-import { csrfHeaders } from '../auth/csrf'
+import { csrfFetch as fetch, csrfHeaders } from '../auth/csrf'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import L from 'leaflet'
