@@ -51,6 +51,8 @@ php/storage/app/private/backups/changeaccount-step0-20261109-220602.sql
 
 Il dump può contenere dati personali e non deve essere versionato, copiato in aree pubbliche o condiviso. Prima di usarlo verificare nuovamente il checksum.
 
+Il 10 novembre 2026 è stato inoltre creato il tag annotato `db-pre-step0-20261109`, puntato al commit precedente allo STEP 0, e il manifesto versionato `php/migration/backups/pre-step0-20261109.md`. Una seconda prova di ripristino isolato ha riconfermato 43 tabelle, 41 utenti e 2 prenotazioni; il database temporaneo è stato eliminato al termine.
+
 ## Conteggi dati critici
 
 | Entità | Record |

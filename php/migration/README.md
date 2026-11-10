@@ -4,6 +4,8 @@
 
 Il file [`migration.txt`](./migration.txt) è la fonte cumulativa dello schema MySQL/MariaDB del portale.
 
+Il punto di recupero completo precedente allo STEP 0 della migrazione multi-profilo è descritto in [`backups/pre-step0-20261109.md`](./backups/pre-step0-20261109.md). Il manifesto registra tag Git, checksum, dump privato e procedura di ripristino verificata.
+
 Il progetto non usa al momento le migration versionate standard di Laravel. Il file contiene:
 
 - creazione del database;
