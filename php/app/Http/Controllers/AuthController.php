@@ -99,7 +99,7 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['required', 'string'],
+                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
                 'email' => ['required', 'email', 'max:255'],
                 'password' => [
                     'required',
@@ -118,11 +118,11 @@ class AuthController extends Controller
                 'password.not_regex' => 'La password non puo contenere spazi.',
             ]);
 
-            $role = $this->normalizeRole($validated['role']);
+            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $m = new UserAccount;
             $email = strtolower((string) $validated['email']);
             $user = $m->registerEmailUser($role, $email, (string) $validated['password']);
-            $this->sendRegistrationEmailConfirmation($email, $role);
+            $this->sendRegistrationEmailConfirmation($email);
 
             return response()->json([
                 'ok' => true,
@@ -333,12 +333,12 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['required', 'string'],
+                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
                 'idToken' => ['nullable', 'string'],
                 'accessToken' => ['nullable', 'string'],
             ]);
 
-            $role = $this->normalizeRole($validated['role']);
+            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $idToken = trim((string) ($validated['idToken'] ?? ''));
             $accessToken = trim((string) ($validated['accessToken'] ?? ''));
 
@@ -612,13 +612,16 @@ class AuthController extends Controller
     public function verifyEmail(Request $request)
     {
         $email = strtolower(trim((string) $request->query('email', '')));
-        $role = strtolower(trim((string) $request->query('role', '')));
+        $legacyRole = strtolower(trim((string) $request->query('role', '')));
         $expires = (int) $request->query('expires', 0);
         $signature = (string) $request->query('signature', '');
 
-        $expected = hash_hmac('sha256', $email.'|'.$role.'|'.$expires, (string) config('app.key'));
+        $signedPayload = $legacyRole !== ''
+            ? $email.'|'.$legacyRole.'|'.$expires
+            : $email.'|'.$expires;
+        $expected = hash_hmac('sha256', $signedPayload, (string) config('app.key'));
 
-        if ($email === '' || $role === '' || $expires <= time() || ! hash_equals($expected, $signature)) {
+        if ($email === '' || $expires <= time() || ! hash_equals($expected, $signature)) {
             return response($this->emailVerificationHtml(false), 400)
                 ->header('Content-Type', 'text/html; charset=UTF-8');
         }
@@ -759,13 +762,13 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['required', 'string'],
+                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
                 'identityToken' => ['required', 'string'],
                 'user' => ['nullable'],
                 'state' => ['required', 'string', 'max:128'],
             ]);
 
-            $role = $this->normalizeRole($validated['role']);
+            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $claims = $this->verifyAppleIdentityToken(
                 (string) $validated['identityToken'],
                 $validated['user'] ?? null,
@@ -964,13 +967,13 @@ class AuthController extends Controller
             }
 
             $validated = $request->validate([
-                'role' => ['required', 'string'],
+                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
                 'mockEmail' => ['nullable', 'email', 'max:255'],
                 'mockName' => ['nullable', 'string', 'max:255'],
                 'mockSub' => ['nullable', 'string', 'max:255'],
             ]);
 
-            $role = $this->normalizeRole($validated['role']);
+            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $email = strtolower((string) ($validated['mockEmail'] ?? ''));
             $name = trim((string) ($validated['mockName'] ?? 'Apple Mock User'));
             $sub = trim((string) ($validated['mockSub'] ?? ''));
@@ -1178,9 +1181,13 @@ class AuthController extends Controller
         }
     }
 
-    private function normalizeRole(string $role): string
+    private function normalizeRegistrationRole(mixed $role): string
     {
-        $normalized = strtolower(trim($role));
+        $normalized = strtolower(trim((string) $role));
+        if ($normalized === '') {
+            return 'pet_owner';
+        }
+
         $allowed = ['pet_owner', 'pet_assistant'];
 
         if (! in_array($normalized, $allowed, true)) {
@@ -1241,20 +1248,19 @@ class AuthController extends Controller
         ];
     }
 
-    private function sendRegistrationEmailConfirmation(string $email, string $role): void
+    private function sendRegistrationEmailConfirmation(string $email): void
     {
         $expires = time() + 60 * 60 * 24;
-        $signature = hash_hmac('sha256', $email.'|'.$role.'|'.$expires, (string) config('app.key'));
+        $signature = hash_hmac('sha256', $email.'|'.$expires, (string) config('app.key'));
         $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
-        $confirmUrl = $baseUrl.'/api/auth/verify-email?email='.urlencode($email).'&role='.urlencode($role).'&expires='.$expires.'&signature='.$signature;
-        $roleLabel = $role === 'pet_assistant' ? 'Pet Assistant' : 'Pet Owner';
+        $confirmUrl = $baseUrl.'/api/auth/verify-email?email='.urlencode($email).'&expires='.$expires.'&signature='.$signature;
 
         $html = '<div style="margin:0;padding:28px 16px;background:#f3f5f6;font-family:Arial,sans-serif;color:#333333;">'
             .'<div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #d7e2ea;box-shadow:0 18px 40px rgba(17,42,77,0.12);">'
             .'<div style="padding:24px 28px;background:linear-gradient(120deg,#2F7A4A 0%,#1F5FA7 100%);">'
             .'<div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.82);font-weight:700;">Coccole Bestiali</div>'
             .'<div style="margin-top:8px;font-size:28px;line-height:1.15;color:#ffffff;font-weight:800;">Conferma il tuo indirizzo email</div>'
-            .'<div style="margin-top:10px;font-size:15px;line-height:1.55;color:rgba(255,255,255,0.88);">Stiamo preparando il tuo profilo '.$roleLabel.'. Ci manca solo la conferma del tuo indirizzo email.</div>'
+            .'<div style="margin-top:10px;font-size:15px;line-height:1.55;color:rgba(255,255,255,0.88);">Stiamo preparando il tuo account Coccole Bestiali. Ci manca solo la conferma del tuo indirizzo email.</div>'
             .'</div>'
             .'<div style="padding:30px 28px 26px 28px;">'
             .'<div style="margin-bottom:18px;padding:16px 18px;border-radius:16px;background:linear-gradient(180deg,rgba(47,122,74,0.08) 0%,rgba(31,95,167,0.08) 100%);border:1px solid rgba(31,95,167,0.12);">'

@@ -98,6 +98,7 @@ class UserAccount extends Model
             $rawClaims
         ) {
             $now = time();
+            $isNewUser = false;
 
             $social = DB::table('social_accounts')
                 ->where('provider', $provider)
@@ -120,6 +121,7 @@ class UserAccount extends Model
             }
 
             if (! $userId) {
+                $isNewUser = true;
                 $userId = (int) DB::table('users')->insertGetId([
                     'role' => $role,
                     'name' => $name,
@@ -134,7 +136,6 @@ class UserAccount extends Model
                 DB::table('users')
                     ->where('id', $userId)
                     ->update([
-                        'role' => $role,
                         'name' => $name !== '' ? $name : DB::raw('name'),
                         'email' => $email !== '' ? $email : DB::raw('email'),
                         'email_verified' => $emailVerified ? 1 : DB::raw('email_verified'),
@@ -143,7 +144,10 @@ class UserAccount extends Model
                     ]);
             }
 
-            (new UserCapability)->provisionForLegacyRole($userId, $role, $now);
+            $storedRole = $isNewUser
+                ? $role
+                : (string) DB::table('users')->where('id', $userId)->value('role');
+            (new UserCapability)->provisionForLegacyRole($userId, $storedRole, $now);
 
             $claimsJson = json_encode($rawClaims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (strlen((string) $claimsJson) > 4096) {
@@ -421,6 +425,7 @@ class UserAccount extends Model
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->value('provider');
+        $capabilityState = (new UserCapability)->resolveForUser($userId, (string) $row->role);
 
         return [
             'id' => (int) $row->id,
@@ -431,6 +436,10 @@ class UserAccount extends Model
             'passwordResetRequired' => (bool) $row->password_reset_required,
             'avatar' => (string) $row->avatar,
             'provider' => $provider ? (string) $provider : '',
+            'capabilities' => $capabilityState['items'],
+            'activeCapabilities' => $capabilityState['active'],
+            'modes' => $capabilityState['modes'],
+            'capabilitySource' => $capabilityState['source'],
         ];
     }
 

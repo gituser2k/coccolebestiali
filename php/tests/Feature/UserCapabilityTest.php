@@ -93,4 +93,24 @@ class UserCapabilityTest extends TestCase
 
         (new UserCapability)->provisionForLegacyRole(40, 'administrator');
     }
+
+    public function test_no_ui_mode_is_granted_when_every_capability_is_inactive(): void
+    {
+        foreach ([['owner', 'disabled'], ['assistant', 'suspended']] as [$capability, $status]) {
+            DB::table('user_capabilities')->insert([
+                'user_id' => 50,
+                'capability' => $capability,
+                'status' => $status,
+                'onboarding_version' => 1,
+                'current_step' => 'complete',
+                'created_at' => 1000,
+                'updated_at' => 1000,
+            ]);
+        }
+
+        $state = (new UserCapability)->resolveForUser(50, 'pet_assistant');
+
+        $this->assertSame([], $state['active']);
+        $this->assertSame(['available' => [], 'default' => ''], $state['modes']);
+    }
 }

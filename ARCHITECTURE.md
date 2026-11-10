@@ -193,7 +193,8 @@ I controller validano l'input, traducono eccezioni in JSON/codici HTTP e delegan
 
 | Classe | Funzioni/parametri caratterizzanti |
 | --- | --- |
-| `UserAccount` | autenticazione email; `registerEmailUser(role,email,password)`; `upsertSocialUser(provider,sub,role,email,...)`; login social; cambio provider; lookup utente; verifica email; password temporanea; cancellazione completa account/file |
+| `UserAccount` | autenticazione email; registrazione con ruolo legacy interno; social upsert non distruttivo; login/cambio provider; lookup utente con capability e modalità; verifica email; password temporanea; cancellazione completa account/file |
+| `UserCapability` | provisioning idempotente; lettura stati Owner/Assistant; risoluzione modalità; fallback temporaneo a `users.role` per account/schema non migrati |
 | `Profile` | `getPersonalProfile(userId)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
 | `PetAssistantSearch` | `getOptions(userId=0)`; `search(startDate,endDate,serviceIds,petId,userId,duration,sortBy,onlyWithPhoto,optionFilters,onlyFavorites,showFavoriteStatus)`; disponibilità; distanza; compatibilità pet; servizi |
 | `PublicPetAssistant` | query base profili; dettaglio; preferiti; statistiche risposta; recensioni pubblicate; etichette catalogo |
@@ -232,14 +233,14 @@ La documentazione di migrazione prescrive `php artisan schedule:work` o cron `ph
 | Metodo e path | Input essenziale | Output/effetto |
 | --- | --- | --- |
 | `GET /api/auth/config` | nessuno | client ID OAuth e flag Apple mock |
-| `GET /api/auth/me` | sessione server | utente corrente |
-| `POST /api/auth/register/email` | `role,email,password` | crea account non verificato e invia email |
-| `POST /api/auth/register/google` | `role,idToken/accessToken` | upsert account social e sessione |
-| `POST /api/auth/register/apple` | `role,identityToken,user?` | upsert account social e sessione |
+| `GET /api/auth/me` | sessione server | utente corrente, capability/stati, modalità disponibili/default e campo `role` compatibile |
+| `POST /api/auth/register/email` | `email,password,role?` | crea account globale non verificato; senza ruolo usa il default tecnico Owner e invia email neutra |
+| `POST /api/auth/register/google` | `idToken/accessToken,role?` | crea/collega account social senza mutare ruolo o capability di account esistenti |
+| `POST /api/auth/register/apple` | `identityToken,user?,role?` | crea/collega account social senza mutare ruolo o capability di account esistenti |
 | `POST /api/auth/login/email` | `email,password` | sessione e utente |
 | `POST /api/auth/login/google` | token | sessione e utente esistente |
 | `POST /api/auth/login/apple` | token | sessione e utente esistente |
-| `GET /api/auth/verify-email` | `email,role,expires,signature` | verifica email e redirect al login; non crea una sessione |
+| `GET /api/auth/verify-email` | `email,expires,signature`; `role?` solo link legacy | verifica email e redirect al login; accetta firma neutra e vecchia firma legata al ruolo |
 | `POST /api/auth/password/forgot` | `email` | password temporanea inviata senza enumerazione esplicita |
 | `POST /api/auth/password/temporary` | password e conferma | sostituzione password temporanea |
 | `POST /api/auth/account/{email|google|apple}` | credenziali/token | cambia metodo di accesso dell'account corrente |
@@ -337,7 +338,7 @@ Le API `/api/admin/*` comprendono:
 - Apple, verificato tramite identity token e audience;
 - un solo collegamento social attivo per account dopo il cambio metodo.
 
-La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numero, simbolo e nessuno spazio. La conferma email usa una firma HMAC con scadenza. La password dimenticata genera una password temporanea e imposta `password_reset_required`.
+La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numero, simbolo e nessuno spazio. La registrazione backend è neutra: `role` è opzionale e, se assente, viene memorizzato `pet_owner` soltanto come default tecnico compatibile mentre si crea la capability Owner. I vecchi client possono ancora inviare il ruolo fino allo STEP 8. La conferma email usa una firma HMAC neutra con scadenza e accetta temporaneamente le firme legacy già inviate. La password dimenticata genera una password temporanea e imposta `password_reset_required`.
 
 ### 9.2 Sessione corrente
 
@@ -355,7 +356,7 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 
 ### 10.1 Ruoli attuali
 
-`users.role` vale `pet_owner` o `pet_assistant`. I controlli sono distribuiti tra controller, modelli e frontend. Non esiste ancora una policy centralizzata.
+`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con controller e frontend non migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. La lettura usa `user_capabilities` con fallback temporaneo al ruolo; le policy autorizzative centralizzate arriveranno negli step 6–7.
 
 ### 10.2 Pet Owner
 
@@ -639,12 +640,12 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 17. Debito tecnico e rischi conosciuti
 
-1. **Ruolo esclusivo**: `users.role` impedisce la coesistenza Owner/Assistant.
+1. **Ruolo legacy ancora consumato**: le capability possono coesistere, ma parte di UI e autorizzazioni continua a scegliere una sola prospettiva tramite `users.role` fino agli step 6–9.
 2. **Autorizzazioni di capability**: la sessione è centralizzata, ma i controlli Owner/Assistant restano legati al ruolo esclusivo fino agli step 2–7.
 3. **Copertura end-to-end OAuth**: login email è verificabile localmente; Google e Apple richiedono collaudo manuale con credenziali/provider disponibili.
 4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
 5. **Autorizzazioni distribuite**: controlli `where(role=...)` non centralizzati.
-6. **Login social**: l'upsert può sovrascrivere il ruolo di un account esistente trovato per email.
+6. **Registrazione legacy ancora visibile**: la pagina `/register` continua a chiedere Owner/Assistant fino alla sostituzione prevista nello STEP 8; il backend neutro è già disponibile.
 7. **Dati personali misti**: `personaldata` combina dati comuni, residenza Owner e area operativa Assistant.
 8. **Reputazione unica**: eventi Owner e Assistant convergono nello stesso score.
 9. **Schema non versionato**: uno script cumulativo rende meno esplicita la sequenza delle release.
@@ -813,6 +814,8 @@ Regole di esecuzione:
 | 2026-11-10 | Backup pre-STEP 0 | Creato un punto di recupero immutabile per migration e database precedenti allo STEP 0 | tag `db-pre-step0-20261109`, `php/migration/backups/pre-step0-20261109.md`, dump privato già acquisito | Nessuna modifica al database operativo; dump con dati personali non versionato | Checksum riconfermato; secondo restore isolato riuscito con 43 tabelle, 41 utenti e 2 prenotazioni |
 | 2026-11-10 | STEP 2 capability | Aggiunti schema capability, backfill idempotente e dual-write delle creazioni account legacy | `user_capabilities`, `UserCapability`, `UserAccount`, migration/seed/export/demo, `docs/migrations/changeaccount-step2-capabilities.md` | `users.role` conservato e ancora letto; ogni account Owner, Assistant legacy con entrambe le capability; backup privato prima dell'applicazione | 34 test/183 assertion, lint/build; restore e ricostruzione da zero; dati legacy invariati; 81 capability e 0 errori di mapping; smoke profili/login Assistant riuscito |
 | 2026-11-10 | Gate STEP 2 | Milestone schema capability e backfill approvata dall'utente con “OK STEP 2” | Intero changeset STEP 2 sul branch `changeaccount` | Database locale migrato; `users.role` e compatibilità legacy mantenuti | Gate manuale completato dopo verifica utente |
+| 2026-11-10 | STEP 3 account neutro | Reso opzionale il ruolo in registrazione, esteso il contratto utente con capability/modalità, aggiunto dual-read legacy e impedita la mutazione del ruolo negli upsert social esistenti | `AuthController`, `UserAccount`, `UserCapability`, test compatibilità, `docs/migrations/changeaccount-step3-neutral-account.md` | Nessuna modifica DB; vecchi payload e link email restano validi; `role` ancora restituito ai client legacy | 43 test/223 assertion; registrazioni neutre email/Google/Apple mock, firme email doppie, fail-closed senza capability attive e smoke `/auth/me` Assistant |
+| 2026-11-10 | Gate STEP 3 | Milestone account neutro e compatibilità backend approvata dall'utente con “OK STEP 3” | Intero changeset STEP 3 sul branch `changeaccount` | Nessuna modifica DB; contratto legacy mantenuto | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 
