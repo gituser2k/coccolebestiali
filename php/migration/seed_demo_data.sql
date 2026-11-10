@@ -34,6 +34,9 @@ DELETE FROM `petbreeddata`;
 DELETE FROM `operatortitledata`;
 DELETE FROM `operatorassociatedata`;
 DELETE FROM `operatordata`;
+DELETE FROM `assistant_profile`;
+DELETE FROM `owner_profile`;
+DELETE FROM `account_profile`;
 DELETE FROM `personaldata`;
 DELETE FROM `social_accounts`;
 DELETE FROM `user_capabilities`;
@@ -147,6 +150,28 @@ INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `ph
 INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (39, 39, 'Pet Assistant 38', '', 60, 'Roma', '0670000038', 'Via Boccea', '91', '41.8791925', '12.5589487', 5, 1792246803, 1792246803);
 INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (40, 40, 'Pet Assistant 39', '', 22, 'Roma', '0670000039', 'Viale Europa', '98', '41.8839500', '12.5747195', 8, 1792246803, 1792246803);
 INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (41, 41, 'Pet Assistant 40', '', 23, 'Roma', '0670000040', 'Via del Pigneto', '105', '41.8988891', '12.5297345', 10, 1792246803, 1792246803);
+
+-- account_profile: 41 record
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`)
+SELECT `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
+FROM `personaldata`;
+
+-- owner_profile: 1 record
+INSERT INTO `owner_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `created_at`, `updated_at`)
+SELECT personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
+       personal.`location_lat`, personal.`location_lng`, personal.`created_at`, personal.`updated_at`
+FROM `personaldata` AS personal
+INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
+WHERE account.`role` = 'pet_owner';
+
+-- assistant_profile: 40 record
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`)
+SELECT personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
+       personal.`location_lat`, personal.`location_lng`, personal.`service_radius_km`,
+       personal.`created_at`, personal.`updated_at`
+FROM `personaldata` AS personal
+INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
+WHERE account.`role` = 'pet_assistant';
 
 -- operatordata: 40 record
 INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `business_name`, `vat_number`, `bio`, `experience_years`, `pet_size`, `booking_confirmation_mode`, `created_at`, `updated_at`) VALUES (1, 2, 'person', 'CBTUSR0000000001', '', '', 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.', 4, 'small', 'manual', 1792246803, 1792697894);

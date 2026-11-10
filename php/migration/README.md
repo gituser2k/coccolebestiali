@@ -49,7 +49,10 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | `users` | Account, ruolo, alias, email e credenziali. |
 | `user_capabilities` | Capability Owner/Assistant, stato e avanzamento onboarding per account. |
 | `social_accounts` | Collegamenti con Google e Apple. |
-| `personaldata` | Dati personali, recapiti e coordinate GPS. |
+| `account_profile` | Nome, foto, età e telefono condivisi dall'account. |
+| `owner_profile` | Residenza e coordinate usate nella prospettiva Pet Owner. |
+| `assistant_profile` | Sede/area operativa, coordinate e raggio del Pet Assistant. |
+| `personaldata` | Mirror legacy temporaneo dei dati profilo, mantenuto durante la migrazione multi-profilo. |
 | `operatordata` | Informazioni professionali del Pet Assistant. |
 | `operatorassociatedata` | Associati collegati a un operatore di tipo associazione. |
 | `user_reputation` | Punteggio corrente, inizializzato a 60/100. |

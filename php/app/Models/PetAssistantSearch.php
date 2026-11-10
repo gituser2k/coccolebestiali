@@ -5,6 +5,7 @@ namespace App\Models;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class PetAssistantSearch
@@ -80,11 +81,11 @@ class PetAssistantSearch
 
         $pet = $petId > 0 ? $this->getOwnedPet($userId, $petId) : null;
 
-        $availability = DB::table('calendar_day as day')
+        $availabilityQuery = DB::table('calendar_day as day')
             ->join('calendar_day_slot as slot', 'slot.calendar_day_id', '=', 'day.id')
             ->join('calendar_day_slot_service as slot_service', 'slot_service.slot_id', '=', 'slot.id')
             ->join('users as user', 'user.id', '=', 'day.user_id')
-            ->join('personaldata as personal', 'personal.user_id', '=', 'user.id')
+            ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'user.id')
             ->join('operatordata as operator', 'operator.user_id', '=', 'user.id')
             ->join('service', 'service.id', '=', 'slot_service.service_id')
             ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'user.id')
@@ -98,17 +99,38 @@ class PetAssistantSearch
             ->where('slot.enabled', 1)
             ->where('slot_service.enabled', 1)
             ->whereBetween('day.date', [$startDate, $endDate])
-            ->whereIn('slot_service.service_id', $serviceIds)
-            ->when($onlyWithPhoto, fn ($query) => $query->whereRaw("TRIM(COALESCE(personal.photo, '')) <> ''"))
+            ->whereIn('slot_service.service_id', $serviceIds);
+
+        $usesSeparatedProfiles = Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
+        if ($usesSeparatedProfiles) {
+            $availabilityQuery
+                ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'user.id')
+                ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'user.id');
+        }
+        $photoExpression = $usesSeparatedProfiles
+            ? "CASE WHEN account_common.user_id IS NOT NULL THEN account_common.photo ELSE COALESCE(personal.photo, '') END"
+            : "COALESCE(personal.photo, '')";
+        $cityExpression = $usesSeparatedProfiles
+            ? "CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.city ELSE COALESCE(personal.city, '') END"
+            : "COALESCE(personal.city, '')";
+        $latitudeExpression = $usesSeparatedProfiles
+            ? 'CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.location_lat ELSE COALESCE(personal.location_lat, 0) END'
+            : 'COALESCE(personal.location_lat, 0)';
+        $longitudeExpression = $usesSeparatedProfiles
+            ? 'CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.location_lng ELSE COALESCE(personal.location_lng, 0) END'
+            : 'COALESCE(personal.location_lng, 0)';
+
+        $availability = $availabilityQuery
+            ->when($onlyWithPhoto, fn ($query) => $query->whereRaw('TRIM('.$photoExpression.") <> ''"))
             ->when($onlyFavorites, fn ($query) => $query->whereIn('user.id', (new PublicPetAssistant)->favorites($userId)->select('assistant_user_id')))
             ->select([
                 'user.id as user_id',
                 'user.name as alias',
                 'user.avatar',
-                'personal.photo',
-                'personal.city',
-                'personal.location_lat',
-                'personal.location_lng',
+                DB::raw($photoExpression.' as photo'),
+                DB::raw($cityExpression.' as city'),
+                DB::raw($latitudeExpression.' as location_lat'),
+                DB::raw($longitudeExpression.' as location_lng'),
                 'public_profile.publish_exact_location',
                 'operator.operator_type',
                 'operator.business_name',
@@ -456,12 +478,8 @@ class PetAssistantSearch
         if ($userId <= 0) {
             return null;
         }
-        $row = DB::table('personaldata')->where('user_id', $userId)->first(['location_lat', 'location_lng']);
-        if (! $row || (float) $row->location_lat === 0.0 || (float) $row->location_lng === 0.0) {
-            return null;
-        }
 
-        return [(float) $row->location_lat, (float) $row->location_lng];
+        return (new ProfileData)->ownerLocation($userId);
     }
 
     public static function publicPoint(float $latitude, float $longitude, bool $exact): ?array

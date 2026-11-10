@@ -2,7 +2,7 @@
 
 > Documento vivente e fonte di orientamento tecnico del portale.
 >
-> Ultima ricognizione completa: **9 novembre 2026**.
+> Ultima ricognizione completa: **10 novembre 2026**.
 > Stato descritto: codice presente nel workspace, incluse le modifiche locali non ancora consolidate.
 
 ## 1. Scopo e regole di manutenzione
@@ -37,14 +37,14 @@ Ogni aggiornamento deve inoltre aggiungere una riga al **Registro delle modifich
 
 ## 2. Sintesi del prodotto
 
-Coccole Bestiali è un marketplace per servizi dedicati agli animali domestici. Nel paradigma attuale esistono due tipi di utenza mutuamente esclusivi:
+Coccole Bestiali è un marketplace per servizi dedicati agli animali domestici. Il runtime conserva ancora una prospettiva legacy predefinita in `users.role`, ma account e profili sono in migrazione verso due capacità coesistenti:
 
 - **Pet Owner**: registra uno o più pet, cerca Pet Assistant, salva preferiti, invia prenotazioni, gestisce richieste e recensioni.
 - **Pet Assistant**: configura identità professionale, servizi, prezzi, caratteristiche, galleria, calendario e gestisce le richieste ricevute.
 
 Un CMS amministrativo gestisce messaggi, errori, cataloghi, servizi, policy e dataset demo.
 
-La direzione architetturale approvata per la futura evoluzione è sostituire il ruolo esclusivo con un account globale capace di possedere contemporaneamente i profili Owner e Assistant. La proposta è descritta nella sezione **Architettura target multi-profilo**; non rappresenta ancora lo schema implementato.
+La direzione approvata è un account globale capace di possedere contemporaneamente i profili Owner e Assistant. Capability, registrazione backend neutra e separazione dei dati di profilo sono già implementate in modo additivo; autorizzazioni runtime, onboarding e switch UI restano negli step successivi.
 
 ## 3. Stack tecnologico
 
@@ -195,7 +195,8 @@ I controller validano l'input, traducono eccezioni in JSON/codici HTTP e delegan
 | --- | --- |
 | `UserAccount` | autenticazione email; registrazione con ruolo legacy interno; social upsert non distruttivo; login/cambio provider; lookup utente con capability e modalità; verifica email; password temporanea; cancellazione completa account/file |
 | `UserCapability` | provisioning idempotente; lettura stati Owner/Assistant; risoluzione modalità; fallback temporaneo a `users.role` per account/schema non migrati |
-| `Profile` | `getPersonalProfile(userId)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
+| `ProfileData` | `read(userId,context)`; `write(userId,context,payload,timestamp)`; `syncCommonPhoto()`; `ownerLocation()`; dual-read/dual-write tra profili separati e mirror legacy |
+| `Profile` | `getPersonalProfile(userId,context?)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload,context?)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
 | `PetAssistantSearch` | `getOptions(userId=0)`; `search(startDate,endDate,serviceIds,petId,userId,duration,sortBy,onlyWithPhoto,optionFilters,onlyFavorites,showFavoriteStatus)`; disponibilità; distanza; compatibilità pet; servizi |
 | `PublicPetAssistant` | query base profili; dettaglio; preferiti; statistiche risposta; recensioni pubblicate; etichette catalogo |
 | `Booking` | riconciliazione; creazione singola/batch; listato; accept/decline/cancel; riprogrammazione; review; confirmation mode; token; controllo slot/prezzi/sovrapposizioni; reputazione; email ciclo vita |
@@ -432,7 +433,7 @@ La fonte cumulativa è `php/migration/migration.txt`. Il progetto non usa attual
 - include cataloghi iniziali e aggiornamenti compatibili;
 - deve restare rieseguibile.
 
-Non risultano foreign key SQL esplicite: l'integrità referenziale è affidata a indici, vincoli univoci e codice applicativo. Ogni nuova relazione deve valutare consapevolmente se introdurre FK oppure mantenere l'approccio attuale documentandone il motivo.
+Lo schema legacy affida gran parte dell'integrità a indici, vincoli univoci e codice applicativo. Le tabelle additive `user_capabilities`, `account_profile`, `owner_profile` e `assistant_profile` introducono invece FK esplicite verso `users` con `ON DELETE CASCADE`; ogni nuova relazione deve mantenere documentata questa scelta.
 
 ### 11.2 Catalogo completo delle tabelle applicative
 
@@ -443,7 +444,10 @@ Non risultano foreign key SQL esplicite: l'integrità referenziale è affidata a
 | `users` | `id`, `role`, `name`, `email` unique, verifiche, password, avatar, timestamp Unix | account globale attuale e ruolo esclusivo |
 | `user_capabilities` | PK `(user_id, capability)`, stato, versione/step onboarding, timestamp di ciclo vita | modello additivo Owner/Assistant introdotto nello STEP 2; FK verso `users`, non ancora usato come fonte autorizzativa |
 | `social_accounts` | provider+sub unique, `user_id`, email/claims provider | identità Google/Apple |
-| `personaldata` | `user_id` unique, nome, foto, età, città, telefono, indirizzo, coordinate, raggio | dati comuni e location; oggi mescola Owner e Assistant |
+| `account_profile` | PK/FK `user_id`, nome, foto, età, telefono, timestamp | dati personali condivisi tra prospettive; fonte primaria dallo STEP 4 |
+| `owner_profile` | PK/FK `user_id`, città, indirizzo, coordinate | residenza/location usata dalla prospettiva Owner |
+| `assistant_profile` | PK/FK `user_id`, città, sede, coordinate, raggio | area operativa/location usata da ricerca e profilo Assistant |
+| `personaldata` | `user_id` unique, tutti i campi comuni e location legacy | mirror e fallback temporaneo; non può rappresentare due location e verrà rimosso a fine migrazione |
 | `operatordata` | `user_id` unique, tipo, CF, ragione sociale, P.IVA, bio, esperienza, taglia, confirmation mode | profilo professionale Assistant |
 | `operatorassociatedata` | `user_id`, nominativo e CF | membri di un'associazione |
 | `operator_public_profile` | PK `user_id`, headline, giornata tipo, sicurezza/casa, istruzioni, consenso punto esatto | estensione pubblica Assistant |
@@ -517,7 +521,10 @@ Sessione, cache e code hanno driver `database` come default. Le tabelle infrastr
 ```text
 users
 ├── social_accounts
-├── personaldata
+├── account_profile (dati comuni, FK cascade)
+├── owner_profile (residenza, FK cascade)
+├── assistant_profile (area operativa, FK cascade)
+├── personaldata (mirror/fallback legacy)
 ├── ownerpet
 │   ├── ownerpetbreeddata -> petbreed
 │   ├── ownerpettypedata  -> pettype
@@ -646,10 +653,10 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
 5. **Autorizzazioni distribuite**: controlli `where(role=...)` non centralizzati.
 6. **Registrazione legacy ancora visibile**: la pagina `/register` continua a chiedere Owner/Assistant fino alla sostituzione prevista nello STEP 8; il backend neutro è già disponibile.
-7. **Dati personali misti**: `personaldata` combina dati comuni, residenza Owner e area operativa Assistant.
+7. **Mirror profilo legacy**: i dati sono separati nelle nuove tabelle, ma `personaldata` resta in dual-write/fallback fino allo STEP 10 e non può rappresentare entrambe le location.
 8. **Reputazione unica**: eventi Owner e Assistant convergono nello stesso score.
 9. **Schema non versionato**: uno script cumulativo rende meno esplicita la sequenza delle release.
-10. **Assenza di FK SQL**: possibili record orfani se un percorso di cancellazione non è completo.
+10. **FK non uniformi**: le nuove tabelle account/capability usano FK cascade, mentre molte relazioni legacy dipendono ancora dalla pulizia applicativa.
 11. **Controller/modelli molto estesi**: `AuthController`, `ProfileController`, `Profile` e `Booking` hanno responsabilità ampie.
 12. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
 13. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
@@ -657,7 +664,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2; separazione dei dati profilo, reputazione contestuale e consumo runtime delle capability restano progressivi negli step successivi.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2 e i dati profilo sono separati dallo STEP 4; reputazione contestuale e consumo runtime delle capability restano progressivi negli step successivi.
 
 ### 18.1 Principi
 
@@ -690,13 +697,15 @@ PK (user_id, capability)
 
 La tabella applicata usa inoltre una FK `ON DELETE CASCADE`, check constraint sui valori ammessi e l'indice `(capability, status, user_id)`. Il backfill assegna Owner attivo a tutti e Assistant attivo ai ruoli legacy Assistant, senza sovrascrivere righe esistenti. `users.role` resta temporaneamente la sorgente letta dal runtime.
 
-Separazione dati consigliata:
+Separazione dati implementata nello STEP 4:
 
 ```text
-account_profile     nome/foto/telefono/dati comuni
+account_profile     nome/foto/età/telefono condivisi
 owner_profile       residenza/location Owner
-assistant_profile   area operativa/location/raggio e stato pubblicazione
+assistant_profile   area operativa/location/raggio Assistant
 ```
+
+`ProfileData` rende le nuove tabelle autoritative, mantiene `personaldata` come mirror/fallback e impedisce che la location del ruolo legacy venga copiata automaticamente nell'altro contesto. Ricerca e profilo pubblico consumano l'area Assistant; il calcolo distanza dell'Owner consuma la residenza Owner.
 
 La reputazione deve diventare contestuale:
 
@@ -816,6 +825,8 @@ Regole di esecuzione:
 | 2026-11-10 | Gate STEP 2 | Milestone schema capability e backfill approvata dall'utente con “OK STEP 2” | Intero changeset STEP 2 sul branch `changeaccount` | Database locale migrato; `users.role` e compatibilità legacy mantenuti | Gate manuale completato dopo verifica utente |
 | 2026-11-10 | STEP 3 account neutro | Reso opzionale il ruolo in registrazione, esteso il contratto utente con capability/modalità, aggiunto dual-read legacy e impedita la mutazione del ruolo negli upsert social esistenti | `AuthController`, `UserAccount`, `UserCapability`, test compatibilità, `docs/migrations/changeaccount-step3-neutral-account.md` | Nessuna modifica DB; vecchi payload e link email restano validi; `role` ancora restituito ai client legacy | 43 test/223 assertion; registrazioni neutre email/Google/Apple mock, firme email doppie, fail-closed senza capability attive e smoke `/auth/me` Assistant |
 | 2026-11-10 | Gate STEP 3 | Milestone account neutro e compatibilità backend approvata dall'utente con “OK STEP 3” | Intero changeset STEP 3 sul branch `changeaccount` | Nessuna modifica DB; contratto legacy mantenuto | Gate manuale completato dopo verifica utente |
+| 2026-11-10 | STEP 4 profili separati | Separati dati comuni, residenza Owner e area operativa Assistant con lettura nuova, fallback e dual-write legacy | `account_profile`, `owner_profile`, `assistant_profile`, `ProfileData`, profili/ricerca/pubblico, seed/export/demo, `docs/migrations/changeaccount-step4-profile-separation.md` | Backfill additivo 41/1/40; `personaldata` invariata e mantenuta come mirror; backup privato prima dell'applicazione | 48 test/252 assertion, lint/build; restore pre-STEP 0 e rerun idempotente; rebuild da zero; zero mismatch/orfani; smoke login/profilo/ricerca/pubblico riuscito |
+| 2026-11-10 | Gate STEP 4 | Milestone separazione dati profilo approvata dall'utente con “OK STEP 4” | Intero changeset STEP 4 sul branch `changeaccount` | Database locale migrato; profili legacy conservati tramite mirror e fallback | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 

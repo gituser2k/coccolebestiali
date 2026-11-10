@@ -638,6 +638,9 @@ class UserAccount extends Model
                 DB::table('message')->whereIn('id', $messageIds)->delete();
             }
 
+            $this->deleteByUserId('owner_profile', $userId);
+            $this->deleteByUserId('assistant_profile', $userId);
+            $this->deleteByUserId('account_profile', $userId);
             $this->deleteByUserId('personaldata', $userId);
             $this->deleteByUserId('social_accounts', $userId);
             $this->deleteByUserId('user_capabilities', $userId);
@@ -656,6 +659,9 @@ class UserAccount extends Model
 
         if (Schema::hasTable('personaldata')) {
             $paths[] = (string) DB::table('personaldata')->where('user_id', $userId)->value('photo');
+        }
+        if (Schema::hasTable('account_profile')) {
+            $paths[] = (string) DB::table('account_profile')->where('user_id', $userId)->value('photo');
         }
         if (Schema::hasTable('operatorgallery')) {
             $paths = array_merge($paths, DB::table('operatorgallery')->where('user_id', $userId)->pluck('photo')->all());

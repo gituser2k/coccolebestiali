@@ -4,17 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PublicPetAssistant
 {
     public function profiles(): Builder
     {
-        return DB::table('users as u')
+        $query = DB::table('users as u')
             ->join('operatordata as operator', 'operator.user_id', '=', 'u.id')
             ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'u.id')
             ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'u.id')
-            ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'u.id')
-            ->where('u.role', 'pet_assistant');
+            ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'u.id');
+
+        if ($this->usesSeparatedProfiles()) {
+            $query
+                ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'u.id')
+                ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'u.id');
+        }
+
+        return $query->where('u.role', 'pet_assistant');
     }
 
     public function exists(int $assistantId): bool
@@ -25,7 +33,11 @@ class PublicPetAssistant
     public function get(int $assistantId, int $viewerId): ?array
     {
         $row = $this->profiles()->where('u.id', $assistantId)->first([
-            'u.id', 'u.name', 'u.avatar', 'personal.city', 'personal.photo', 'personal.location_lat', 'personal.location_lng',
+            'u.id', 'u.name', 'u.avatar',
+            DB::raw($this->commonPhotoExpression().' as photo'),
+            DB::raw($this->assistantFieldExpression('city', "''").' as city'),
+            DB::raw($this->assistantFieldExpression('location_lat', '0').' as location_lat'),
+            DB::raw($this->assistantFieldExpression('location_lng', '0').' as location_lng'),
             'operator.business_name', 'operator.bio', 'operator.experience_years', 'operator.pet_size',
             'operator.booking_confirmation_mode', 'reputation.score', 'public_profile.headline', 'public_profile.typical_day',
             'public_profile.safety_and_home', 'public_profile.owner_instructions', 'public_profile.publish_exact_location',
@@ -86,7 +98,11 @@ class PublicPetAssistant
 
         return $this->profiles()->join('pet_assistant_favorite as favorite', 'favorite.assistant_user_id', '=', 'u.id')
             ->where('favorite.owner_user_id', $ownerId)->orderByDesc('favorite.created_at')->orderBy('u.id')
-            ->get(['u.id', 'u.name', 'u.avatar', 'personal.city', 'personal.photo', 'operator.business_name'])
+            ->get([
+                'u.id', 'u.name', 'u.avatar', 'operator.business_name',
+                DB::raw($this->commonPhotoExpression().' as photo'),
+                DB::raw($this->assistantFieldExpression('city', "''").' as city'),
+            ])
             ->map(fn ($row) => [
                 'id' => (int) $row->id,
                 'name' => $this->displayName($row),
@@ -175,5 +191,24 @@ class PublicPetAssistant
     private function displayName(object $row): string
     {
         return trim((string) $row->business_name) ?: (string) $row->name;
+    }
+
+    private function usesSeparatedProfiles(): bool
+    {
+        return Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
+    }
+
+    private function commonPhotoExpression(): string
+    {
+        return $this->usesSeparatedProfiles()
+            ? "CASE WHEN account_common.user_id IS NOT NULL THEN account_common.photo ELSE COALESCE(personal.photo, '') END"
+            : "COALESCE(personal.photo, '')";
+    }
+
+    private function assistantFieldExpression(string $field, string $fallback): string
+    {
+        return $this->usesSeparatedProfiles()
+            ? "CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.{$field} ELSE COALESCE(personal.{$field}, {$fallback}) END"
+            : "COALESCE(personal.{$field}, {$fallback})";
     }
 }

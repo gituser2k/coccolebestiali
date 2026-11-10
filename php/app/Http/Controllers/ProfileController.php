@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Profile;
+use App\Models\ProfileData;
 use App\Models\Utility;
 use App\Support\PortalSession;
 use DateTimeImmutable;
@@ -48,7 +49,7 @@ class ProfileController extends Controller
             }
 
             $model = new Profile;
-            $profile = $model->getPersonalProfile($userId);
+            $profile = $model->getPersonalProfile($userId, ProfileData::ASSISTANT);
 
             if ($profile === []) {
                 return response()->json([
@@ -88,7 +89,7 @@ class ProfileController extends Controller
             }
 
             $model = new Profile;
-            $profile = $model->getPersonalProfile($userId);
+            $profile = $model->getPersonalProfile($userId, ProfileData::OWNER);
 
             if ($profile === []) {
                 return response()->json([
@@ -327,7 +328,7 @@ class ProfileController extends Controller
                 }
             }
 
-            $currentProfile = $model->getPersonalProfile($userId);
+            $currentProfile = $model->getPersonalProfile($userId, ProfileData::OWNER);
             $currentProfilePhoto = trim((string) ($currentProfile['photo'] ?? ''));
             if ($selectedProfilePhoto !== null) {
                 $model->syncPetOwnerProfilePhoto($userId, $selectedProfilePhoto);
@@ -569,7 +570,7 @@ class ProfileController extends Controller
             ]);
 
             $model = new Profile;
-            $current = $model->getPersonalProfile($userId);
+            $current = $model->getPersonalProfile($userId, ProfileData::ASSISTANT);
             $photoPath = (string) ($current['photo'] ?? '');
 
             if ($request->hasFile('photo')) {
@@ -595,7 +596,7 @@ class ProfileController extends Controller
                 'locationLng' => isset($validated['locationLng']) ? (float) $validated['locationLng'] : 0,
                 'serviceRadiusKm' => isset($validated['serviceRadiusKm']) ? (int) $validated['serviceRadiusKm'] : 5,
                 'photo' => $photoPath,
-            ]);
+            ], ProfileData::ASSISTANT);
 
             return response()->json([
                 'ok' => true,
@@ -702,11 +703,13 @@ class ProfileController extends Controller
                 'phone' => ['nullable', 'string', 'max:64'],
                 'address' => ['nullable', 'string', 'max:255'],
                 'addressnumber' => ['nullable', 'string', 'max:64'],
+                'locationLat' => ['nullable', 'numeric', 'between:-90,90'],
+                'locationLng' => ['nullable', 'numeric', 'between:-180,180'],
                 'photo' => ['nullable', 'image', 'max:4096'],
             ]);
 
             $model = new Profile;
-            $current = $model->getPersonalProfile($userId);
+            $current = $model->getPersonalProfile($userId, ProfileData::OWNER);
             $photoPath = (string) ($current['photo'] ?? '');
 
             if ($request->hasFile('photo')) {
@@ -728,8 +731,10 @@ class ProfileController extends Controller
                 'phone' => (string) ($validated['phone'] ?? ''),
                 'address' => (string) ($validated['address'] ?? ''),
                 'addressnumber' => (string) ($validated['addressnumber'] ?? ''),
+                'locationLat' => isset($validated['locationLat']) ? (float) $validated['locationLat'] : 0,
+                'locationLng' => isset($validated['locationLng']) ? (float) $validated['locationLng'] : 0,
                 'photo' => $photoPath,
-            ]);
+            ], ProfileData::OWNER);
 
             return response()->json([
                 'ok' => true,

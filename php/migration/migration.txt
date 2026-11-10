@@ -126,6 +126,98 @@ CREATE TABLE IF NOT EXISTS `personaldata` (
   UNIQUE KEY `uk_personaldata_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Profilo comune dell'account, indipendente dalla prospettiva Owner/Assistant.
+CREATE TABLE IF NOT EXISTS `account_profile` (
+  `user_id` int(10) unsigned NOT NULL,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `photo` varchar(1024) NOT NULL DEFAULT '',
+  `age` int NOT NULL DEFAULT 0,
+  `phone` varchar(64) NOT NULL DEFAULT '',
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `fk_account_profile_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_account_profile_age`
+    CHECK (`age` BETWEEN 0 AND 120)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Residenza/location usata quando l'account agisce come Pet Owner.
+CREATE TABLE IF NOT EXISTS `owner_profile` (
+  `user_id` int(10) unsigned NOT NULL,
+  `city` varchar(255) NOT NULL DEFAULT '',
+  `address` varchar(255) NOT NULL DEFAULT '',
+  `address_number` varchar(64) NOT NULL DEFAULT '',
+  `location_lat` decimal(10,7) NOT NULL DEFAULT 0.0000000,
+  `location_lng` decimal(10,7) NOT NULL DEFAULT 0.0000000,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_owner_profile_city` (`city`),
+  CONSTRAINT `fk_owner_profile_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_owner_profile_lat`
+    CHECK (`location_lat` BETWEEN -90 AND 90),
+  CONSTRAINT `chk_owner_profile_lng`
+    CHECK (`location_lng` BETWEEN -180 AND 180)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sede/area operativa usata quando l'account agisce come Pet Assistant.
+CREATE TABLE IF NOT EXISTS `assistant_profile` (
+  `user_id` int(10) unsigned NOT NULL,
+  `city` varchar(255) NOT NULL DEFAULT '',
+  `address` varchar(255) NOT NULL DEFAULT '',
+  `address_number` varchar(64) NOT NULL DEFAULT '',
+  `location_lat` decimal(10,7) NOT NULL DEFAULT 0.0000000,
+  `location_lng` decimal(10,7) NOT NULL DEFAULT 0.0000000,
+  `service_radius_km` smallint unsigned NOT NULL DEFAULT 5,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_assistant_profile_city` (`city`),
+  KEY `idx_assistant_profile_location` (`location_lat`, `location_lng`),
+  CONSTRAINT `fk_assistant_profile_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_assistant_profile_lat`
+    CHECK (`location_lat` BETWEEN -90 AND 90),
+  CONSTRAINT `chk_assistant_profile_lng`
+    CHECK (`location_lng` BETWEEN -180 AND 180),
+  CONSTRAINT `chk_assistant_profile_radius`
+    CHECK (`service_radius_km` BETWEEN 1 AND 200)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Backfill comune per tutti gli account. INSERT IGNORE preserva scritture successive.
+INSERT IGNORE INTO `account_profile` (
+  `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
+)
+SELECT
+  `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
+FROM `personaldata`;
+
+-- Solo i ruoli Owner legacy trasferiscono la loro location nel contesto Owner.
+INSERT IGNORE INTO `owner_profile` (
+  `user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `created_at`, `updated_at`
+)
+SELECT
+  personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
+  personal.`location_lat`, personal.`location_lng`, personal.`created_at`, personal.`updated_at`
+FROM `personaldata` AS personal
+INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
+WHERE account.`role` = 'pet_owner';
+
+-- Solo i ruoli Assistant legacy trasferiscono sede e raggio nel contesto Assistant.
+INSERT IGNORE INTO `assistant_profile` (
+  `user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`,
+  `service_radius_km`, `created_at`, `updated_at`
+)
+SELECT
+  personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
+  personal.`location_lat`, personal.`location_lng`, personal.`service_radius_km`,
+  personal.`created_at`, personal.`updated_at`
+FROM `personaldata` AS personal
+INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
+WHERE account.`role` = 'pet_assistant';
+
 CREATE TABLE IF NOT EXISTS `operatordata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,

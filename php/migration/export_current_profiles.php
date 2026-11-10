@@ -29,6 +29,9 @@ $demoTables = [
     'user_capabilities',
     'social_accounts',
     'personaldata',
+    'account_profile',
+    'owner_profile',
+    'assistant_profile',
     'operatordata',
     'operator_public_profile',
     'pet_assistant_favorite',
@@ -195,6 +198,11 @@ foreach (DB::table('users')->pluck('avatar') as $path) {
 }
 foreach (DB::table('personaldata')->pluck('photo') as $path) {
     $publicPaths[(string) $path] = true;
+}
+if (Schema::hasTable('account_profile')) {
+    foreach (DB::table('account_profile')->pluck('photo') as $path) {
+        $publicPaths[(string) $path] = true;
+    }
 }
 foreach (DB::table('operatorgallery')->pluck('photo') as $path) {
     $publicPaths[(string) $path] = true;

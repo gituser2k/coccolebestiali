@@ -9,53 +9,35 @@ use Illuminate\Support\Facades\Schema;
 
 class Profile extends Model
 {
-    public function getPersonalProfile(int $userId): array
+    public function getPersonalProfile(int $userId, ?string $context = null): array
     {
         $this->ensurePersonalLocationSchema();
+        $context ??= $this->legacyProfileContext($userId);
+        $row = (new ProfileData)->read($userId, $context);
 
-        $row = DB::table('users')
-            ->leftJoin('personaldata', 'personaldata.user_id', '=', 'users.id')
-            ->select([
-                'users.id',
-                'users.name as alias',
-                'users.email',
-                'users.avatar',
-                'personaldata.name',
-                'personaldata.photo',
-                'personaldata.age',
-                'personaldata.city',
-                'personaldata.phone',
-                'personaldata.address',
-                'personaldata.addressnumber',
-                'personaldata.location_lat',
-                'personaldata.location_lng',
-                'personaldata.service_radius_km',
-            ])
-            ->where('users.id', $userId)
-            ->first();
-
-        if (! $row) {
+        if ($row === []) {
             return [];
         }
 
-        $photo = (string) ($row->photo ?? '');
-        $avatar = (string) ($row->avatar ?? '');
+        $photo = (string) ($row['photo'] ?? '');
+        $avatar = (string) ($row['avatar'] ?? '');
         $photoPath = $photo !== '' ? $photo : $avatar;
 
         return [
-            'alias' => (string) ($row->alias ?? ''),
-            'email' => (string) ($row->email ?? ''),
-            'name' => (string) ($row->name ?? ''),
+            'alias' => (string) ($row['alias'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
             'photo' => $photo,
             'photoUrl' => $this->normalizePhotoUrl($photoPath),
-            'age' => (int) ($row->age ?? 0),
-            'city' => (string) ($row->city ?? ''),
-            'phone' => (string) ($row->phone ?? ''),
-            'address' => (string) ($row->address ?? ''),
-            'addressnumber' => (string) ($row->addressnumber ?? ''),
-            'locationLat' => (float) ($row->location_lat ?? 0),
-            'locationLng' => (float) ($row->location_lng ?? 0),
-            'serviceRadiusKm' => (int) ($row->service_radius_km ?? 5),
+            'age' => (int) ($row['age'] ?? 0),
+            'city' => (string) ($row['city'] ?? ''),
+            'phone' => (string) ($row['phone'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
+            'addressnumber' => (string) ($row['addressnumber'] ?? ''),
+            'locationLat' => (float) ($row['locationLat'] ?? 0),
+            'locationLng' => (float) ($row['locationLng'] ?? 0),
+            'serviceRadiusKm' => (int) ($row['serviceRadiusKm'] ?? 5),
+            'profileSources' => $row['profileSources'] ?? [],
         ];
     }
 
@@ -300,24 +282,7 @@ class Profile extends Model
     public function syncPetOwnerProfilePhoto(int $userId, string $photo): void
     {
         $this->ensurePersonalLocationSchema();
-        $now = time();
-        $existing = DB::table('personaldata')->where('user_id', $userId)->exists();
-
-        if ($existing) {
-            DB::table('personaldata')->where('user_id', $userId)->update([
-                'photo' => $photo,
-                'updated_at' => $now,
-            ]);
-
-            return;
-        }
-
-        DB::table('personaldata')->insert([
-            'user_id' => $userId,
-            'photo' => $photo,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        (new ProfileData)->syncCommonPhoto($userId, $photo, time());
     }
 
     public function setPetOwnerProfilePhoto(int $userId, ?int $galleryId): array
@@ -348,7 +313,7 @@ class Profile extends Model
                 DB::table('ownerpetgallery')->where('id', $selected->id)->update(['is_profile' => 1]);
                 $this->syncPetOwnerProfilePhoto($userId, (string) $selected->photo);
             } else {
-                $currentPhoto = (string) ($this->getPersonalProfile($userId)['photo'] ?? '');
+                $currentPhoto = (string) ($this->getPersonalProfile($userId, ProfileData::OWNER)['photo'] ?? '');
                 if (str_starts_with($currentPhoto, 'owner-pet-gallery/')) {
                     $this->syncPetOwnerProfilePhoto($userId, '');
                 }
@@ -356,7 +321,7 @@ class Profile extends Model
 
             return [
                 'galleryId' => $selected ? (int) $selected->id : null,
-                'profile' => $this->getPersonalProfile($userId),
+                'profile' => $this->getPersonalProfile($userId, ProfileData::OWNER),
             ];
         });
     }
@@ -638,9 +603,10 @@ class Profile extends Model
         ];
     }
 
-    public function savePersonalProfile(int $userId, array $payload): array
+    public function savePersonalProfile(int $userId, array $payload, ?string $context = null): array
     {
         $this->ensurePersonalLocationSchema();
+        $context ??= $this->legacyProfileContext($userId);
 
         $now = time();
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
@@ -657,7 +623,7 @@ class Profile extends Model
             }
         }
 
-        DB::transaction(function () use ($userId, $payload, $now, $email) {
+        DB::transaction(function () use ($userId, $payload, $now, $email, $context) {
             DB::table('users')
                 ->where('id', $userId)
                 ->update([
@@ -666,38 +632,17 @@ class Profile extends Model
                     'updated_at' => $now,
                 ]);
 
-            $existing = DB::table('personaldata')
-                ->select(['id'])
-                ->where('user_id', $userId)
-                ->first();
-
-            $personalData = [
-                'user_id' => $userId,
-                'name' => (string) ($payload['name'] ?? ''),
-                'photo' => (string) ($payload['photo'] ?? ''),
-                'age' => (int) ($payload['age'] ?? 0),
-                'city' => (string) ($payload['city'] ?? ''),
-                'phone' => (string) ($payload['phone'] ?? ''),
-                'address' => (string) ($payload['address'] ?? ''),
-                'addressnumber' => (string) ($payload['addressnumber'] ?? ''),
-                'location_lat' => (float) ($payload['locationLat'] ?? 0),
-                'location_lng' => (float) ($payload['locationLng'] ?? 0),
-                'service_radius_km' => max((int) ($payload['serviceRadiusKm'] ?? 5), 1),
-                'updated_at' => $now,
-            ];
-
-            if ($existing) {
-                DB::table('personaldata')
-                    ->where('user_id', $userId)
-                    ->update($personalData);
-            } else {
-                $personalData['created_at'] = $now;
-                DB::table('personaldata')->insert($personalData);
-            }
-
+            (new ProfileData)->write($userId, $context, $payload, $now);
         });
 
-        return $this->getPersonalProfile($userId);
+        return $this->getPersonalProfile($userId, $context);
+    }
+
+    private function legacyProfileContext(int $userId): string
+    {
+        return DB::table('users')->where('id', $userId)->value('role') === 'pet_assistant'
+            ? ProfileData::ASSISTANT
+            : ProfileData::OWNER;
     }
 
     public function updateUserCredentials(int $userId, string $email, ?string $password): array

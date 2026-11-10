@@ -78,7 +78,7 @@ $tablesToReset = [
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
     'housefeaturedata', 'pettypedata', 'petbreeddata', 'operatortitledata',
-    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'personaldata', 'social_accounts', 'user_capabilities', 'users',
+    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'assistant_profile', 'owner_profile', 'account_profile', 'personaldata', 'social_accounts', 'user_capabilities', 'users',
 ];
 
 DB::transaction(function () use (
@@ -136,6 +136,26 @@ DB::transaction(function () use (
             'phone' => sprintf('06%08d', 70000000 + $number),
             'address' => $addresses[($number - 1) % count($addresses)],
             'addressnumber' => (string) (5 + (($number * 7) % 180)),
+            'location_lat' => round($latitude, 7),
+            'location_lng' => round($longitude, 7),
+            'service_radius_km' => $radiusOptions[($number - 1) % count($radiusOptions)],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('account_profile')->insert([
+            'user_id' => $userId,
+            'name' => 'Pet Assistant '.$number,
+            'photo' => '',
+            'age' => 22 + ($number % 39),
+            'phone' => sprintf('06%08d', 70000000 + $number),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('assistant_profile')->insert([
+            'user_id' => $userId,
+            'city' => 'Roma',
+            'address' => $addresses[($number - 1) % count($addresses)],
+            'address_number' => (string) (5 + (($number * 7) % 180)),
             'location_lat' => round($latitude, 7),
             'location_lng' => round($longitude, 7),
             'service_radius_km' => $radiusOptions[($number - 1) % count($radiusOptions)],
@@ -277,7 +297,7 @@ foreach (array_keys($privateStoragePaths) as $path) {
 }
 
 foreach ($tablesToReset as $table) {
-    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities'], true)) {
+    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile'], true)) {
         DB::statement('ALTER TABLE `'.$table.'` AUTO_INCREMENT = 1');
     }
 }

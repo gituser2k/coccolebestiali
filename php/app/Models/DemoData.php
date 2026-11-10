@@ -41,6 +41,9 @@ class DemoData
         'operatortitledata',
         'operatorassociatedata',
         'operatordata',
+        'assistant_profile',
+        'owner_profile',
+        'account_profile',
         'personaldata',
         'social_accounts',
         'user_capabilities',
@@ -94,7 +97,7 @@ class DemoData
             });
 
             foreach (self::DATA_TABLES as $table) {
-                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities'], true)) {
+                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile'], true)) {
                     $connection->statement(sprintf('ALTER TABLE `%s` AUTO_INCREMENT = 1', $table));
                 }
             }
