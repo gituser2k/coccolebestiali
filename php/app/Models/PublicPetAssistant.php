@@ -14,12 +14,18 @@ class PublicPetAssistant
             ->join('operatordata as operator', 'operator.user_id', '=', 'u.id')
             ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'u.id')
             ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'u.id')
-            ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'u.id');
+            ->leftJoin('user_reputation as legacy_reputation', 'legacy_reputation.user_id', '=', 'u.id');
 
         if ($this->usesSeparatedProfiles()) {
             $query
                 ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'u.id')
                 ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'u.id');
+        }
+        if ($this->usesContextualReputation()) {
+            $query->leftJoin('profile_reputation as assistant_reputation', function ($join) {
+                $join->on('assistant_reputation.user_id', '=', 'u.id')
+                    ->where('assistant_reputation.capability', ProfileReputation::ASSISTANT);
+            });
         }
 
         return $query->where('u.role', 'pet_assistant');
@@ -39,7 +45,7 @@ class PublicPetAssistant
             DB::raw($this->assistantFieldExpression('location_lat', '0').' as location_lat'),
             DB::raw($this->assistantFieldExpression('location_lng', '0').' as location_lng'),
             'operator.business_name', 'operator.bio', 'operator.experience_years', 'operator.pet_size',
-            'operator.booking_confirmation_mode', 'reputation.score', 'public_profile.headline', 'public_profile.typical_day',
+            'operator.booking_confirmation_mode', DB::raw($this->assistantReputationExpression().' as score'), 'public_profile.headline', 'public_profile.typical_day',
             'public_profile.safety_and_home', 'public_profile.owner_instructions', 'public_profile.publish_exact_location',
         ]);
         if (! $row) {
@@ -196,6 +202,21 @@ class PublicPetAssistant
     private function usesSeparatedProfiles(): bool
     {
         return Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
+    }
+
+    private function usesContextualReputation(): bool
+    {
+        return Schema::hasTable('profile_reputation');
+    }
+
+    private function assistantReputationExpression(): string
+    {
+        $initialScore = PortalPolicy::value('initial_reputation_score');
+        $legacyFallback = "CASE WHEN u.role = 'pet_assistant' THEN COALESCE(legacy_reputation.score, {$initialScore}) ELSE {$initialScore} END";
+
+        return $this->usesContextualReputation()
+            ? "CASE WHEN assistant_reputation.user_id IS NOT NULL THEN assistant_reputation.score ELSE {$legacyFallback} END"
+            : $legacyFallback;
     }
 
     private function commonPhotoExpression(): string

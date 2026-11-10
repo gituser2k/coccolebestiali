@@ -51,6 +51,7 @@ $demoTables = [
     'calendar_day',
     'calendar_day_slot',
     'calendar_day_slot_service',
+    'profile_reputation',
     'user_reputation',
     'booking_counter',
     'booking_batch',

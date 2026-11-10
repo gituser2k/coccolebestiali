@@ -789,9 +789,26 @@ CREATE TABLE IF NOT EXISTS `user_reputation` (
   KEY `idx_user_reputation_score` (`score`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Punteggio separato per la prospettiva Owner e Assistant dello stesso account.
+CREATE TABLE IF NOT EXISTS `profile_reputation` (
+  `user_id` int(10) unsigned NOT NULL,
+  `capability` varchar(16) NOT NULL,
+  `score` tinyint unsigned NOT NULL DEFAULT 60,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`, `capability`),
+  KEY `idx_profile_reputation_ranking` (`capability`, `score`, `user_id`),
+  CONSTRAINT `fk_profile_reputation_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_profile_reputation_capability`
+    CHECK (`capability` IN ('owner', 'assistant')),
+  CONSTRAINT `chk_profile_reputation_score`
+    CHECK (`score` BETWEEN 0 AND 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `reputation_event` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `subject_capability` varchar(16) NOT NULL DEFAULT 'owner',
   `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
   `actor_user_id` int(10) unsigned NOT NULL DEFAULT 0,
   `event_type` varchar(32) NOT NULL DEFAULT '',
@@ -801,8 +818,60 @@ CREATE TABLE IF NOT EXISTS `reputation_event` (
   `created_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_reputation_event_user` (`user_id`, `created_at`),
-  KEY `idx_reputation_event_booking` (`booking_id`)
+  KEY `idx_reputation_event_profile` (`user_id`, `subject_capability`, `created_at`),
+  KEY `idx_reputation_event_booking` (`booking_id`),
+  CONSTRAINT `chk_reputation_event_capability`
+    CHECK (`subject_capability` IN ('owner', 'assistant'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @reputation_event_add_capability = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'reputation_event' AND `COLUMN_NAME` = 'subject_capability'
+  ),
+  "ALTER TABLE `reputation_event` ADD COLUMN `subject_capability` varchar(16) NOT NULL DEFAULT 'owner' AFTER `user_id`",
+  'SELECT 1'
+);
+PREPARE reputation_event_capability_stmt FROM @reputation_event_add_capability;
+EXECUTE reputation_event_capability_stmt;
+DEALLOCATE PREPARE reputation_event_capability_stmt;
+
+SET @reputation_event_add_profile_index = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'reputation_event' AND `INDEX_NAME` = 'idx_reputation_event_profile'
+  ),
+  "ALTER TABLE `reputation_event` ADD INDEX `idx_reputation_event_profile` (`user_id`, `subject_capability`, `created_at`)",
+  'SELECT 1'
+);
+PREPARE reputation_event_profile_index_stmt FROM @reputation_event_add_profile_index;
+EXECUTE reputation_event_profile_index_stmt;
+DEALLOCATE PREPARE reputation_event_profile_index_stmt;
+
+SET @reputation_event_add_capability_check = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`TABLE_CONSTRAINTS`
+    WHERE `CONSTRAINT_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'reputation_event'
+      AND `CONSTRAINT_NAME` = 'chk_reputation_event_capability' AND `CONSTRAINT_TYPE` = 'CHECK'
+  ),
+  "ALTER TABLE `reputation_event` ADD CONSTRAINT `chk_reputation_event_capability` CHECK (`subject_capability` IN ('owner', 'assistant'))",
+  'SELECT 1'
+);
+PREPARE reputation_event_capability_check_stmt FROM @reputation_event_add_capability_check;
+EXECUTE reputation_event_capability_check_stmt;
+DEALLOCATE PREPARE reputation_event_capability_check_stmt;
+
+-- Per lo storico la capability si ricava dal lato occupato nella prenotazione;
+-- il ruolo legacy è usato soltanto per eventuali eventi senza booking valido.
+UPDATE `reputation_event` AS event
+LEFT JOIN `booking` AS booking_row ON booking_row.`id` = event.`booking_id`
+LEFT JOIN `users` AS account ON account.`id` = event.`user_id`
+SET event.`subject_capability` = CASE
+  WHEN booking_row.`assistant_user_id` = event.`user_id` THEN 'assistant'
+  WHEN booking_row.`owner_user_id` = event.`user_id` THEN 'owner'
+  WHEN account.`role` = 'pet_assistant' THEN 'assistant'
+  ELSE 'owner'
+END;
 
 CREATE TABLE IF NOT EXISTS `booking_action_token` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -855,6 +924,34 @@ INSERT INTO `portal_policy` (`policy_key`, `value`, `updated_at`) VALUES
 ('review_window_days', 30, UNIX_TIMESTAMP()),
 ('max_booking_duration_minutes', 480, UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE `policy_key` = VALUES(`policy_key`);
+
+-- Tutti gli account hanno una reputazione Owner. Per gli Assistant legacy
+-- parte dal valore iniziale, senza riusare il ranking professionale storico.
+INSERT IGNORE INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
+SELECT
+  account.`id`,
+  'owner',
+  CASE
+    WHEN account.`role` = 'pet_owner' THEN COALESCE(legacy.`score`, policy.`value`, 60)
+    ELSE COALESCE(policy.`value`, 60)
+  END,
+  CASE
+    WHEN account.`role` = 'pet_owner' THEN COALESCE(legacy.`updated_at`, UNIX_TIMESTAMP())
+    ELSE UNIX_TIMESTAMP()
+  END
+FROM `users` AS account
+LEFT JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
+LEFT JOIN `portal_policy` AS policy ON policy.`policy_key` = 'initial_reputation_score';
+
+-- Il ranking storico degli Assistant resta identico nella capability Assistant.
+INSERT IGNORE INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
+SELECT
+  account.`id`, 'assistant', COALESCE(legacy.`score`, policy.`value`, 60),
+  COALESCE(legacy.`updated_at`, UNIX_TIMESTAMP())
+FROM `users` AS account
+LEFT JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
+LEFT JOIN `portal_policy` AS policy ON policy.`policy_key` = 'initial_reputation_score'
+WHERE account.`role` = 'pet_assistant';
 
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES
   (1, 'Tracking GPS', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),

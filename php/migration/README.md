@@ -55,8 +55,9 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | `personaldata` | Mirror legacy temporaneo dei dati profilo, mantenuto durante la migrazione multi-profilo. |
 | `operatordata` | Informazioni professionali del Pet Assistant. |
 | `operatorassociatedata` | Associati collegati a un operatore di tipo associazione. |
-| `user_reputation` | Punteggio corrente, inizializzato a 60/100. |
-| `reputation_event` | Registro immutabile delle variazioni del ranking. |
+| `profile_reputation` | Punteggio 0–100 separato per capability Owner/Assistant. |
+| `user_reputation` | Mirror legacy temporaneo del punteggio associato a `users.role`. |
+| `reputation_event` | Registro immutabile delle variazioni, etichettate per capability del soggetto. |
 
 ### Prenotazioni e recensioni
 

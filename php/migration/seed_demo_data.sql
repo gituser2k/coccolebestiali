@@ -16,6 +16,7 @@ DELETE FROM `booking_review`;
 DELETE FROM `booking_reschedule`;
 DELETE FROM `booking`;
 DELETE FROM `booking_counter`;
+DELETE FROM `profile_reputation`;
 DELETE FROM `user_reputation`;
 DELETE FROM `calendar_day_slot_service`;
 DELETE FROM `calendar_day_slot`;
@@ -7045,6 +7046,20 @@ INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (38, 67,
 INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (39, 74, 1792328685);
 INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (40, 81, 1792328685);
 INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (41, 88, 1792328685);
+
+-- profile_reputation: 81 record (41 Owner, 40 Assistant)
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
+SELECT account.`id`, 'owner',
+       CASE WHEN account.`role` = 'pet_owner' THEN legacy.`score` ELSE 60 END,
+       legacy.`updated_at`
+FROM `users` AS account
+INNER JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`;
+
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
+SELECT account.`id`, 'assistant', legacy.`score`, legacy.`updated_at`
+FROM `users` AS account
+INNER JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
+WHERE account.`role` = 'pet_assistant';
 
 -- booking_counter: 0 record
 

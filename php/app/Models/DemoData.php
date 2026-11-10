@@ -22,6 +22,7 @@ class DemoData
         'booking_batch',
         'pet_assistant_favorite',
         'operator_public_profile',
+        'profile_reputation',
         'user_reputation',
         'booking_counter',
         'calendar_day_slot_service',
@@ -97,7 +98,7 @@ class DemoData
             });
 
             foreach (self::DATA_TABLES as $table) {
-                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile'], true)) {
+                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile', 'profile_reputation'], true)) {
                     $connection->statement(sprintf('ALTER TABLE `%s` AUTO_INCREMENT = 1', $table));
                 }
             }

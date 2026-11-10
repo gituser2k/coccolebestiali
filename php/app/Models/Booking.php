@@ -7,6 +7,7 @@ use DateTimeZone;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class Booking
@@ -44,6 +45,7 @@ class Booking
                     DB::transaction(function () use ($bookingId, $booking, $penalty) {
                         $this->applyReputationDelta(
                             (int) $booking['assistantUserId'],
+                            ProfileReputation::ASSISTANT,
                             $bookingId,
                             (int) $booking['assistantUserId'],
                             'response_expired',
@@ -336,15 +338,17 @@ class Booking
         $startTimestamp = $this->toTimestamp((string) $booking->booking_date, (string) $booking->start_time);
         $penalty = false;
         $penaltyPoints = 0;
+        $penaltyCapability = ProfileReputation::OWNER;
         if ((int) $booking->owner_user_id === $userId) {
             $penalty = ($startTimestamp - $now) <= ($policies['owner_free_cancellation_hours'] * 3600);
             $penaltyPoints = $policies['owner_late_cancellation_penalty'];
         } elseif ((int) $booking->assistant_user_id === $userId) {
             $penalty = $now > (int) $booking->response_deadline;
             $penaltyPoints = $policies['assistant_late_action_penalty'];
+            $penaltyCapability = ProfileReputation::ASSISTANT;
         }
 
-        DB::transaction(function () use ($bookingId, $userId, $reason, $penalty, $penaltyPoints) {
+        DB::transaction(function () use ($bookingId, $userId, $reason, $penalty, $penaltyPoints, $penaltyCapability) {
             DB::table('booking')->where('id', $bookingId)->update([
                 'status' => 'cancelled',
                 'cancelled_at' => time(),
@@ -354,7 +358,7 @@ class Booking
             ]);
             $this->closePendingReschedules($bookingId, 'rejected');
             if ($penalty && $penaltyPoints > 0) {
-                $this->applyReputationDelta($userId, $bookingId, $userId, 'late_cancellation', -$penaltyPoints, 'Annullamento oltre il limite consentito.');
+                $this->applyReputationDelta($userId, $penaltyCapability, $bookingId, $userId, 'late_cancellation', -$penaltyPoints, 'Annullamento oltre il limite consentito.');
             }
         });
 
@@ -482,11 +486,14 @@ class Booking
         $reviewedUserId = (int) $booking->owner_user_id === $reviewerUserId
             ? (int) $booking->assistant_user_id
             : (int) $booking->owner_user_id;
+        $reviewedCapability = (int) $booking->owner_user_id === $reviewerUserId
+            ? ProfileReputation::ASSISTANT
+            : ProfileReputation::OWNER;
         $delta = $sentiment === 'positive'
             ? $policies['positive_review_points']
             : -$policies['negative_review_penalty'];
 
-        DB::transaction(function () use ($bookingId, $reviewerUserId, $reviewedUserId, $sentiment, $comment, $delta, $publishComment, $booking) {
+        DB::transaction(function () use ($bookingId, $reviewerUserId, $reviewedUserId, $reviewedCapability, $sentiment, $comment, $delta, $publishComment, $booking) {
             DB::table('booking_review')->insert([
                 'booking_id' => $bookingId,
                 'reviewer_user_id' => $reviewerUserId,
@@ -497,7 +504,7 @@ class Booking
                 'publish_comment' => $publishComment && (int) $booking->owner_user_id === $reviewerUserId ? 1 : 0,
                 'created_at' => time(),
             ]);
-            $this->applyReputationDelta($reviewedUserId, $bookingId, $reviewerUserId, 'review_'.$sentiment, $delta, $comment);
+            $this->applyReputationDelta($reviewedUserId, $reviewedCapability, $bookingId, $reviewerUserId, 'review_'.$sentiment, $delta, $comment);
         });
 
         return $this->getById($bookingId);
@@ -718,40 +725,50 @@ class Booking
         }
     }
 
-    private function applyReputationDelta(int $userId, int $bookingId, int $actorUserId, string $type, int $delta, string $note): void
+    private function applyReputationDelta(int $userId, string $capability, int $bookingId, int $actorUserId, string $type, int $delta, string $note): void
     {
-        DB::table('user_reputation')->insertOrIgnore(['user_id' => $userId, 'score' => PortalPolicy::value('initial_reputation_score'), 'updated_at' => time()]);
-        $row = DB::table('user_reputation')->where('user_id', $userId)->lockForUpdate()->first();
-        $score = max(0, min(100, ((int) $row->score) + $delta));
-        DB::table('user_reputation')->where('user_id', $userId)->update(['score' => $score, 'updated_at' => time()]);
-        DB::table('reputation_event')->insert([
-            'user_id' => $userId,
-            'booking_id' => $bookingId,
-            'actor_user_id' => $actorUserId,
-            'event_type' => $type,
-            'delta' => $delta,
-            'score_after' => $score,
-            'note' => mb_substr(trim($note), 0, 2048),
-            'created_at' => time(),
-        ]);
+        (new ProfileReputation)->applyDelta($userId, $capability, $bookingId, $actorUserId, $type, $delta, $note);
     }
 
     private function baseQuery()
     {
-        return DB::table('booking')
+        $query = DB::table('booking')
             ->join('users as owner', 'owner.id', '=', 'booking.owner_user_id')
             ->join('users as assistant', 'assistant.id', '=', 'booking.assistant_user_id')
             ->join('ownerpet as pet', 'pet.id', '=', 'booking.pet_id')
             ->join('service', 'service.id', '=', 'booking.service_id')
-            ->leftJoin('user_reputation as owner_rep', 'owner_rep.user_id', '=', 'owner.id')
-            ->leftJoin('user_reputation as assistant_rep', 'assistant_rep.user_id', '=', 'assistant.id')
-            ->select([
+            ->leftJoin('user_reputation as owner_legacy_rep', 'owner_legacy_rep.user_id', '=', 'owner.id')
+            ->leftJoin('user_reputation as assistant_legacy_rep', 'assistant_legacy_rep.user_id', '=', 'assistant.id');
+
+        $usesContextualReputation = Schema::hasTable('profile_reputation');
+        if ($usesContextualReputation) {
+            $query
+                ->leftJoin('profile_reputation as owner_profile_rep', function ($join) {
+                    $join->on('owner_profile_rep.user_id', '=', 'owner.id')
+                        ->where('owner_profile_rep.capability', ProfileReputation::OWNER);
+                })
+                ->leftJoin('profile_reputation as assistant_profile_rep', function ($join) {
+                    $join->on('assistant_profile_rep.user_id', '=', 'assistant.id')
+                        ->where('assistant_profile_rep.capability', ProfileReputation::ASSISTANT);
+                });
+        }
+        $initialScore = PortalPolicy::value('initial_reputation_score');
+        $ownerLegacyFallback = "CASE WHEN owner.role = 'pet_owner' THEN COALESCE(owner_legacy_rep.score, {$initialScore}) ELSE {$initialScore} END";
+        $assistantLegacyFallback = "CASE WHEN assistant.role = 'pet_assistant' THEN COALESCE(assistant_legacy_rep.score, {$initialScore}) ELSE {$initialScore} END";
+        $ownerScore = $usesContextualReputation
+            ? "CASE WHEN owner_profile_rep.user_id IS NOT NULL THEN owner_profile_rep.score ELSE {$ownerLegacyFallback} END"
+            : $ownerLegacyFallback;
+        $assistantScore = $usesContextualReputation
+            ? "CASE WHEN assistant_profile_rep.user_id IS NOT NULL THEN assistant_profile_rep.score ELSE {$assistantLegacyFallback} END"
+            : $assistantLegacyFallback;
+
+        return $query->select([
                 'booking.*',
                 'owner.name as owner_name', 'owner.email as owner_email',
                 'assistant.name as assistant_name', 'assistant.email as assistant_email',
                 'pet.name as pet_name', 'service.name as service_name',
-                DB::raw('COALESCE(owner_rep.score, 60) as owner_score'),
-                DB::raw('COALESCE(assistant_rep.score, 60) as assistant_score'),
+                DB::raw($ownerScore.' as owner_score'),
+                DB::raw($assistantScore.' as assistant_score'),
             ]);
     }
 

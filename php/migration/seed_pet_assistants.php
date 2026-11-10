@@ -73,7 +73,7 @@ if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === 
 }
 
 $tablesToReset = [
-    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking_feature_preference', 'booking', 'booking_batch', 'booking_counter', 'user_reputation',
+    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking_feature_preference', 'booking', 'booking_batch', 'booking_counter', 'profile_reputation', 'user_reputation',
     'calendar_day_slot_service', 'calendar_day_slot', 'calendar_day',
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
@@ -177,10 +177,15 @@ DB::transaction(function () use (
             'updated_at' => $now,
         ]);
 
+        $assistantScore = 45 + ((($number - 1) * 7) % 46);
         DB::table('user_reputation')->insert([
             'user_id' => $userId,
-            'score' => 45 + ((($number - 1) * 7) % 46),
+            'score' => $assistantScore,
             'updated_at' => $now,
+        ]);
+        DB::table('profile_reputation')->insert([
+            ['user_id' => $userId, 'capability' => 'owner', 'score' => 60, 'updated_at' => $now],
+            ['user_id' => $userId, 'capability' => 'assistant', 'score' => $assistantScore, 'updated_at' => $now],
         ]);
 
         $selectedTitles = [$titleIds[($number - 1) % count($titleIds)]];
@@ -297,7 +302,7 @@ foreach (array_keys($privateStoragePaths) as $path) {
 }
 
 foreach ($tablesToReset as $table) {
-    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile'], true)) {
+    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities', 'account_profile', 'owner_profile', 'assistant_profile', 'profile_reputation'], true)) {
         DB::statement('ALTER TABLE `'.$table.'` AUTO_INCREMENT = 1');
     }
 }

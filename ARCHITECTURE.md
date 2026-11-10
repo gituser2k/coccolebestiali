@@ -196,6 +196,7 @@ I controller validano l'input, traducono eccezioni in JSON/codici HTTP e delegan
 | `UserAccount` | autenticazione email; registrazione con ruolo legacy interno; social upsert non distruttivo; login/cambio provider; lookup utente con capability e modalità; verifica email; password temporanea; cancellazione completa account/file |
 | `UserCapability` | provisioning idempotente; lettura stati Owner/Assistant; risoluzione modalità; fallback temporaneo a `users.role` per account/schema non migrati |
 | `ProfileData` | `read(userId,context)`; `write(userId,context,payload,timestamp)`; `syncCommonPhoto()`; `ownerLocation()`; dual-read/dual-write tra profili separati e mirror legacy |
+| `ProfileReputation` | `score(userId,capability)`; inizializzazione idempotente; applicazione delta contestuale; evento audit; mirror selettivo verso `user_reputation` |
 | `Profile` | `getPersonalProfile(userId,context?)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload,context?)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
 | `PetAssistantSearch` | `getOptions(userId=0)`; `search(startDate,endDate,serviceIds,petId,userId,duration,sortBy,onlyWithPhoto,optionFilters,onlyFavorites,showFavoriteStatus)`; disponibilità; distanza; compatibilità pet; servizi |
 | `PublicPetAssistant` | query base profili; dettaglio; preferiti; statistiche risposta; recensioni pubblicate; etichette catalogo |
@@ -403,7 +404,8 @@ Stati osservati nel dominio:
 - Il sentiment è `positive|negative`.
 - Il testo pubblico richiede `publish_comment=1`.
 - Il punteggio è limitato a `0..100` e ogni variazione genera un `reputation_event`.
-- Attualmente la reputazione è unica per account: è un limite per il futuro multi-profilo.
+- Dallo STEP 5 il punteggio è separato per capability Owner/Assistant in `profile_reputation`.
+- Ogni evento dichiara `subject_capability`; `user_reputation` resta un mirror del ruolo legacy fino al consolidamento.
 
 ### 10.6 Policy configurabili
 
@@ -500,8 +502,9 @@ Le tabelle relazione usano vincoli univoci compositi per impedire duplicati.
 | `booking_feature_preference` | unique booking-feature e nome snapshot |
 | `booking_reschedule` | proposta, proponente, nuovo slot/prezzo, stato precedente e stato proposta |
 | `booking_review` | booking, reviewer, reviewed, sentiment, commento, delta, consenso pubblicazione; unique booking-reviewer |
-| `user_reputation` | PK `user_id`, score |
-| `reputation_event` | utente, booking, attore, tipo, delta, score risultante e nota |
+| `profile_reputation` | PK/FK `(user_id, capability)`, score 0–100; reputazione primaria separata Owner/Assistant e indice capability-score per discovery |
+| `user_reputation` | PK `user_id`, score; mirror temporaneo della prospettiva indicata da `users.role` |
+| `reputation_event` | utente, `subject_capability`, booking, attore, tipo, delta, score risultante e nota |
 | `booking_action_token` | token hash unique, booking, utente, azione, scadenza e consumo |
 | `pet_assistant_favorite` | PK composita Owner-Assistant |
 
@@ -537,7 +540,8 @@ users
 ├── booking.owner_user_id
 ├── booking.assistant_user_id
 ├── pet_assistant_favorite (entrambi i lati)
-├── user_reputation
+├── profile_reputation (Owner/Assistant, FK cascade)
+├── user_reputation (mirror legacy)
 └── reputation_event
 
 booking
@@ -654,7 +658,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 5. **Autorizzazioni distribuite**: controlli `where(role=...)` non centralizzati.
 6. **Registrazione legacy ancora visibile**: la pagina `/register` continua a chiedere Owner/Assistant fino alla sostituzione prevista nello STEP 8; il backend neutro è già disponibile.
 7. **Mirror profilo legacy**: i dati sono separati nelle nuove tabelle, ma `personaldata` resta in dual-write/fallback fino allo STEP 10 e non può rappresentare entrambe le location.
-8. **Reputazione unica**: eventi Owner e Assistant convergono nello stesso score.
+8. **Mirror reputazione legacy**: i punteggi sono contestuali, ma `user_reputation` resta in dual-write per il solo ruolo storico fino allo STEP 10.
 9. **Schema non versionato**: uno script cumulativo rende meno esplicita la sequenza delle release.
 10. **FK non uniformi**: le nuove tabelle account/capability usano FK cascade, mentre molte relazioni legacy dipendono ancora dalla pulizia applicativa.
 11. **Controller/modelli molto estesi**: `AuthController`, `ProfileController`, `Profile` e `Booking` hanno responsabilità ampie.
@@ -664,7 +668,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2 e i dati profilo sono separati dallo STEP 4; reputazione contestuale e consumo runtime delle capability restano progressivi negli step successivi.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4 e la reputazione è contestuale dallo STEP 5; il consumo runtime delle capability resta progressivo negli step successivi.
 
 ### 18.1 Principi
 
@@ -707,12 +711,14 @@ assistant_profile   area operativa/location/raggio Assistant
 
 `ProfileData` rende le nuove tabelle autoritative, mantiene `personaldata` come mirror/fallback e impedisce che la location del ruolo legacy venga copiata automaticamente nell'altro contesto. Ricerca e profilo pubblico consumano l'area Assistant; il calcolo distanza dell'Owner consuma la residenza Owner.
 
-La reputazione deve diventare contestuale:
+Reputazione contestuale implementata nello STEP 5:
 
 ```text
 profile_reputation PK (user_id, capability)
 reputation_event.subject_capability
 ```
+
+`ProfileReputation` rende la coppia account/capability autoritativa. Ricerca e profilo pubblico leggono sempre il ranking Assistant; booking e penalità scelgono il contesto dal lato occupato nella prenotazione. `user_reputation` resta un mirror compatibile soltanto con `users.role`.
 
 ### 18.3 Onboarding target
 
@@ -827,6 +833,8 @@ Regole di esecuzione:
 | 2026-11-10 | Gate STEP 3 | Milestone account neutro e compatibilità backend approvata dall'utente con “OK STEP 3” | Intero changeset STEP 3 sul branch `changeaccount` | Nessuna modifica DB; contratto legacy mantenuto | Gate manuale completato dopo verifica utente |
 | 2026-11-10 | STEP 4 profili separati | Separati dati comuni, residenza Owner e area operativa Assistant con lettura nuova, fallback e dual-write legacy | `account_profile`, `owner_profile`, `assistant_profile`, `ProfileData`, profili/ricerca/pubblico, seed/export/demo, `docs/migrations/changeaccount-step4-profile-separation.md` | Backfill additivo 41/1/40; `personaldata` invariata e mantenuta come mirror; backup privato prima dell'applicazione | 48 test/252 assertion, lint/build; restore pre-STEP 0 e rerun idempotente; rebuild da zero; zero mismatch/orfani; smoke login/profilo/ricerca/pubblico riuscito |
 | 2026-11-10 | Gate STEP 4 | Milestone separazione dati profilo approvata dall'utente con “OK STEP 4” | Intero changeset STEP 4 sul branch `changeaccount` | Database locale migrato; profili legacy conservati tramite mirror e fallback | Gate manuale completato dopo verifica utente |
+| 2026-11-10 | STEP 5 reputazione contestuale | Separati score ed eventi Owner/Assistant; ranking pubblico e booking leggono la capability corretta | `profile_reputation`, `reputation_event.subject_capability`, `ProfileReputation`, `Booking`, ricerca/pubblico, seed/export/demo, `docs/migrations/changeaccount-step5-contextual-reputation.md` | Backfill additivo 81 righe; ranking storici invariati; `user_reputation` mantenuta come mirror selettivo; backup privato prima dell'applicazione | 53 test/281 assertion, lint/build; restore pre-STEP 0 e rerun idempotente; rebuild e seed PHP; zero mismatch/orfani; smoke API pubblico/ricerca riuscito |
+| 2026-11-10 | Gate STEP 5 | Milestone reputazione contestuale approvata dall'utente con “OK STEP 5” | Intero changeset STEP 5 sul branch `changeaccount` | Database locale migrato; ranking legacy preservati tramite mirror selettivo | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 

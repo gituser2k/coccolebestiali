@@ -55,6 +55,19 @@ class BookingFlowTest extends TestCase
         $this->assertGreaterThan(0, DB::table('booking')->where('id', $booking['id'])->value('accepted_at'));
     }
 
+    public function test_booking_reads_contextual_scores_instead_of_the_legacy_account_score(): void
+    {
+        DB::table('user_reputation')->where('user_id', 1)->update(['score' => 20]);
+        DB::table('user_reputation')->where('user_id', 2)->update(['score' => 30]);
+        DB::table('profile_reputation')->where('user_id', 1)->where('capability', 'owner')->update(['score' => 71]);
+        DB::table('profile_reputation')->where('user_id', 2)->where('capability', 'assistant')->update(['score' => 86]);
+
+        $booking = (new Booking)->create(1, $this->payload());
+
+        $this->assertSame(71, $booking['ownerScore']);
+        $this->assertSame(86, $booking['assistantScore']);
+    }
+
     public function test_service_preferences_are_frozen_and_unavailable_features_are_rejected(): void
     {
         $model = new Booking;
@@ -80,6 +93,8 @@ class BookingFlowTest extends TestCase
         DB::table('booking')->where('id', $booking['id'])->update(['booking_date' => $tomorrow]);
         $model->cancel($booking['id'], 1, 'Test annullamento tardivo');
         $this->assertSame(55, (int) DB::table('user_reputation')->where('user_id', 1)->value('score'));
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 1, 'capability' => 'owner', 'score' => 55]);
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'owner', 'score' => 60]);
 
         $second = $model->create(1, [...$this->payload(), 'startTime' => '10:00', 'endTime' => '11:00']);
         DB::table('booking')->where('id', $second['id'])->update([
@@ -89,7 +104,25 @@ class BookingFlowTest extends TestCase
         $model->review($second['id'], 1, 'positive', 'Servizio professionale e puntuale.');
 
         $this->assertSame(65, (int) DB::table('user_reputation')->where('user_id', 2)->value('score'));
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'assistant', 'score' => 65]);
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'owner', 'score' => 60]);
+        $this->assertDatabaseHas('reputation_event', [
+            'user_id' => 2,
+            'subject_capability' => 'assistant',
+            'event_type' => 'review_positive',
+            'score_after' => 65,
+        ]);
         $this->assertDatabaseHas('booking_review', ['booking_id' => $second['id'], 'score_delta' => 5]);
+
+        $model->review($second['id'], 2, 'negative', 'Esperienza Owner da migliorare.');
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 1, 'capability' => 'owner', 'score' => 50]);
+        $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'assistant', 'score' => 65]);
+        $this->assertDatabaseHas('reputation_event', [
+            'user_id' => 1,
+            'subject_capability' => 'owner',
+            'event_type' => 'review_negative',
+            'score_after' => 50,
+        ]);
     }
 
     public function test_booking_api_requires_session_and_enforces_role(): void
@@ -318,6 +351,11 @@ class BookingFlowTest extends TestCase
             ['user_id' => 1, 'score' => 60, 'updated_at' => $now],
             ['user_id' => 2, 'score' => 60, 'updated_at' => $now],
         ]);
+        DB::table('profile_reputation')->insert([
+            ['user_id' => 1, 'capability' => 'owner', 'score' => 60, 'updated_at' => $now],
+            ['user_id' => 2, 'capability' => 'owner', 'score' => 60, 'updated_at' => $now],
+            ['user_id' => 2, 'capability' => 'assistant', 'score' => 60, 'updated_at' => $now],
+        ]);
         DB::table('operatordata')->insert(['user_id' => 2, 'booking_confirmation_mode' => 'manual', 'updated_at' => $now]);
         DB::table('ownerpet')->insert(['id' => 1, 'user_id' => 1, 'name' => 'Rex']);
         DB::table('service')->insert(['id' => 1, 'name' => 'Passeggiata']);
@@ -352,6 +390,13 @@ class BookingFlowTest extends TestCase
             $table->unsignedInteger('user_id')->primary();
             $table->unsignedTinyInteger('score')->default(60);
             $table->integer('updated_at')->default(0);
+        });
+        Schema::create('profile_reputation', function (Blueprint $table) {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
+            $table->unsignedTinyInteger('score')->default(60);
+            $table->integer('updated_at')->default(0);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('operatordata', function (Blueprint $table) {
             $table->increments('id');
@@ -484,6 +529,7 @@ class BookingFlowTest extends TestCase
         Schema::create('reputation_event', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
+            $table->string('subject_capability', 16)->default('owner');
             $table->unsignedInteger('booking_id');
             $table->unsignedInteger('actor_user_id');
             $table->string('event_type');

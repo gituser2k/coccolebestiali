@@ -65,11 +65,7 @@ class UserAccount extends Model
                 'updated_at' => $now,
             ]);
             (new UserCapability)->provisionForLegacyRole($userId, $role, $now);
-            DB::table('user_reputation')->insertOrIgnore([
-                'user_id' => $userId,
-                'score' => PortalPolicy::value('initial_reputation_score'),
-                'updated_at' => $now,
-            ]);
+            (new ProfileReputation)->initializeForLegacyRole($userId, $role, $now);
 
             return $this->getUserById($userId);
         });
@@ -178,11 +174,7 @@ class UserAccount extends Model
                 ]);
             }
 
-            DB::table('user_reputation')->insertOrIgnore([
-                'user_id' => $userId,
-                'score' => PortalPolicy::value('initial_reputation_score'),
-                'updated_at' => $now,
-            ]);
+            (new ProfileReputation)->initializeForLegacyRole($userId, $storedRole, $now);
 
             return $this->getUserById($userId);
         });
@@ -593,6 +585,7 @@ class UserAccount extends Model
             if (Schema::hasTable('reputation_event')) {
                 DB::table('reputation_event')->where('user_id', $userId)->orWhere('actor_user_id', $userId)->delete();
             }
+            $this->deleteByUserId('profile_reputation', $userId);
             $this->deleteByUserId('user_reputation', $userId);
             if ($calendarSlotIds !== [] && Schema::hasTable('calendar_day_slot_service')) {
                 DB::table('calendar_day_slot_service')->whereIn('slot_id', $calendarSlotIds)->delete();

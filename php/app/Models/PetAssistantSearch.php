@@ -88,7 +88,7 @@ class PetAssistantSearch
             ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'user.id')
             ->join('operatordata as operator', 'operator.user_id', '=', 'user.id')
             ->join('service', 'service.id', '=', 'slot_service.service_id')
-            ->leftJoin('user_reputation as reputation', 'reputation.user_id', '=', 'user.id')
+            ->leftJoin('user_reputation as legacy_reputation', 'legacy_reputation.user_id', '=', 'user.id')
             ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'user.id')
             ->join('operatorservicedata as operator_service', function ($join) {
                 $join->on('operator_service.user_id', '=', 'user.id')
@@ -107,6 +107,18 @@ class PetAssistantSearch
                 ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'user.id')
                 ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'user.id');
         }
+        $usesContextualReputation = Schema::hasTable('profile_reputation');
+        if ($usesContextualReputation) {
+            $availabilityQuery->leftJoin('profile_reputation as assistant_reputation', function ($join) {
+                $join->on('assistant_reputation.user_id', '=', 'user.id')
+                    ->where('assistant_reputation.capability', ProfileReputation::ASSISTANT);
+            });
+        }
+        $initialScore = PortalPolicy::value('initial_reputation_score');
+        $legacyReputationFallback = "CASE WHEN user.role = 'pet_assistant' THEN COALESCE(legacy_reputation.score, {$initialScore}) ELSE {$initialScore} END";
+        $reputationExpression = $usesContextualReputation
+            ? "CASE WHEN assistant_reputation.user_id IS NOT NULL THEN assistant_reputation.score ELSE {$legacyReputationFallback} END"
+            : $legacyReputationFallback;
         $photoExpression = $usesSeparatedProfiles
             ? "CASE WHEN account_common.user_id IS NOT NULL THEN account_common.photo ELSE COALESCE(personal.photo, '') END"
             : "COALESCE(personal.photo, '')";
@@ -149,7 +161,7 @@ class PetAssistantSearch
                 'slot.end_time',
                 'slot_service.hour_price as slot_hour_price',
                 'operator_service.hour_price as service_hour_price',
-                DB::raw('COALESCE(reputation.score, 60) as ranking_score'),
+                DB::raw($reputationExpression.' as ranking_score'),
             ])
             ->orderBy('day.date')
             ->orderBy('slot.start_time')
