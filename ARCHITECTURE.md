@@ -440,6 +440,7 @@ Non risultano foreign key SQL esplicite: l'integrità referenziale è affidata a
 | Tabella | Chiavi/campi principali | Relazioni e funzione |
 | --- | --- | --- |
 | `users` | `id`, `role`, `name`, `email` unique, verifiche, password, avatar, timestamp Unix | account globale attuale e ruolo esclusivo |
+| `user_capabilities` | PK `(user_id, capability)`, stato, versione/step onboarding, timestamp di ciclo vita | modello additivo Owner/Assistant introdotto nello STEP 2; FK verso `users`, non ancora usato come fonte autorizzativa |
 | `social_accounts` | provider+sub unique, `user_id`, email/claims provider | identità Google/Apple |
 | `personaldata` | `user_id` unique, nome, foto, età, città, telefono, indirizzo, coordinate, raggio | dati comuni e location; oggi mescola Owner e Assistant |
 | `operatordata` | `user_id` unique, tipo, CF, ragione sociale, P.IVA, bio, esperienza, taglia, confirmation mode | profilo professionale Assistant |
@@ -655,7 +656,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. È una specifica target, non ancora implementata.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2; separazione dei dati profilo, reputazione contestuale e consumo runtime delle capability restano progressivi negli step successivi.
 
 ### 18.1 Principi
 
@@ -669,7 +670,7 @@ Separare:
 
 Ogni account può agire come Owner. Il profilo Assistant è opzionale, salvabile in bozza e pubblicabile dopo il completamento dei requisiti.
 
-### 18.2 Schema target indicativo
+### 18.2 Schema capability implementato nello STEP 2
 
 ```text
 user_capabilities
@@ -685,6 +686,8 @@ user_capabilities
 - updated_at
 PK (user_id, capability)
 ```
+
+La tabella applicata usa inoltre una FK `ON DELETE CASCADE`, check constraint sui valori ammessi e l'indice `(capability, status, user_id)`. Il backfill assegna Owner attivo a tutti e Assistant attivo ai ruoli legacy Assistant, senza sovrascrivere righe esistenti. `users.role` resta temporaneamente la sorgente letta dal runtime.
 
 Separazione dati consigliata:
 
@@ -808,6 +811,8 @@ Regole di esecuzione:
 | 2026-11-09 | Correzione OAuth profili | Caricati gli SDK Google/Apple nelle pagine profilo, aggiunto loader Google resiliente e collegamento just-in-time sicuro degli account social legacy con email attestata dal provider | HTML profili, `googleOAuth.ts`, `AccountChangeModal`, `AuthController`, `UserAccount`, test social | Nessun dato migrato in massa; il collegamento viene creato soltanto dopo prova OAuth valida | 30 test/176 assertion, lint/build e prova reale “Passa a Google” su Pet Assistant completata; quattro test dedicati a provider/subject ed email verificata/non verificata |
 | 2026-11-09 | Gate STEP 1 | Milestone identità, sessione e hardening approvata dall'utente con “OK STEP 1” | Intero changeset STEP 1 sul branch `changeaccount` | Pronto per commit isolato; nessuna migrazione DB | Gate manuale completato dopo verifica Google Pet Assistant |
 | 2026-11-10 | Backup pre-STEP 0 | Creato un punto di recupero immutabile per migration e database precedenti allo STEP 0 | tag `db-pre-step0-20261109`, `php/migration/backups/pre-step0-20261109.md`, dump privato già acquisito | Nessuna modifica al database operativo; dump con dati personali non versionato | Checksum riconfermato; secondo restore isolato riuscito con 43 tabelle, 41 utenti e 2 prenotazioni |
+| 2026-11-10 | STEP 2 capability | Aggiunti schema capability, backfill idempotente e dual-write delle creazioni account legacy | `user_capabilities`, `UserCapability`, `UserAccount`, migration/seed/export/demo, `docs/migrations/changeaccount-step2-capabilities.md` | `users.role` conservato e ancora letto; ogni account Owner, Assistant legacy con entrambe le capability; backup privato prima dell'applicazione | 34 test/183 assertion, lint/build; restore e ricostruzione da zero; dati legacy invariati; 81 capability e 0 errori di mapping; smoke profili/login Assistant riuscito |
+| 2026-11-10 | Gate STEP 2 | Milestone schema capability e backfill approvata dall'utente con “OK STEP 2” | Intero changeset STEP 2 sul branch `changeaccount` | Database locale migrato; `users.role` e compatibilità legacy mantenuti | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 

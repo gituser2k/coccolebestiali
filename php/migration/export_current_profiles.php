@@ -26,6 +26,7 @@ $systemTables = [
 
 $demoTables = [
     'users',
+    'user_capabilities',
     'social_accounts',
     'personaldata',
     'operatordata',

@@ -36,6 +36,7 @@ DELETE FROM `operatorassociatedata`;
 DELETE FROM `operatordata`;
 DELETE FROM `personaldata`;
 DELETE FROM `social_accounts`;
+DELETE FROM `user_capabilities`;
 DELETE FROM `users`;
 
 -- users: 41 record
@@ -80,6 +81,26 @@ INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_
 INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (39, 'pet_assistant', 'utente38', 'utente38@email.it', 1, '$2y$12$.AT3G.5LVq6/Bp6cS6eubeRyxuAcbVXCXk4hoFWKMUpzE7LOpeZK.', 0, '', 1792246803, 1792246803);
 INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (40, 'pet_assistant', 'utente39', 'utente39@email.it', 1, '$2y$12$Qnl.syuhGTgHXRAdFdnrfOs537n7JsQ4fqLsUYjPX82TntwZKYRbW', 0, '', 1792246803, 1792246803);
 INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (41, 'pet_assistant', 'utente40', 'utente40@email.it', 1, '$2y$12$bV8Yqm78E60spBjYILOCU.fiNdcE2KV0.fxSwSgZHhTsaKUnhZm5q', 0, '', 1792246803, 1792246803);
+
+-- user_capabilities: 81 record (41 Owner + 40 Assistant)
+INSERT INTO `user_capabilities` (
+  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
+  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
+)
+SELECT
+  `id`, 'owner', 'active', 1, 'complete',
+  `created_at`, `created_at`, 0, 0, `created_at`, `updated_at`
+FROM `users`;
+
+INSERT INTO `user_capabilities` (
+  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
+  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
+)
+SELECT
+  `id`, 'assistant', 'active', 1, 'complete',
+  `created_at`, `created_at`, 0, 0, `created_at`, `updated_at`
+FROM `users`
+WHERE `role` = 'pet_assistant';
 
 -- social_accounts: 1 record
 INSERT INTO `social_accounts` (`id`, `user_id`, `provider`, `provider_sub`, `provider_email`, `provider_email_verified`, `is_private_email`, `raw_claims`, `created_at`, `updated_at`) VALUES (1, 1, 'google', '112898879279943370243', 'frabe75@gmail.com', 1, 0, '{\"tokeninfo\":{\"azp\":\"408014807362-gv881e8utiligcb242h0tba8nin1gu35.apps.googleusercontent.com\",\"aud\":\"408014807362-gv881e8utiligcb242h0tba8nin1gu35.apps.googleusercontent.com\",\"sub\":\"112898879279943370243\",\"scope\":\"email profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid\",\"exp\":\"1792250864\",\"expires_in\":\"3597\",\"email\":\"frabe75@gmail.com\",\"email_verified\":\"true\",\"access_type\":\"online\"},\"userinfo\":{\"sub\":\"112898879279943370243\",\"name\":\"Francesco Bernardi\",\"given_name\":\"Francesco\",\"family_name\":\"Bernardi\",\"picture\":\"https://lh3.googleusercontent.com/a/ACg8ocLU-vXdeF20AcdH0IghfaiD0xAjw2eNs78_YuHXgat1aA9gbg=s96-c\",\"email\":\"frabe75@gmail.com\",\"email_verified\":true}}', 1792247266, 1792247266);

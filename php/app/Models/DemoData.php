@@ -43,6 +43,7 @@ class DemoData
         'operatordata',
         'personaldata',
         'social_accounts',
+        'user_capabilities',
         'users',
         'messageback',
         'message',
@@ -93,7 +94,7 @@ class DemoData
             });
 
             foreach (self::DATA_TABLES as $table) {
-                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite'], true)) {
+                if (! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities'], true)) {
                     $connection->statement(sprintf('ALTER TABLE `%s` AUTO_INCREMENT = 1', $table));
                 }
             }

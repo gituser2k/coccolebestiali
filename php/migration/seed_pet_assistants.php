@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\DemoData;
+use App\Models\UserCapability;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -77,7 +78,7 @@ $tablesToReset = [
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
     'housefeaturedata', 'pettypedata', 'petbreeddata', 'operatortitledata',
-    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'personaldata', 'social_accounts', 'users',
+    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'personaldata', 'social_accounts', 'user_capabilities', 'users',
 ];
 
 DB::transaction(function () use (
@@ -124,6 +125,7 @@ DB::transaction(function () use (
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        (new UserCapability)->provisionForLegacyRole($userId, 'pet_assistant', $now);
 
         DB::table('personaldata')->insert([
             'user_id' => $userId,
@@ -275,7 +277,7 @@ foreach (array_keys($privateStoragePaths) as $path) {
 }
 
 foreach ($tablesToReset as $table) {
-    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite'], true)) {
+    if (Schema::hasTable($table) && ! in_array($table, ['operator_public_profile', 'pet_assistant_favorite', 'user_capabilities'], true)) {
         DB::statement('ALTER TABLE `'.$table.'` AUTO_INCREMENT = 1');
     }
 }

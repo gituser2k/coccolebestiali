@@ -51,26 +51,28 @@ class UserAccount extends Model
             throw new RuntimeException('EMAIL_ALREADY_EXISTS');
         }
 
-        $now = time();
+        return DB::transaction(function () use ($role, $email, $password): array {
+            $now = time();
+            $userId = (int) DB::table('users')->insertGetId([
+                'role' => $role,
+                'name' => '',
+                'email' => $email,
+                'email_verified' => 0,
+                'password_hash' => Hash::make($password),
+                'password_reset_required' => 0,
+                'avatar' => '',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            (new UserCapability)->provisionForLegacyRole($userId, $role, $now);
+            DB::table('user_reputation')->insertOrIgnore([
+                'user_id' => $userId,
+                'score' => PortalPolicy::value('initial_reputation_score'),
+                'updated_at' => $now,
+            ]);
 
-        $userId = DB::table('users')->insertGetId([
-            'role' => $role,
-            'name' => '',
-            'email' => $email,
-            'email_verified' => 0,
-            'password_hash' => Hash::make($password),
-            'password_reset_required' => 0,
-            'avatar' => '',
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-        DB::table('user_reputation')->insertOrIgnore([
-            'user_id' => $userId,
-            'score' => PortalPolicy::value('initial_reputation_score'),
-            'updated_at' => $now,
-        ]);
-
-        return $this->getUserById((int) $userId);
+            return $this->getUserById($userId);
+        });
     }
 
     public function upsertSocialUser(
@@ -140,6 +142,8 @@ class UserAccount extends Model
                         'updated_at' => $now,
                     ]);
             }
+
+            (new UserCapability)->provisionForLegacyRole($userId, $role, $now);
 
             $claimsJson = json_encode($rawClaims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (strlen((string) $claimsJson) > 4096) {
@@ -627,6 +631,7 @@ class UserAccount extends Model
 
             $this->deleteByUserId('personaldata', $userId);
             $this->deleteByUserId('social_accounts', $userId);
+            $this->deleteByUserId('user_capabilities', $userId);
             DB::table('users')->where('id', $userId)->delete();
         });
 

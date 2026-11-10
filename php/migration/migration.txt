@@ -45,6 +45,52 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `uk_users_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Capability additive per la migrazione multi-profilo.
+-- users.role resta temporaneamente la fonte letta dal portale fino allo STEP 3.
+CREATE TABLE IF NOT EXISTS `user_capabilities` (
+  `user_id` int(10) unsigned NOT NULL,
+  `capability` varchar(16) NOT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'draft',
+  `onboarding_version` smallint unsigned NOT NULL DEFAULT 1,
+  `current_step` varchar(64) NOT NULL DEFAULT '',
+  `completed_at` int unsigned NOT NULL DEFAULT 0,
+  `activated_at` int unsigned NOT NULL DEFAULT 0,
+  `suspended_at` int unsigned NOT NULL DEFAULT 0,
+  `disabled_at` int unsigned NOT NULL DEFAULT 0,
+  `created_at` int NOT NULL DEFAULT 0,
+  `updated_at` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`, `capability`),
+  KEY `idx_user_capabilities_discovery` (`capability`, `status`, `user_id`),
+  CONSTRAINT `fk_user_capabilities_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_user_capabilities_capability`
+    CHECK (`capability` IN ('owner', 'assistant')),
+  CONSTRAINT `chk_user_capabilities_status`
+    CHECK (`status` IN ('draft', 'pending_verification', 'active', 'suspended', 'rejected', 'disabled'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ogni account mantiene la possibilita di agire come Owner.
+-- INSERT IGNORE rende il backfill ripetibile senza riattivare capability sospese o disabilitate.
+INSERT IGNORE INTO `user_capabilities` (
+  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
+  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
+)
+SELECT
+  `id`, 'owner', 'active', 1, 'complete',
+  UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
+FROM `users`;
+
+-- Gli account con ruolo legacy Pet Assistant mantengono anche l'accesso Assistant.
+INSERT IGNORE INTO `user_capabilities` (
+  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
+  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
+)
+SELECT
+  `id`, 'assistant', 'active', 1, 'complete',
+  UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
+FROM `users`
+WHERE `role` = 'pet_assistant';
+
 CREATE TABLE IF NOT EXISTS `social_accounts` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,

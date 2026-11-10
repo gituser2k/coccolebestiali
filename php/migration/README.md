@@ -47,6 +47,7 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | Tabella | Funzione |
 | --- | --- |
 | `users` | Account, ruolo, alias, email e credenziali. |
+| `user_capabilities` | Capability Owner/Assistant, stato e avanzamento onboarding per account. |
 | `social_accounts` | Collegamenti con Google e Apple. |
 | `personaldata` | Dati personali, recapiti e coordinate GPS. |
 | `operatordata` | Informazioni professionali del Pet Assistant. |
