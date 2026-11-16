@@ -1097,8 +1097,28 @@ CREATE TABLE IF NOT EXISTS `pet_assistant_favorite` (
   `assistant_user_id` int unsigned NOT NULL,
   `created_at` int NOT NULL,
   PRIMARY KEY (`owner_user_id`, `assistant_user_id`),
-  KEY `idx_favorite_assistant` (`assistant_user_id`)
+  KEY `idx_favorite_assistant` (`assistant_user_id`),
+  CONSTRAINT `chk_favorite_distinct_accounts`
+    CHECK (`owner_user_id` <> `assistant_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Le relazioni verso se stessi non hanno significato e impedirebbero una
+-- policy coerente quando Owner e Assistant coesistono nello stesso account.
+DELETE FROM `pet_assistant_favorite`
+WHERE `owner_user_id` = `assistant_user_id`;
+
+SET @favorite_add_distinct_accounts_check = IF(
+  NOT EXISTS(
+    SELECT 1 FROM `information_schema`.`TABLE_CONSTRAINTS`
+    WHERE `CONSTRAINT_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'pet_assistant_favorite'
+      AND `CONSTRAINT_NAME` = 'chk_favorite_distinct_accounts' AND `CONSTRAINT_TYPE` = 'CHECK'
+  ),
+  "ALTER TABLE `pet_assistant_favorite` ADD CONSTRAINT `chk_favorite_distinct_accounts` CHECK (`owner_user_id` <> `assistant_user_id`)",
+  'SELECT 1'
+);
+PREPARE favorite_distinct_accounts_check_stmt FROM @favorite_add_distinct_accounts_check;
+EXECUTE favorite_distinct_accounts_check_stmt;
+DEALLOCATE PREPARE favorite_distinct_accounts_check_stmt;
 
 CREATE TABLE IF NOT EXISTS `booking_batch` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,

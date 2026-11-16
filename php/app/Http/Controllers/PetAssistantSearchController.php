@@ -21,7 +21,7 @@ class PetAssistantSearchController extends Controller
     {
         try {
             $options = (new PetAssistantSearch)->getOptions($this->resolveCurrentUserId($request));
-            $options['canFilterFavorites'] = $options['authenticatedRole'] === 'pet_owner'
+            $options['canFilterFavorites'] = (bool) ($options['canUseOwnerDiscovery'] ?? false)
                 && PortalSession::userId($request) > 0;
 
             return response()->json([

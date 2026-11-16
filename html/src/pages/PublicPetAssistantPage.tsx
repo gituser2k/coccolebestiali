@@ -41,6 +41,8 @@ type PublicProfile = {
     comments: { id: number; sentiment: string; text: string; date: number; service: string }[]
   }
   favorite: boolean
+  canFavorite: boolean
+  viewerCapabilities: string[]
   viewerRole: string
   pets: { id: number; name: string }[]
   policies: { maxBookingDurationMinutes: number; bookingMinNoticeHours: number; ownerFreeCancellationHours: number }
@@ -276,7 +278,7 @@ export default function PublicPetAssistantPage() {
             </div>
           </div>
           <div className="public-favorite">
-            {profile.viewerRole === 'pet_owner' ? <button type="button" className="public-link-button" aria-pressed={profile.favorite} disabled={favoriteBusy} onClick={() => void toggleFavorite()}><span aria-hidden="true">{profile.favorite ? '♥' : '♡'}</span> Preferito</button>
+            {profile.canFavorite ? <button type="button" className="public-link-button" aria-pressed={profile.favorite} disabled={favoriteBusy} onClick={() => void toggleFavorite()}><span aria-hidden="true">{profile.favorite ? '♥' : '♡'}</span> Preferito</button>
               : !profile.viewerRole ? <a className="public-link-button" href={loginHref}><span aria-hidden="true">♡</span> Preferito</a> : null}
             {favoriteNotice && <p role="status">{favoriteNotice}</p>}
           </div>

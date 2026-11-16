@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\PetAssistantSearch;
 use App\Models\PublicPetAssistant;
+use App\Models\UserCapability;
 use App\Support\PortalSession;
 use DateTimeImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PublicPetAssistantController extends Controller
 {
@@ -41,6 +41,7 @@ class PublicPetAssistantController extends Controller
     public function setFavorite(Request $request, int $assistantId): JsonResponse
     {
         $ownerId = $this->requireOwner($request);
+        abort_if($ownerId === $assistantId, 422, 'Non puoi aggiungere il tuo profilo Assistant ai preferiti.');
         $model = new PublicPetAssistant;
         abort_unless($model->exists($assistantId), 404, 'Profilo Pet Assistant non disponibile.');
         $payload = $request->validate(['favorite' => ['required', 'boolean']]);
@@ -64,7 +65,7 @@ class PublicPetAssistantController extends Controller
     {
         $id = $this->viewerId($request);
         abort_if($id <= 0, 401, 'Accedi come Pet Owner per usare i preferiti.');
-        abort_unless(DB::table('users')->where('id', $id)->where('role', 'pet_owner')->exists(), 403);
+        abort_unless((new UserCapability)->hasActive($id, UserCapability::OWNER), 403);
 
         return $id;
     }

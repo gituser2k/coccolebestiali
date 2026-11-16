@@ -29,6 +29,8 @@ type SearchOptions = {
   services: ServiceOption[]
   pets: PetOption[]
   authenticatedRole: string
+  activeCapabilities: string[]
+  canUseOwnerDiscovery: boolean
   canFilterFavorites: boolean
 }
 
@@ -106,6 +108,8 @@ const EMPTY_OPTIONS: SearchOptions = {
   services: [],
   pets: [],
   authenticatedRole: '',
+  activeCapabilities: [],
+  canUseOwnerDiscovery: false,
   canFilterFavorites: false,
 }
 
@@ -470,7 +474,7 @@ export default function PetAssistantSearchPage() {
 
   function togglePetSearch() {
     if (!useMyPet && options.pets.length === 0) {
-      const message = options.authenticatedRole === 'pet_owner'
+      const message = options.canUseOwnerDiscovery
         ? 'Inserisci prima un pet nel tuo profilo.'
         : 'Accedi come Pet Owner per cercare in base al tuo pet.'
       setToast({ message, tone: 'error' })

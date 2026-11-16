@@ -312,3 +312,5 @@ WHERE Field IN ('sex', 'birth_date', 'microchip_code', 'general_notes');
 Il blocco finale di `migration.txt` dedicato al profilo pubblico aggiunge le tabelle `operator_public_profile`, `pet_assistant_favorite` e `booking_batch`. La migrazione registra inoltre la prima risposta manuale in `booking.first_response_at` e il consenso alla pubblicazione del testo in `booking_review.publish_comment`.
 
 Il profilo usa la zona approssimativa finché il Pet Assistant non abilita il punto esatto in Dati operatore. Il consenso al punto esatto e quello alla pubblicazione del testo delle recensioni sono disattivati per i dati esistenti. Il ripristino demo svuota anche i preferiti, gli invii multipli e le impostazioni pubbliche aggiunti dopo l’ultimo snapshot.
+
+Dallo STEP 6 la discovery seleziona gli account tramite capability Assistant `active`, non tramite `users.role`. Le API dei preferiti richiedono capability Owner `active`. `pet_assistant_favorite` vieta inoltre una coppia con lo stesso account sui due lati tramite il check `chk_favorite_distinct_accounts`; la migration elimina in modo idempotente eventuali righe self-favorite legacy prima di aggiungere il vincolo.

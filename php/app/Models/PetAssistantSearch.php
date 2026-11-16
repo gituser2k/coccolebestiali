@@ -35,11 +35,13 @@ class PetAssistantSearch
 
         $pets = [];
         $role = '';
+        $activeCapabilities = [];
 
         if ($userId > 0) {
             $role = (string) DB::table('users')->where('id', $userId)->value('role');
+            $activeCapabilities = (new UserCapability)->activeForUser($userId, $role);
 
-            if ($role === 'pet_owner') {
+            if (in_array(UserCapability::OWNER, $activeCapabilities, true)) {
                 $pets = DB::table('ownerpet as p')
                     ->leftJoin('ownerpetgallery as g', function ($join) {
                         $join->on('g.pet_id', '=', 'p.id')
@@ -64,6 +66,8 @@ class PetAssistantSearch
             'services' => $services,
             'pets' => $pets,
             'authenticatedRole' => $role,
+            'activeCapabilities' => $activeCapabilities,
+            'canUseOwnerDiscovery' => in_array(UserCapability::OWNER, $activeCapabilities, true),
             'policies' => PortalPolicy::publicSnapshot(),
         ];
     }
@@ -71,7 +75,7 @@ class PetAssistantSearch
     public function search(string $startDate, string $endDate, array $serviceIds, int $petId = 0, int $userId = 0, int $durationMinutes = 60, string $sortBy = 'ranking', bool $onlyWithPhoto = false, array $optionFilters = [], bool $onlyFavorites = false, bool $showFavoriteStatus = false): array
     {
         $canReadFavorites = ($onlyFavorites || $showFavoriteStatus)
-            && DB::table('users')->where('id', $userId)->where('role', 'pet_owner')->exists();
+            && (new UserCapability)->hasActive($userId, UserCapability::OWNER);
         if ($onlyFavorites && ! $canReadFavorites) {
             throw new RuntimeException('FAVORITES_OWNER_REQUIRED');
         }
@@ -94,12 +98,18 @@ class PetAssistantSearch
                 $join->on('operator_service.user_id', '=', 'user.id')
                     ->on('operator_service.service_id', '=', 'service.id');
             })
-            ->where('user.role', 'pet_assistant')
             ->where('day.enabled', 1)
             ->where('slot.enabled', 1)
             ->where('slot_service.enabled', 1)
             ->whereBetween('day.date', [$startDate, $endDate])
             ->whereIn('slot_service.service_id', $serviceIds);
+
+        (new UserCapability)->scopeActive(
+            $availabilityQuery,
+            'user',
+            UserCapability::ASSISTANT,
+            'assistant_discovery_capability'
+        );
 
         $usesSeparatedProfiles = Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
         if ($usesSeparatedProfiles) {

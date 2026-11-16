@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 class PublicPetAssistant
 {
@@ -28,7 +29,12 @@ class PublicPetAssistant
             });
         }
 
-        return $query->where('u.role', 'pet_assistant');
+        return (new UserCapability)->scopeActive(
+            $query,
+            'u',
+            UserCapability::ASSISTANT,
+            'public_assistant_capability'
+        );
     }
 
     public function exists(int $assistantId): bool
@@ -55,7 +61,9 @@ class PublicPetAssistant
         $search = new PetAssistantSearch;
         $viewer = $search->getOptions($viewerId);
         $point = PetAssistantSearch::publicPoint((float) $row->location_lat, (float) $row->location_lng, (bool) $row->publish_exact_location);
-        $ownerId = $viewer['authenticatedRole'] === 'pet_owner' ? $viewerId : 0;
+        $viewerCapabilities = $viewer['activeCapabilities'] ?? [];
+        $ownerId = in_array(UserCapability::OWNER, $viewerCapabilities, true) ? $viewerId : 0;
+        $canFavorite = $ownerId > 0 && $ownerId !== $assistantId;
 
         return [
             'id' => $assistantId,
@@ -86,7 +94,9 @@ class PublicPetAssistant
             'confirmationMode' => (string) $row->booking_confirmation_mode,
             'responses' => $this->responseStats($assistantId),
             'reviews' => $this->reviews($assistantId),
-            'favorite' => $ownerId > 0 && $this->favorites($ownerId)->where('assistant_user_id', $assistantId)->exists(),
+            'favorite' => $canFavorite && $this->favorites($ownerId)->where('assistant_user_id', $assistantId)->exists(),
+            'canFavorite' => $canFavorite,
+            'viewerCapabilities' => $viewerCapabilities,
             'viewerRole' => $viewer['authenticatedRole'],
             'pets' => $viewer['pets'],
             'policies' => $viewer['policies'],
@@ -95,7 +105,9 @@ class PublicPetAssistant
 
     public function favorites(int $ownerId): Builder
     {
-        return DB::table('pet_assistant_favorite')->where('owner_user_id', $ownerId);
+        return DB::table('pet_assistant_favorite')
+            ->where('owner_user_id', $ownerId)
+            ->where('assistant_user_id', '<>', $ownerId);
     }
 
     public function listFavorites(int $ownerId): array
@@ -119,6 +131,13 @@ class PublicPetAssistant
 
     public function setFavorite(int $ownerId, int $assistantId, bool $favorite): void
     {
+        if (! (new UserCapability)->hasActive($ownerId, UserCapability::OWNER)) {
+            throw new RuntimeException('OWNER_CAPABILITY_REQUIRED');
+        }
+        if ($ownerId === $assistantId) {
+            throw new RuntimeException('SELF_FAVORITE_NOT_ALLOWED');
+        }
+
         if ($favorite) {
             DB::table('pet_assistant_favorite')->insertOrIgnore([
                 'owner_user_id' => $ownerId,

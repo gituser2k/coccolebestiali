@@ -194,7 +194,7 @@ I controller validano l'input, traducono eccezioni in JSON/codici HTTP e delegan
 | Classe | Funzioni/parametri caratterizzanti |
 | --- | --- |
 | `UserAccount` | autenticazione email; registrazione con ruolo legacy interno; social upsert non distruttivo; login/cambio provider; lookup utente con capability e modalità; verifica email; password temporanea; cancellazione completa account/file |
-| `UserCapability` | provisioning idempotente; lettura stati Owner/Assistant; risoluzione modalità; fallback temporaneo a `users.role` per account/schema non migrati |
+| `UserCapability` | provisioning idempotente; lettura stati Owner/Assistant; `hasActive()` per policy puntuali; `activeForUser()`; `scopeActive()` per query capability-aware; fallback legacy soltanto per account privi di qualsiasi riga capability |
 | `ProfileData` | `read(userId,context)`; `write(userId,context,payload,timestamp)`; `syncCommonPhoto()`; `ownerLocation()`; dual-read/dual-write tra profili separati e mirror legacy |
 | `ProfileReputation` | `score(userId,capability)`; inizializzazione idempotente; applicazione delta contestuale; evento audit; mirror selettivo verso `user_reputation` |
 | `Profile` | `getPersonalProfile(userId,context?)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload,context?)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
@@ -274,12 +274,12 @@ I token Apple reali sono verificati crittograficamente contro il JWKS ufficiale 
 
 ### 8.4 Ricerca, profilo pubblico e preferiti
 
-- `GET /api/search/pet-assistants/options`: servizi, pet autenticato, ruolo e policy.
+- `GET /api/search/pet-assistants/options`: servizi, pet autenticato, ruolo legacy, `activeCapabilities`, `canUseOwnerDiscovery`, `canFilterFavorites` e policy.
 - `POST /api/search/pet-assistants`: date, servizi, durata, pet, ordinamento, foto, feature e preferiti.
-- `GET /api/pet-assistants/{assistantId}`: profilo pubblico completo.
+- `GET /api/pet-assistants/{assistantId}`: profilo pubblico completo; per il visitatore include `viewerCapabilities` e `canFavorite`.
 - `GET /api/pet-assistants/{assistantId}/availability?startDate=&endDate=`: slot del profilo.
-- `GET /api/pet-assistant-favorites`: preferiti dell'Owner corrente.
-- `PUT /api/pet-assistants/{assistantId}/favorite`: `{favorite:boolean}`.
+- `GET /api/pet-assistant-favorites`: preferiti dell'account con capability Owner attiva; protetta da `portal.auth` e `portal.capability:owner`.
+- `PUT /api/pet-assistants/{assistantId}/favorite`: `{favorite:boolean}`; stessa policy Owner e risposta `422` se account Owner e Assistant coincidono.
 
 ### 8.5 Prenotazioni
 
@@ -348,7 +348,7 @@ Il backend salva esclusivamente `cb_portal_user_id` nella sessione Laravel. `App
 
 I cookie applicativi legacy `cb_portal_user_id` e `cb_portal_user_role` non vengono più creati. Le risposte di autenticazione li cancellano esplicitamente per bonificare i browser esistenti. L'identità viaggia soltanto tramite il cookie di sessione Laravel, configurato `HttpOnly` e `SameSite=Lax`; in produzione `SESSION_SECURE_COOKIE` deve essere abilitato sotto HTTPS.
 
-`App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS. Il form HTML delle azioni prenotazione via email include `_token`.
+`App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. `App\Http\Middleware\RequireActiveCapability`, alias `portal.capability`, autorizza le route per capability attiva leggendo l'ID già risolto dalla sessione; i preferiti richiedono `portal.capability:owner`. La stessa regola è ripetuta nel modello per difesa in profondità. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS. Il form HTML delle azioni prenotazione via email include `_token`.
 
 ### 9.3 Amministrazione
 
@@ -358,7 +358,7 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 
 ### 10.1 Ruoli attuali
 
-`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con controller e frontend non migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. La lettura usa `user_capabilities` con fallback temporaneo al ruolo; le policy autorizzative centralizzate arriveranno negli step 6–7.
+`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con booking e frontend non ancora migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. Dallo STEP 6 discovery e preferiti usano `UserCapability` come policy centralizzata. Se esiste almeno una riga capability per l'account, il suo stato è autoritativo e un set parziale o sospeso fallisce in chiusura; il fallback a `users.role` è ammesso soltanto per account senza alcuna riga, durante la compatibilità transitoria. Prenotazioni e prospettiva UI vengono migrate negli STEP 7 e 9.
 
 ### 10.2 Pet Owner
 
@@ -366,7 +366,7 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 - Ogni pet ha anagrafica, taglia, razze, caratteristiche, gallery e documenti.
 - Una sola foto gallery può essere principale per la visualizzazione.
 - I documenti sono privati e scaricabili soltanto dal proprietario.
-- I preferiti sono coppie Owner/Assistant.
+- I preferiti sono coppie Owner/Assistant tra account distinti: servono capability Owner attiva e Assistant attiva, il self-favorite è vietato da controller, modello e check DB.
 
 ### 10.3 Pet Assistant
 
@@ -444,7 +444,7 @@ Lo schema legacy affida gran parte dell'integrità a indici, vincoli univoci e c
 | Tabella | Chiavi/campi principali | Relazioni e funzione |
 | --- | --- | --- |
 | `users` | `id`, `role`, `name`, `email` unique, verifiche, password, avatar, timestamp Unix | account globale attuale e ruolo esclusivo |
-| `user_capabilities` | PK `(user_id, capability)`, stato, versione/step onboarding, timestamp di ciclo vita | modello additivo Owner/Assistant introdotto nello STEP 2; FK verso `users`, non ancora usato come fonte autorizzativa |
+| `user_capabilities` | PK `(user_id, capability)`, stato, versione/step onboarding, timestamp di ciclo vita | modello Owner/Assistant introdotto nello STEP 2; dallo STEP 6 fonte autorizzativa per discovery e preferiti; FK verso `users` |
 | `social_accounts` | provider+sub unique, `user_id`, email/claims provider | identità Google/Apple |
 | `account_profile` | PK/FK `user_id`, nome, foto, età, telefono, timestamp | dati personali condivisi tra prospettive; fonte primaria dallo STEP 4 |
 | `owner_profile` | PK/FK `user_id`, città, indirizzo, coordinate | residenza/location usata dalla prospettiva Owner |
@@ -506,7 +506,7 @@ Le tabelle relazione usano vincoli univoci compositi per impedire duplicati.
 | `user_reputation` | PK `user_id`, score; mirror temporaneo della prospettiva indicata da `users.role` |
 | `reputation_event` | utente, `subject_capability`, booking, attore, tipo, delta, score risultante e nota |
 | `booking_action_token` | token hash unique, booking, utente, azione, scadenza e consumo |
-| `pet_assistant_favorite` | PK composita Owner-Assistant |
+| `pet_assistant_favorite` | PK composita Owner-Assistant e check `owner_user_id <> assistant_user_id` |
 
 #### Policy e audit
 
@@ -668,7 +668,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4 e la reputazione è contestuale dallo STEP 5; il consumo runtime delle capability resta progressivo negli step successivi.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4, la reputazione è contestuale dallo STEP 5 e discovery/preferiti consumano le capability dallo STEP 6; booking e modalità UI restano progressivi negli step successivi.
 
 ### 18.1 Principi
 
@@ -699,7 +699,7 @@ user_capabilities
 PK (user_id, capability)
 ```
 
-La tabella applicata usa inoltre una FK `ON DELETE CASCADE`, check constraint sui valori ammessi e l'indice `(capability, status, user_id)`. Il backfill assegna Owner attivo a tutti e Assistant attivo ai ruoli legacy Assistant, senza sovrascrivere righe esistenti. `users.role` resta temporaneamente la sorgente letta dal runtime.
+La tabella applicata usa inoltre una FK `ON DELETE CASCADE`, check constraint sui valori ammessi e l'indice `(capability, status, user_id)`. Il backfill assegna Owner attivo a tutti e Assistant attivo ai ruoli legacy Assistant, senza sovrascrivere righe esistenti. `users.role` resta un fallback temporaneo per account non migrati e per i sottosistemi degli step successivi.
 
 Separazione dati implementata nello STEP 4:
 
@@ -719,6 +719,15 @@ reputation_event.subject_capability
 ```
 
 `ProfileReputation` rende la coppia account/capability autoritativa. Ricerca e profilo pubblico leggono sempre il ranking Assistant; booking e penalità scelgono il contesto dal lato occupato nella prenotazione. `user_reputation` resta un mirror compatibile soltanto con `users.role`.
+
+Discovery dual-role implementata nello STEP 6:
+
+- `UserCapability::scopeActive()` filtra ricerca e profilo pubblico per capability Assistant `active`;
+- un account con ruolo legacy Owner ma capability Assistant attiva è ricercabile senza cambiare identità;
+- stato Assistant sospeso, disabilitato o parziale esclude il profilo anche se il vecchio ruolo dice Assistant;
+- pet, filtro preferiti e gestione preferiti dipendono dalla capability Owner attiva;
+- il self-favorite è escluso dall'API, dal dominio e dal database;
+- `viewerRole` resta nel contratto soltanto per non anticipare la prospettiva booking dello STEP 7.
 
 ### 18.3 Onboarding target
 
@@ -835,6 +844,8 @@ Regole di esecuzione:
 | 2026-11-10 | Gate STEP 4 | Milestone separazione dati profilo approvata dall'utente con “OK STEP 4” | Intero changeset STEP 4 sul branch `changeaccount` | Database locale migrato; profili legacy conservati tramite mirror e fallback | Gate manuale completato dopo verifica utente |
 | 2026-11-10 | STEP 5 reputazione contestuale | Separati score ed eventi Owner/Assistant; ranking pubblico e booking leggono la capability corretta | `profile_reputation`, `reputation_event.subject_capability`, `ProfileReputation`, `Booking`, ricerca/pubblico, seed/export/demo, `docs/migrations/changeaccount-step5-contextual-reputation.md` | Backfill additivo 81 righe; ranking storici invariati; `user_reputation` mantenuta come mirror selettivo; backup privato prima dell'applicazione | 53 test/281 assertion, lint/build; restore pre-STEP 0 e rerun idempotente; rebuild e seed PHP; zero mismatch/orfani; smoke API pubblico/ricerca riuscito |
 | 2026-11-10 | Gate STEP 5 | Milestone reputazione contestuale approvata dall'utente con “OK STEP 5” | Intero changeset STEP 5 sul branch `changeaccount` | Database locale migrato; ranking legacy preservati tramite mirror selettivo | Gate manuale completato dopo verifica utente |
+| 2026-11-10 | STEP 6 discovery dual-role | Centralizzate le policy capability di discovery; ricerca, profilo pubblico e preferiti non dipendono più dal ruolo esclusivo; vietato il self-favorite | `UserCapability`, `RequireActiveCapability`, ricerca/pubblico, route e frontend discovery, `pet_assistant_favorite`, `docs/migrations/changeaccount-step6-dual-role-discovery.md` | Fallback legacy solo per account senza righe capability; booking e switch UI rinviati; cleanup idempotente di eventuali self-favorite e check DB | 58 test/304 assertion; rebuild 41 utenti/81 capability; prova MySQL ruolo Owner + Assistant attivo/sospeso; smoke HTTP preferiti e 422 self-favorite; lint/build |
+| 2026-11-16 | Gate STEP 6 | Milestone discovery dual-role e policy capability approvata dall'utente con “OK STEP 6” | Intero changeset STEP 6 sul branch `changeaccount` | Database locale migrato; fallback legacy e confini STEP 7/9 mantenuti | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\RejectEmailHeaderInjection;
+use App\Http\Middleware\RequireActiveCapability;
 use App\Http\Middleware\RequireAdminSession;
 use App\Http\Middleware\RequirePortalSession;
 use App\Http\Middleware\SecurityHeaders;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', SecurityHeaders::class);
         $middleware->alias([
             'portal.auth' => RequirePortalSession::class,
+            'portal.capability' => RequireActiveCapability::class,
             'portal.admin' => RequireAdminSession::class,
         ]);
     })

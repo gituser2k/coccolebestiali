@@ -90,6 +90,11 @@ class ExampleTest extends TestCase
             if (str_starts_with($uri, 'api/bookings') && ! str_starts_with($uri, 'api/bookings/action/')) {
                 $this->assertContains('portal.auth', $middleware, $uri);
             }
+
+            if ($uri === 'api/pet-assistant-favorites' || str_ends_with($uri, '/favorite')) {
+                $this->assertContains('portal.auth', $middleware, $uri);
+                $this->assertContains('portal.capability:owner', $middleware, $uri);
+            }
         }
     }
 

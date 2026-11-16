@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
@@ -100,6 +101,79 @@ final class UserCapability
         ];
     }
 
+    public function hasActive(int $userId, string $capability, ?string $legacyRole = null): bool
+    {
+        $this->assertCapability($capability);
+        if ($userId <= 0) {
+            return false;
+        }
+
+        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
+        if (Schema::hasTable('user_capabilities')) {
+            $rows = DB::table('user_capabilities')->where('user_id', $userId);
+            if ((clone $rows)->exists()) {
+                return (clone $rows)
+                    ->where('capability', $capability)
+                    ->where('status', self::STATUS_ACTIVE)
+                    ->exists();
+            }
+        }
+
+        return $this->legacyRoleGrants($legacyRole, $capability);
+    }
+
+    public function activeForUser(int $userId, ?string $legacyRole = null): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
+
+        return $this->resolveForUser($userId, $legacyRole)['active'];
+    }
+
+    /**
+     * Restrict a user-based query to an active capability. Accounts without
+     * any backfilled row retain the legacy fallback; partial or inactive
+     * capability state is always authoritative and fails closed.
+     */
+    public function scopeActive(
+        Builder $query,
+        string $userAlias,
+        string $capability,
+        string $capabilityAlias
+    ): Builder {
+        $this->assertCapability($capability);
+        $this->assertAlias($userAlias);
+        $this->assertAlias($capabilityAlias);
+        $legacyRoles = $capability === self::ASSISTANT
+            ? ['pet_assistant']
+            : ['pet_owner', 'pet_assistant'];
+
+        if (! Schema::hasTable('user_capabilities')) {
+            return $query->whereIn($userAlias.'.role', $legacyRoles);
+        }
+
+        $allAlias = $capabilityAlias.'_all';
+        $query->leftJoin('user_capabilities as '.$capabilityAlias, function ($join) use ($userAlias, $capabilityAlias, $capability) {
+            $join->on($capabilityAlias.'.user_id', '=', $userAlias.'.id')
+                ->where($capabilityAlias.'.capability', $capability);
+        });
+
+        return $query->where(function ($where) use ($userAlias, $capabilityAlias, $allAlias, $legacyRoles) {
+            $where->where($capabilityAlias.'.status', self::STATUS_ACTIVE)
+                ->orWhere(function ($fallback) use ($userAlias, $capabilityAlias, $allAlias, $legacyRoles) {
+                    $fallback->whereNull($capabilityAlias.'.user_id')
+                        ->whereIn($userAlias.'.role', $legacyRoles)
+                        ->whereNotExists(function ($subquery) use ($userAlias, $allAlias) {
+                            $subquery->selectRaw('1')
+                                ->from('user_capabilities as '.$allAlias)
+                                ->whereColumn($allAlias.'.user_id', $userAlias.'.id');
+                        });
+                });
+        });
+    }
+
     private function legacyFallbackRows(string $legacyRole): array
     {
         if (! in_array($legacyRole, ['pet_owner', 'pet_assistant'], true)) {
@@ -137,5 +211,26 @@ final class UserCapability
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
         ]);
+    }
+
+    private function legacyRoleGrants(string $legacyRole, string $capability): bool
+    {
+        return $capability === self::OWNER
+            ? in_array($legacyRole, ['pet_owner', 'pet_assistant'], true)
+            : $legacyRole === 'pet_assistant';
+    }
+
+    private function assertCapability(string $capability): void
+    {
+        if (! in_array($capability, [self::OWNER, self::ASSISTANT], true)) {
+            throw new InvalidArgumentException('Invalid capability.');
+        }
+    }
+
+    private function assertAlias(string $alias): void
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) !== 1) {
+            throw new InvalidArgumentException('Invalid query alias.');
+        }
     }
 }

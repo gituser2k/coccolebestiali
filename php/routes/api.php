@@ -190,8 +190,10 @@ Route::prefix('api')
             Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
             Route::post('/profile/petassistant/calendar/copy', [ProfileController::class, 'copyPetAssistantCalendarDay']);
 
-            Route::get('/pet-assistant-favorites', [PublicPetAssistantController::class, 'favorites']);
-            Route::put('/pet-assistants/{assistantId}/favorite', [PublicPetAssistantController::class, 'setFavorite'])->whereNumber('assistantId');
+            Route::middleware('portal.capability:owner')->group(function () {
+                Route::get('/pet-assistant-favorites', [PublicPetAssistantController::class, 'favorites']);
+                Route::put('/pet-assistants/{assistantId}/favorite', [PublicPetAssistantController::class, 'setFavorite'])->whereNumber('assistantId');
+            });
 
             Route::get('/bookings', [BookingController::class, 'index']);
             Route::post('/bookings', [BookingController::class, 'store']);

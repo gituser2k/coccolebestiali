@@ -113,4 +113,43 @@ class UserCapabilityTest extends TestCase
         $this->assertSame([], $state['active']);
         $this->assertSame(['available' => [], 'default' => ''], $state['modes']);
     }
+
+    public function test_active_scope_supports_dual_role_and_fails_closed_for_suspended_or_partial_state(): void
+    {
+        DB::table('users')->insert([
+            ['id' => 61, 'role' => 'pet_owner'],
+            ['id' => 62, 'role' => 'pet_assistant'],
+            ['id' => 63, 'role' => 'pet_assistant'],
+            ['id' => 64, 'role' => 'pet_owner'],
+        ]);
+        $this->insertCapability(61, 'owner', 'active');
+        $this->insertCapability(61, 'assistant', 'active');
+        $this->insertCapability(62, 'owner', 'active');
+        $this->insertCapability(62, 'assistant', 'suspended');
+        $this->insertCapability(64, 'owner', 'active');
+
+        $capabilities = new UserCapability;
+        $query = DB::table('users as account')->select('account.id');
+        $ids = $capabilities->scopeActive($query, 'account', UserCapability::ASSISTANT, 'assistant_capability')
+            ->orderBy('account.id')->pluck('account.id')->all();
+
+        $this->assertSame([61, 63], $ids);
+        $this->assertTrue($capabilities->hasActive(61, UserCapability::ASSISTANT));
+        $this->assertFalse($capabilities->hasActive(62, UserCapability::ASSISTANT));
+        $this->assertTrue($capabilities->hasActive(63, UserCapability::OWNER));
+        $this->assertFalse($capabilities->hasActive(64, UserCapability::ASSISTANT));
+    }
+
+    private function insertCapability(int $userId, string $capability, string $status): void
+    {
+        DB::table('user_capabilities')->insert([
+            'user_id' => $userId,
+            'capability' => $capability,
+            'status' => $status,
+            'onboarding_version' => 1,
+            'current_step' => 'complete',
+            'created_at' => 1000,
+            'updated_at' => 1000,
+        ]);
+    }
 }
