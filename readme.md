@@ -4,7 +4,7 @@ La documentazione tecnica vivente del portale, da aggiornare insieme a ogni modi
 
 Questo progetto e stato organizzato in due aree:
 
-- `php/` contiene il backend con **Laravel 13**.
+- `php/` contiene il backend con **Laravel 12**.
 - `html/` contiene il frontend con **React + TypeScript + Inertia.js + Tailwind + Vite**.
 
 ## Cosa e stato installato
@@ -13,7 +13,7 @@ Questo progetto e stato organizzato in due aree:
 - `php` e `composer` installati via Homebrew.
 
 ### Backend (`php/`)
-- Laravel `^13.0` creato con Composer.
+- Laravel `^12.71` gestito con Composer; lockfile collaudato su Laravel `12.72.0` e PHP MAMP `8.3.30`.
 - Pacchetto `inertiajs/inertia-laravel` installato.
 - Route API demo attiva: `GET /api/inertia-demo` (file `php/routes/api.php`).
 - Bootstrap Laravel aggiornato per caricare anche le route API (`php/bootstrap/app.php`).
@@ -48,7 +48,7 @@ Nella demo:
   - navigazione/refresh con `router.visit(...)` e `<Link ... />`
 - **Tailwind CSS** gestisce layout, stile, responsive e componenti UI.
 - **Vite** compila e serve la pagina `demo.html`.
-- **Laravel 13** espone i dati runtime e stack via route Inertia `api/inertia-demo`.
+- **Laravel 12** espone i dati runtime e stack via route Inertia `api/inertia-demo`.
 
 ## Come avviare la demo
 

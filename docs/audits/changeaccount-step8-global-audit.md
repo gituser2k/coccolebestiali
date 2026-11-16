@@ -59,6 +59,8 @@ Le azioni prenotazione non erano presenti nel dataset corrente per un nuovo clic
 
 `composer audit` segnala ancora cinque advisory Laravel 11. La correzione completa richiede almeno Laravel 12.71 e deve essere svolta come upgrade major dedicato. Le superfici più rilevanti sono già ridotte: CR/LF email è bloccato globalmente e testato; la conferma email usa HMAC applicativo anziché URL Laravel temporaneamente firmati; in produzione resta obbligatorio `APP_DEBUG=false`. Gli advisory restano comunque rischio residuo finché il framework non viene aggiornato.
 
+Aggiornamento del 16 novembre 2026: il rischio è stato chiuso dopo l'audit STEP 9 aggiornando Laravel a 12.72.0. `composer audit` non segnala più advisory; suite, route, smoke HTTP e requisiti PHP 8.3.30 sono stati ricontrollati.
+
 ## Decisione di gate
 
 Non sono emerse condizioni che richiedano il rollback dello STEP 8. Il gate è approvato; i rischi residui non introdotti dallo STEP 8 restano nel registro architetturale e nel documento sicurezza dello STEP 1.

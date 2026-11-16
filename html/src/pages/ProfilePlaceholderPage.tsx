@@ -12,8 +12,28 @@ import { FieldLabel, FieldLegend, ProfileLocationHeading } from '../components/P
 import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
 import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
 import PasswordVisibilityField from '../components/PasswordVisibilityField.tsx'
+import ProfileModeSwitcher from '../components/ProfileModeSwitcher.tsx'
 
 type MenuKey = 'personal' | 'operator' | 'calendar' | 'bookings'
+
+type OnboardingCheck = {
+  key: string
+  label: string
+  section: 'personal' | 'operator' | 'calendar' | 'review'
+  complete: boolean
+}
+
+type AssistantOnboardingState = {
+  started: boolean
+  status: string
+  currentStep: string
+  checks: OnboardingCheck[]
+  requiredPersonalFields: Array<{ key: string; label: string; complete: boolean }>
+  missingRequiredFields: string[]
+  completionPercentage: number
+  canActivate: boolean
+  isActive: boolean
+}
 
 type OperatorTitleOption = {
   id: number
@@ -408,7 +428,10 @@ function isPasswordValid(password: string): boolean {
 }
 
 export default function ProfilePlaceholderPage() {
-  const [activeMenu, setActiveMenu] = useState<MenuKey>(() => new URLSearchParams(window.location.search).get('section') === 'bookings' ? 'bookings' : 'personal')
+  const [activeMenu, setActiveMenu] = useState<MenuKey>(() => {
+    const section = new URLSearchParams(window.location.search).get('section')
+    return section === 'operator' || section === 'calendar' || section === 'bookings' ? section : 'personal'
+  })
   const [profile, setProfile] = useState<PersonalProfileData>(EMPTY_PROFILE)
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
@@ -443,6 +466,8 @@ export default function ProfilePlaceholderPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isPasswordSaving, setIsPasswordSaving] = useState(false)
   const [isRemoveAccountModalOpen, setIsRemoveAccountModalOpen] = useState(false)
+  const [onboardingState, setOnboardingState] = useState<AssistantOnboardingState | null>(null)
+  const [isOnboardingBusy, setIsOnboardingBusy] = useState(false)
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null)
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null)
   const [serviceRateDrafts, setServiceRateDrafts] = useState<Record<number, string>>({})
@@ -827,6 +852,65 @@ export default function ProfilePlaceholderPage() {
     setToastType(type)
   }
 
+  async function loadOnboardingState() {
+    try {
+      const response = await fetch('/api/profile/petassistant/onboarding', { headers: { Accept: 'application/json' } })
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok && payload?.ok) {
+        setOnboardingState(payload.data)
+        if (!payload?.data?.isActive && activeMenu === 'bookings') setActiveMenu('personal')
+      }
+    } catch {
+      // The profile forms retain their own error handling; the state is refreshed after each successful save.
+    }
+  }
+
+  async function selectProfileMenu(menu: MenuKey) {
+    setActiveMenu(menu)
+    const step = menu === 'bookings' ? 'review' : menu
+    if (!onboardingState || onboardingState.isActive) return
+
+    try {
+      const response = await fetch('/api/profile/petassistant/onboarding/progress', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ currentStep: step }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok && payload?.ok) setOnboardingState(payload.data)
+    } catch {
+      // Progress is a convenience marker and never authorizes profile operations.
+    }
+  }
+
+  async function activateAssistantProfile() {
+    if (isOnboardingBusy) return
+    try {
+      setIsOnboardingBusy(true)
+      const response = await fetch('/api/profile/petassistant/onboarding/activate', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (payload?.data) setOnboardingState(payload.data)
+      if (!response.ok || !payload?.ok) {
+        if (Array.isArray(payload?.data?.missingRequiredFields) && payload.data.missingRequiredFields.length > 0) {
+          setActiveMenu('personal')
+        }
+        throw new Error(payload?.message || 'Pubblicazione non completata.')
+      }
+      showProfileToast(payload?.message || 'Profilo Pet Assistant pubblicato.', 'success')
+    } catch (error) {
+      showProfileToast(error instanceof Error ? error.message : 'Pubblicazione non completata.', 'error')
+    } finally {
+      setIsOnboardingBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadOnboardingState()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     return () => {
       if (selectedPhotoFile && previewPhotoUrl.startsWith('blob:')) {
@@ -1061,7 +1145,7 @@ export default function ProfilePlaceholderPage() {
       return
     }
 
-    const query = sanitizeText(profile.city)
+    const query = sanitizeText(profile.city).toLocaleLowerCase('it-IT')
     if (query.length < 2) {
       setCityOptions([])
       setIsCityLoading(false)
@@ -1601,6 +1685,7 @@ export default function ProfilePlaceholderPage() {
       if (showSuccessToast) {
         showProfileToast(payload?.message || 'Disponibilita calendario salvata con successo.', 'success')
       }
+      void loadOnboardingState()
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Salvataggio calendario non completato.'
@@ -1905,6 +1990,7 @@ export default function ProfilePlaceholderPage() {
       body.append('locationLng', String(profile.locationLng))
     }
     body.append('serviceRadiusKm', String(Math.max(profile.serviceRadiusKm, 1)))
+    body.append('publishExactLocation', operatorProfile.publicProfile.publishExactLocation ? '1' : '0')
     if (selectedPhotoFile) {
       body.append('photo', selectedPhotoFile)
     }
@@ -1931,6 +2017,7 @@ export default function ProfilePlaceholderPage() {
       }))
       setSelectedPhotoFile(null)
       showProfileToast(payload?.message || 'Dati personali salvati con successo.', 'success')
+      void loadOnboardingState()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Salvataggio non completato.'
       showProfileToast(message, 'error')
@@ -2185,6 +2272,7 @@ export default function ProfilePlaceholderPage() {
           : {}
       )
       showProfileToast(payload?.message || 'Dati operatore salvati con successo.', 'success')
+      void loadOnboardingState()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Salvataggio non completato.'
       showProfileToast(message, 'error')
@@ -2222,11 +2310,37 @@ export default function ProfilePlaceholderPage() {
                 </div>
               ) : null}
             </div>
-            <a className="register-home-link" href="/">
-              Torna alla Home
-            </a>
+            <div className="profile-header-actions">
+              <ProfileModeSwitcher currentMode="assistant" refreshToken={onboardingState?.status} />
+              <a className="register-home-link" href="/">
+                Torna alla Home
+              </a>
+            </div>
           </header>
         </div>
+
+        {onboardingState && !onboardingState.isActive ? (
+          <section className="assistant-onboarding-panel" aria-labelledby="assistant-onboarding-title">
+            <div className="assistant-onboarding-summary">
+              <div>
+                <span className="profile-header-eyebrow">PROFILO IN BOZZA</span>
+                <h1 id="assistant-onboarding-title">Completa il profilo Pet Assistant</h1>
+                <p>La bozza è privata. Per pubblicare completa e salva Alias e Città; gli altri dati possono essere completati anche in seguito.</p>
+              </div>
+              <strong className="assistant-onboarding-percentage">{onboardingState.completionPercentage}%</strong>
+            </div>
+            <div className="assistant-onboarding-actions">
+              <button
+                type="button"
+                className="register-action is-assistant"
+                disabled={isOnboardingBusy}
+                onClick={() => void activateAssistantProfile()}
+              >
+                {isOnboardingBusy ? 'Pubblicazione...' : 'Pubblica profilo Pet Assistant'}
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="profile-layout" aria-label="Layout interno profilo">
           <aside className="profile-sidebar" aria-label="Menu profilo">
@@ -2234,7 +2348,7 @@ export default function ProfilePlaceholderPage() {
               <button
                 className={`profile-menu-item is-personal ${activeMenu === 'personal' ? 'is-active' : ''}`}
                 type="button"
-                onClick={() => setActiveMenu('personal')}
+                onClick={() => void selectProfileMenu('personal')}
               >
                 <span className="profile-menu-badge" aria-hidden="true">
                   <PersonalDataIcon />
@@ -2247,7 +2361,7 @@ export default function ProfilePlaceholderPage() {
               <button
                 className={`profile-menu-item is-operator ${activeMenu === 'operator' ? 'is-active' : ''}`}
                 type="button"
-                onClick={() => setActiveMenu('operator')}
+                onClick={() => void selectProfileMenu('operator')}
               >
                 <span className="profile-menu-badge" aria-hidden="true">
                   <OperatorDataIcon />
@@ -2260,7 +2374,7 @@ export default function ProfilePlaceholderPage() {
               <button
                 className={`profile-menu-item is-calendar ${activeMenu === 'calendar' ? 'is-active' : ''}`}
                 type="button"
-                onClick={() => setActiveMenu('calendar')}
+                onClick={() => void selectProfileMenu('calendar')}
               >
                 <span className="profile-menu-badge" aria-hidden="true">
                   <CalendarIcon />
@@ -2270,16 +2384,18 @@ export default function ProfilePlaceholderPage() {
                   <small>Disponibilita, turni e organizzazione delle attivita</small>
                 </span>
               </button>
-              <button
-                className={`profile-menu-item is-bookings ${activeMenu === 'bookings' ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => setActiveMenu('bookings')}
-              >
-                <span className="profile-menu-badge" aria-hidden="true">
-                  <BookingsIcon />
-                </span>
-                <span className="profile-menu-copy"><strong>LE MIE PRENOTAZIONI</strong><small>Richieste, conferme e recensioni</small></span>
-              </button>
+              {onboardingState?.isActive ? (
+                <button
+                  className={`profile-menu-item is-bookings ${activeMenu === 'bookings' ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={() => void selectProfileMenu('bookings')}
+                >
+                  <span className="profile-menu-badge" aria-hidden="true">
+                    <BookingsIcon />
+                  </span>
+                  <span className="profile-menu-copy"><strong>LE MIE PRENOTAZIONI</strong><small>Richieste, conferme e recensioni</small></span>
+                </button>
+              ) : null}
               <button
                 className="profile-menu-item is-remove-account"
                 type="button"
@@ -2426,7 +2542,7 @@ export default function ProfilePlaceholderPage() {
                         </div>
                         <div className="profile-location-grid">
                           <div>
-                            <label className="profile-field profile-field-gap">
+                            <label className="profile-field profile-field-gap profile-city-field">
                               <FieldLabel tone="required">Città</FieldLabel>
                               <input
                                 type="text"
@@ -2442,7 +2558,7 @@ export default function ProfilePlaceholderPage() {
                                   setIsCityDropdownOpen(true)
                                 }}
                               />
-                              {isCityDropdownOpen ? (
+                              {isCityDropdownOpen && sanitizeText(profile.city).length >= 2 ? (
                                 <div className="profile-city-dropdown">
                                   {isCityLoading ? (
                                     <div className="profile-city-state">Ricerca comuni in corso...</div>
@@ -2458,10 +2574,8 @@ export default function ProfilePlaceholderPage() {
                                         <span>{option.province ? `${option.province} · ` : ''}{option.region}</span>
                                       </button>
                                     ))
-                                  ) : sanitizeText(profile.city).length >= 2 ? (
-                                    <div className="profile-city-state">Nessun comune trovato.</div>
                                   ) : (
-                                    <div className="profile-city-state">Scrivi almeno 2 lettere.</div>
+                                    <div className="profile-city-state">Nessun comune trovato.</div>
                                   )}
                                 </div>
                               ) : null}
@@ -2513,6 +2627,12 @@ export default function ProfilePlaceholderPage() {
                             <p className="profile-map-help">
                               Se l&apos;indirizzo non viene trovato con precisione, trascina il puntino GPS sul punto corretto. Ai pet owner potra essere mostrata l&apos;area di copertura invece dell&apos;indirizzo puntuale.
                             </p>
+                            <label className="profile-public-location profile-map-privacy-choice">
+                              <input type="checkbox" checked={operatorProfile.publicProfile.publishExactLocation}
+                                onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, publishExactLocation: event.target.checked })} />
+                              <span><strong>Mostra la mia posizione esatta sulla mappa pubblica</strong><br />
+                                Se disattivata, il profilo mostra solo una zona approssimativa. Puoi revocare il consenso in qualsiasi momento.</span>
+                            </label>
                           </div>
                           <div className="profile-map-card">
                             <div
@@ -2678,43 +2798,39 @@ export default function ProfilePlaceholderPage() {
                         )}
                       </section>
 
-                      <section className="profile-form-section">
+                      <section className="profile-form-section profile-public-profile-section">
+                        <p className="profile-location-kicker">PROFILO PUBBLICO</p>
                         <label className="profile-field">
-                          <span>Presentazione (bio)</span>
+                          <FieldLabel tone="public">Titolo della presentazione</FieldLabel>
+                          <small className="profile-field-help">Titolo mostrato come intestazione della tua presentazione pubblica.</small>
+                          <input maxLength={120} value={operatorProfile.publicProfile.headline}
+                            placeholder="Esempio: Cura, esperienza e serenità per il tuo pet"
+                            onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, headline: event.target.value })} />
+                        </label>
+                        <label className="profile-field">
+                          <FieldLabel tone="public">Presentazione (bio)</FieldLabel>
+                          <small className="profile-field-help">Racconta la tua esperienza, il tuo approccio e ciò che ti distingue come Pet Assistant.</small>
                           <textarea
                             className="profile-textarea"
-                            rows={6}
+                            rows={3}
+                            maxLength={4096}
                             value={operatorProfile.bio}
                             onChange={(event) => updateOperatorField('bio', event.target.value)}
                           />
                         </label>
-                      </section>
-
-                      <section className="profile-form-section">
-                        <p className="profile-location-kicker">PROFILO PUBBLICO</p>
-                        <label className="profile-field">
-                          <span>Titolo della presentazione</span>
-                          <input maxLength={120} value={operatorProfile.publicProfile.headline}
-                            onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, headline: event.target.value })} />
-                        </label>
                         {([
-                          ['typicalDay', 'Una giornata tipo'],
-                          ['safetyAndHome', 'Ambiente domestico e sicurezza'],
-                          ['ownerInstructions', 'Cosa vuoi sapere sul pet prima di accoglierlo'],
-                        ] as const).map(([field, label]) => (
+                          ['typicalDay', 'Una giornata tipo', 'Descrivi come organizzi attività, pause, passeggiate e momenti di cura.'],
+                          ['safetyAndHome', 'Ambiente domestico e sicurezza', 'Spiega gli spazi disponibili e le misure adottate per tutelare il pet.'],
+                          ['ownerInstructions', 'Cosa vuoi sapere sul pet prima di accoglierlo', 'Indica le informazioni che il Pet Owner dovrebbe comunicarti prima della prenotazione.'],
+                        ] as const).map(([field, label, help]) => (
                           <label className="profile-field" key={field}>
-                            <span>{label}</span>
+                            <FieldLabel tone="public">{label}</FieldLabel>
+                            <small className="profile-field-help">{help}</small>
                             <textarea className="profile-textarea" rows={3} maxLength={2000}
                               value={operatorProfile.publicProfile[field]}
                               onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, [field]: event.target.value })} />
                           </label>
                         ))}
-                        <label className="profile-public-location">
-                          <input type="checkbox" checked={operatorProfile.publicProfile.publishExactLocation}
-                            onChange={(event) => updateOperatorField('publicProfile', { ...operatorProfile.publicProfile, publishExactLocation: event.target.checked })} />
-                          <span><strong>Mostra la mia posizione esatta sulla mappa pubblica</strong><br />
-                            Se disattivata, il profilo mostra solo una zona approssimativa. Puoi revocare il consenso in qualsiasi momento.</span>
-                        </label>
                       </section>
 
                       <section className="profile-form-section profile-pet-scope-section">

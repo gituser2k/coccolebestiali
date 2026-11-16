@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Profile;
 use App\Models\ProfileData;
 use App\Support\PortalSession;
 use Illuminate\Database\Schema\Blueprint;
@@ -71,6 +72,14 @@ class ProfileDataSeparationTest extends TestCase
             $table->unsignedInteger('service_radius_km')->default(5);
             $table->integer('created_at')->default(0);
             $table->integer('updated_at')->default(0);
+        });
+        Schema::create('operator_public_profile', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id')->primary();
+            $table->string('headline', 120)->default('');
+            $table->string('typical_day', 2000)->default('');
+            $table->string('safety_and_home', 2000)->default('');
+            $table->string('owner_instructions', 2000)->default('');
+            $table->boolean('publish_exact_location')->default(false);
         });
     }
 
@@ -214,6 +223,37 @@ class ProfileDataSeparationTest extends TestCase
             'city' => 'Torino',
             'location_lat' => 45.0703,
             'location_lng' => 7.6869,
+        ]);
+    }
+
+    public function test_assistant_personal_save_updates_only_the_public_map_consent(): void
+    {
+        $this->insertLegacyUser(50, 'pet_assistant', 'Roma', 41.9028, 12.4964);
+        DB::table('operator_public_profile')->insert([
+            'user_id' => 50,
+            'headline' => 'Presentazione esistente',
+            'typical_day' => 'Giornata esistente',
+            'safety_and_home' => 'Sicurezza esistente',
+            'owner_instructions' => 'Istruzioni esistenti',
+            'publish_exact_location' => false,
+        ]);
+
+        (new Profile)->savePersonalProfile(50, [
+            'alias' => 'assistant-50',
+            'email' => 'assistant50@example.test',
+            'name' => 'Assistant Updated',
+            'city' => 'Roma',
+            'serviceRadiusKm' => 10,
+            'publishExactLocation' => true,
+        ], ProfileData::ASSISTANT);
+
+        $this->assertDatabaseHas('operator_public_profile', [
+            'user_id' => 50,
+            'headline' => 'Presentazione esistente',
+            'typical_day' => 'Giornata esistente',
+            'safety_and_home' => 'Sicurezza esistente',
+            'owner_instructions' => 'Istruzioni esistenti',
+            'publish_exact_location' => true,
         ]);
     }
 

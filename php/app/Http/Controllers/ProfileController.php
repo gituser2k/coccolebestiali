@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Profile;
 use App\Models\ProfileData;
+use App\Models\UserCapability;
 use App\Models\Utility;
 use App\Support\PortalSession;
 use DateTimeImmutable;
@@ -566,6 +567,7 @@ class ProfileController extends Controller
                 'locationLat' => ['nullable', 'numeric', 'between:-90,90'],
                 'locationLng' => ['nullable', 'numeric', 'between:-180,180'],
                 'serviceRadiusKm' => ['nullable', 'integer', 'min:1', 'max:200'],
+                'publishExactLocation' => ['sometimes', 'boolean'],
                 'photo' => ['nullable', 'image', 'max:4096'],
             ]);
 
@@ -595,6 +597,7 @@ class ProfileController extends Controller
                 'locationLat' => isset($validated['locationLat']) ? (float) $validated['locationLat'] : 0,
                 'locationLng' => isset($validated['locationLng']) ? (float) $validated['locationLng'] : 0,
                 'serviceRadiusKm' => isset($validated['serviceRadiusKm']) ? (int) $validated['serviceRadiusKm'] : 5,
+                'publishExactLocation' => (bool) ($validated['publishExactLocation'] ?? false),
                 'photo' => $photoPath,
             ], ProfileData::ASSISTANT);
 
@@ -832,7 +835,7 @@ class ProfileController extends Controller
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            if (! DB::table('users')->where('id', $userId)->where('role', 'pet_assistant')->exists()) {
+            if (! (new UserCapability)->hasAssistantProfileAccess($userId)) {
                 return response()->json(['ok' => false, 'message' => 'Profilo Pet Assistant richiesto.'], 403);
             }
 
@@ -1281,10 +1284,10 @@ class ProfileController extends Controller
 
     private function normalizeCitySearchValue(string $value): string
     {
-        $normalized = mb_strtolower(trim($value));
-        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', trim($value));
+        $normalized = mb_strtolower($transliterated !== false ? $transliterated : trim($value), 'UTF-8');
 
-        return $transliterated !== false ? $transliterated : $normalized;
+        return (string) preg_replace('/\s+/', ' ', $normalized);
     }
 
     private function fetchNominatimCandidates(array $query, array $headers): array

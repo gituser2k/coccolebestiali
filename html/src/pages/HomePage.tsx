@@ -49,6 +49,13 @@ type PortalUser = {
   name: string
   email: string
   passwordResetRequired?: boolean
+  capabilities: Array<{ capability: 'owner' | 'assistant'; status: string; currentStep: string }>
+  activeCapabilities: Array<'owner' | 'assistant'>
+  modes: {
+    available: Array<'owner' | 'assistant'>
+    default: 'owner' | 'assistant' | ''
+    current?: 'owner' | 'assistant' | ''
+  }
 }
 
 type PasswordChecks = {
@@ -160,6 +167,8 @@ function HomePage() {
   const [isCredentialLoginBusy, setIsCredentialLoginBusy] = useState(false)
   const [isRegistrationBusy, setIsRegistrationBusy] = useState(false)
   const [isLogoutBusy, setIsLogoutBusy] = useState(false)
+  const [isModeBusy, setIsModeBusy] = useState(false)
+  const [isAssistantOnboardingBusy, setIsAssistantOnboardingBusy] = useState(false)
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false)
   const [isForgotPasswordBusy, setIsForgotPasswordBusy] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -338,12 +347,40 @@ function HomePage() {
     const name = sanitizeText(candidate.name ?? '')
     const email = sanitizeText(candidate.email ?? '')
     const passwordResetRequired = Boolean(candidate.passwordResetRequired)
+    const capabilities = Array.isArray(candidate.capabilities)
+      ? candidate.capabilities.map((item) => {
+          const capability = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+          return {
+            capability: sanitizeText(capability.capability) === 'assistant' ? 'assistant' as const : 'owner' as const,
+            status: sanitizeText(capability.status),
+            currentStep: sanitizeText(capability.currentStep),
+          }
+        })
+      : []
+    const activeCapabilities = Array.isArray(candidate.activeCapabilities)
+      ? candidate.activeCapabilities.filter((item): item is 'owner' | 'assistant' => item === 'owner' || item === 'assistant')
+      : []
+    const rawModes = candidate.modes && typeof candidate.modes === 'object' ? candidate.modes as Record<string, unknown> : {}
+    const availableModes = Array.isArray(rawModes.available)
+      ? rawModes.available.filter((item): item is 'owner' | 'assistant' => item === 'owner' || item === 'assistant')
+      : activeCapabilities
+    const defaultMode = rawModes.default === 'assistant' ? 'assistant' : rawModes.default === 'owner' ? 'owner' : ''
+    const currentMode = rawModes.current === 'assistant' ? 'assistant' : rawModes.current === 'owner' ? 'owner' : ''
 
     if (id <= 0) {
       return null
     }
 
-    return { id, role, name, email, passwordResetRequired }
+    return {
+      id,
+      role,
+      name,
+      email,
+      passwordResetRequired,
+      capabilities,
+      activeCapabilities,
+      modes: { available: availableModes, default: defaultMode, current: currentMode },
+    }
   }
 
   function persistCurrentUser(user: unknown) {
@@ -650,13 +687,58 @@ function HomePage() {
     }
   }
 
+  async function switchPortalMode(mode: 'owner' | 'assistant') {
+    if (!currentUser || currentUser.modes.current === mode || isModeBusy) return
+
+    try {
+      setIsModeBusy(true)
+      const response = await fetch('/api/auth/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ mode }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Cambio modalità non completato.')
+      persistCurrentUser(payload?.data?.user ?? null)
+      showToast(`Modalità ${mode === 'assistant' ? 'Pet Assistant' : 'Pet Owner'} attiva.`, 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Cambio modalità non completato.', 'error')
+    } finally {
+      setIsModeBusy(false)
+    }
+  }
+
+  async function startAssistantOnboarding() {
+    if (!currentUser || isAssistantOnboardingBusy) return
+
+    try {
+      setIsAssistantOnboardingBusy(true)
+      const response = await fetch('/api/profile/petassistant/onboarding/start', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Avvio del profilo non completato.')
+      window.location.assign('/profile/petassistant?onboarding=1&section=personal')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Avvio del profilo non completato.', 'error')
+      setIsAssistantOnboardingBusy(false)
+    }
+  }
+
   const currentUserInitial = (() => {
     const source = sanitizeText(currentUser?.name || currentUser?.email || '')
     return source ? source.charAt(0).toUpperCase() : ''
   })()
 
-  const currentUserProfilePath =
-    currentUser?.role === 'pet_owner' ? '/profile/petowner?entry=login' : '/profile/petassistant?entry=login'
+  const currentMode = currentUser?.modes.current || currentUser?.modes.default || 'owner'
+  const currentUserProfilePath = currentMode === 'assistant'
+    ? '/profile/petassistant?entry=login'
+    : '/profile/petowner?entry=login'
+  const hasActiveAssistant = Boolean(currentUser?.activeCapabilities.includes('assistant'))
+  const assistantCapability = currentUser?.capabilities.find((item) => item.capability === 'assistant')
+  const hasAssistantDraft = Boolean(assistantCapability && ['draft', 'pending_verification'].includes(assistantCapability.status))
+  const isAssistantUnavailable = Boolean(assistantCapability && ['suspended', 'rejected', 'disabled'].includes(assistantCapability.status))
 
   async function handleCredentialLogin() {
     const email = sanitizeText(loginData.email)
@@ -1266,6 +1348,28 @@ function HomePage() {
                 <nav className="top-actions" aria-label="Azioni rapide">
                   {currentUser ? (
                     <>
+                      {hasActiveAssistant ? (
+                        <div className="portal-mode-switch" role="group" aria-label="Modalità del portale">
+                          <button
+                            type="button"
+                            className={currentMode === 'owner' ? 'is-active' : ''}
+                            aria-pressed={currentMode === 'owner'}
+                            disabled={isModeBusy}
+                            onClick={() => void switchPortalMode('owner')}
+                          >
+                            Owner
+                          </button>
+                          <button
+                            type="button"
+                            className={currentMode === 'assistant' ? 'is-active' : ''}
+                            aria-pressed={currentMode === 'assistant'}
+                            disabled={isModeBusy}
+                            onClick={() => void switchPortalMode('assistant')}
+                          >
+                            Assistant
+                          </button>
+                        </div>
+                      ) : null}
                       <a
                         className="user-initial-badge"
                         href={currentUserProfilePath}
@@ -1313,7 +1417,7 @@ function HomePage() {
                 renderCredentialLogin()
               ) : authView === 'register' ? (
                 renderRegistration()
-              ) : currentUser?.role === 'pet_assistant' ? (
+              ) : currentUser && currentMode === 'assistant' && hasActiveAssistant ? (
                 <HomeActiveBookings key={currentUser.id} />
               ) : (
                 <section className="hero-cta" aria-label="Call to action principale">
@@ -1326,6 +1430,22 @@ function HomePage() {
                     <a className="cta-btn cta-primary" href="/search">
                       Cerca Un Pet Assistant
                     </a>
+                    {currentUser ? (
+                      <button
+                        className="cta-btn cta-secondary"
+                        type="button"
+                        disabled={isAssistantOnboardingBusy || isAssistantUnavailable}
+                        onClick={() => void startAssistantOnboarding()}
+                      >
+                        {isAssistantOnboardingBusy
+                          ? 'Apertura profilo...'
+                          : isAssistantUnavailable
+                            ? 'Profilo Pet Assistant non disponibile'
+                            : hasAssistantDraft
+                            ? 'Completa profilo Pet Assistant'
+                            : 'Diventa Pet Assistant'}
+                      </button>
+                    ) : null}
                   </div>
                 </section>
               )}

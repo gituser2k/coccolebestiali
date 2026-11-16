@@ -633,6 +633,15 @@ class Profile extends Model
                 ]);
 
             (new ProfileData)->write($userId, $context, $payload, $now);
+
+            if ($context === ProfileData::ASSISTANT
+                && array_key_exists('publishExactLocation', $payload)
+                && Schema::hasTable('operator_public_profile')) {
+                DB::table('operator_public_profile')->updateOrInsert(
+                    ['user_id' => $userId],
+                    ['publish_exact_location' => (bool) $payload['publishExactLocation']]
+                );
+            }
         });
 
         return $this->getPersonalProfile($userId, $context);
@@ -1269,6 +1278,7 @@ class Profile extends Model
             ['id' => 3, 'name' => 'Veterinario', 'sortorder' => 30],
             ['id' => 4, 'name' => 'Petsitter', 'sortorder' => 40],
             ['id' => 5, 'name' => 'Toelettatore', 'sortorder' => 50],
+            ['id' => 6, 'name' => 'Operatore Olistico', 'sortorder' => 60],
         ];
 
         foreach ($titles as $title) {

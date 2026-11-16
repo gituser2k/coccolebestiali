@@ -14,6 +14,7 @@ import PetOwnerPetsSection, { PetsIcon } from '../components/PetOwnerPetsSection
 import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
 import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
 import PasswordVisibilityField from '../components/PasswordVisibilityField.tsx'
+import ProfileModeSwitcher from '../components/ProfileModeSwitcher.tsx'
 
 type CityOption = {
   name: string
@@ -339,7 +340,7 @@ export default function PetOwnerProfilePage() {
       return
     }
 
-    const query = sanitizeText(profile.city)
+    const query = sanitizeText(profile.city).toLocaleLowerCase('it-IT')
     if (query.length < 2) {
       setCityOptions([])
       setIsCityLoading(false)
@@ -708,9 +709,12 @@ export default function PetOwnerProfilePage() {
                 </div>
               ) : null}
             </div>
-            <a className="register-home-link" href="/">
-              Torna alla Home
-            </a>
+            <div className="profile-header-actions">
+              <ProfileModeSwitcher currentMode="owner" />
+              <a className="register-home-link" href="/">
+                Torna alla Home
+              </a>
+            </div>
           </header>
         </div>
 
@@ -908,7 +912,7 @@ export default function PetOwnerProfilePage() {
                     </div>
                     <div className="profile-location-grid">
                       <div>
-                        <label className="profile-field profile-field-gap">
+                        <label className="profile-field profile-field-gap profile-city-field">
                           <FieldLabel tone="required">Città</FieldLabel>
                           <input
                             type="text"
@@ -924,7 +928,7 @@ export default function PetOwnerProfilePage() {
                               setIsCityDropdownOpen(true)
                             }}
                           />
-                          {isCityDropdownOpen ? (
+                          {isCityDropdownOpen && sanitizeText(profile.city).length >= 2 ? (
                             <div className="profile-city-dropdown">
                               {isCityLoading ? (
                                 <div className="profile-city-state">Ricerca comuni in corso...</div>
@@ -940,10 +944,8 @@ export default function PetOwnerProfilePage() {
                                     <span>{option.province ? `${option.province} · ` : ''}{option.region}</span>
                                   </button>
                                 ))
-                              ) : sanitizeText(profile.city).length >= 2 ? (
-                                <div className="profile-city-state">Nessun comune trovato.</div>
                               ) : (
-                                <div className="profile-city-state">Scrivi almeno 2 lettere.</div>
+                                <div className="profile-city-state">Nessun comune trovato.</div>
                               )}
                             </div>
                           ) : null}

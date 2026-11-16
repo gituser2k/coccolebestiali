@@ -511,6 +511,43 @@ a {
   gap: 0.45rem;
 }
 
+.portal-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: 1px solid rgba(31, 95, 167, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.portal-mode-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.48rem 0.72rem;
+  background: transparent;
+  color: #214363;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.portal-mode-switch button.is-active {
+  background: #1f5fa7;
+  color: #fff;
+}
+
+.portal-mode-switch button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.cta-secondary {
+  border: 2px solid #1f5fa7;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f5fa7;
+}
+
 .user-initial-badge {
   width: 2.55rem;
   height: 2.55rem;

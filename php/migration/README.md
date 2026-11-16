@@ -86,6 +86,8 @@ Le prenotazioni richiedono almeno 24 ore di anticipo e riservano intervalli cont
 | `housefeaturedata` | Caratteristiche della casa selezionate dall’operatore. |
 | `operatorgallery` | Gallery della casa del Pet Assistant. |
 
+Il catalogo qualifiche comprende anche `Operatore Olistico`. Le qualifiche selezionate sono mostrate nelle card di ricerca e nell'intestazione del profilo pubblico; non modificano automaticamente servizi, tariffe o regole di prenotazione. I testi della sezione Profilo pubblico (`headline`, giornata tipo, sicurezza e informazioni richieste sul pet) sono descrittivi e facoltativi: vengono mostrati al Pet Owner nel profilo pubblico prima della prenotazione, ma non sono copiati nella prenotazione e non influiscono sul calcolo economico.
+
 ### Pet del proprietario
 
 | Tabella | Funzione |
@@ -316,3 +318,5 @@ Il profilo usa la zona approssimativa finché il Pet Assistant non abilita il pu
 Dallo STEP 6 la discovery seleziona gli account tramite capability Assistant `active`, non tramite `users.role`. Le API dei preferiti richiedono capability Owner `active`. `pet_assistant_favorite` vieta inoltre una coppia con lo stesso account sui due lati tramite il check `chk_favorite_distinct_accounts`; la migration elimina in modo idempotente eventuali righe self-favorite legacy prima di aggiungere il vincolo.
 
 Dallo STEP 7 le API booking richiedono `perspective=owner|assistant` e verificano capability attiva e lato effettivo della prenotazione. `booking` vieta Owner e Assistant coincidenti tramite `chk_booking_distinct_participants`. Sugli schemi esistenti il check viene aggiunto soltanto in assenza di anomalie storiche, che non vengono cancellate automaticamente. `booking_review` aggiunge `reviewer_capability` e `reviewed_capability`, ricostruite dal lato occupato nella prenotazione, con check e indice contestuale.
+
+Dallo STEP 9 l'onboarding Assistant riusa `user_capabilities`: `draft` identifica una bozza privata, `current_step` l'ultima sezione salvata e `active` la pubblicazione. Non viene aggiunta alcuna tabella. L'attivazione è transazionale e richiede soltanto i campi obbligatori persistiti della sezione Dati personali: Alias in `users.name` e Città in `assistant_profile.city`. La checklist server-side su recapiti, geolocalizzazione, dati fiscali e professionali, servizi, galleria, calendario ed email resta una guida di completezza e non blocca la pubblicazione. Stati `suspended`, `rejected` e `disabled` non possono essere riattivati dall'utente.

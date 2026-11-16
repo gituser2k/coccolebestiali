@@ -30,6 +30,24 @@ class ExampleTest extends TestCase
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     }
 
+    public function test_city_search_is_case_insensitive(): void
+    {
+        Cache::forget('cb_italian_cities_dataset');
+        Http::fake([
+            'https://cdn.jsdelivr.net/gh/matteocontrini/comuni-json@master/comuni.json' => Http::response([[
+                'nome' => 'Roma',
+                'sigla' => 'RM',
+                'regione' => ['nome' => 'Lazio'],
+            ]]),
+        ]);
+
+        foreach (['roma', 'Roma', 'ROMA'] as $query) {
+            $this->getJson('/api/profile/cities?query='.urlencode($query))
+                ->assertOk()
+                ->assertJsonPath('data.0.name', 'Roma');
+        }
+    }
+
     public function test_legacy_register_page_redirects_to_the_home_registration_panel(): void
     {
         $this->get('/register')
@@ -87,6 +105,19 @@ class ExampleTest extends TestCase
 
             if (str_starts_with($uri, 'api/profile/petowner/') || str_starts_with($uri, 'api/profile/petassistant/')) {
                 $this->assertContains('portal.auth', $middleware, $uri);
+            }
+
+            if (str_starts_with($uri, 'api/profile/petowner/')) {
+                $this->assertContains('portal.capability:owner', $middleware, $uri);
+            }
+
+            if (str_starts_with($uri, 'api/profile/petassistant/')
+                && ! in_array($uri, ['api/profile/petassistant/onboarding', 'api/profile/petassistant/onboarding/start'], true)) {
+                $this->assertContains('portal.assistant-profile', $middleware, $uri);
+            }
+
+            if ($uri === 'api/profile/petassistant/onboarding/start') {
+                $this->assertContains('portal.capability:owner', $middleware, $uri);
             }
 
             if (str_starts_with($uri, 'api/admin/') && ! in_array($uri, ['api/admin/auth/login', 'api/admin/auth/session'], true)) {

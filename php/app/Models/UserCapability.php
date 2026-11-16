@@ -132,6 +132,26 @@ final class UserCapability
         return $this->resolveForUser($userId, $legacyRole)['active'];
     }
 
+    public function hasAssistantProfileAccess(int $userId, ?string $legacyRole = null): bool
+    {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
+        if (Schema::hasTable('user_capabilities')) {
+            $rows = DB::table('user_capabilities')->where('user_id', $userId);
+            if ((clone $rows)->exists()) {
+                return (clone $rows)
+                    ->where('capability', self::ASSISTANT)
+                    ->whereIn('status', [self::STATUS_DRAFT, self::STATUS_PENDING_VERIFICATION, self::STATUS_ACTIVE])
+                    ->exists();
+            }
+        }
+
+        return $legacyRole === 'pet_assistant';
+    }
+
     /**
      * Restrict a user-based query to an active capability. Accounts without
      * any backfilled row retain the legacy fallback; partial or inactive

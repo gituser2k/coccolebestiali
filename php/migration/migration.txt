@@ -1037,7 +1037,8 @@ INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_a
   (2, 'Educatore', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (3, 'Veterinario', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (4, 'Petsitter', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (5, 'Toelettatore', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+  (5, 'Toelettatore', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (6, 'Operatore Olistico', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `sortorder` = VALUES(`sortorder`),

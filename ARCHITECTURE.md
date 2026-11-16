@@ -44,14 +44,14 @@ Coccole Bestiali è un marketplace per servizi dedicati agli animali domestici. 
 
 Un CMS amministrativo gestisce messaggi, errori, cataloghi, servizi, policy e dataset demo.
 
-La direzione approvata è un account globale capace di possedere contemporaneamente i profili Owner e Assistant. Capability, registrazione backend neutra e separazione dei dati di profilo sono già implementate in modo additivo; autorizzazioni runtime, onboarding e switch UI restano negli step successivi.
+La direzione approvata è un account globale capace di possedere contemporaneamente i profili Owner e Assistant. Capability, registrazione neutra, dati contestuali, onboarding Assistant e switch UI sono implementati in modo additivo. Il consolidamento e la rimozione dei fallback legacy restano allo STEP 10.
 
 ## 3. Stack tecnologico
 
 | Livello | Tecnologia | Versione/vincolo rilevato |
 | --- | --- | --- |
 | Backend | PHP | `^8.2` |
-| Framework | Laravel | `^11.0` nel manifest; `11.57.1` nel lockfile |
+| Framework | Laravel | `^12.71` nel manifest; `12.72.0` nel lockfile |
 | Database | MySQL/MariaDB | default MySQL, charset `utf8mb4` |
 | Accesso dati | Laravel Query Builder | prevalente; non sono usati aggregate Eloquent completi |
 | Frontend | React | `^19.2.4` |
@@ -63,7 +63,7 @@ La direzione approvata è un account globale capace di possedere contemporaneame
 | Test backend | PHPUnit | `^11.0` |
 | Test browser | Playwright | `^1.59.1`, usato anche dagli script screenshot |
 
-Nota: il README radice parla di Laravel 13, ma il manifest effettivo richiede Laravel 11. Il manifest è la fonte tecnica prevalente finché la documentazione non viene riallineata. Composer simula PHP `8.3.30`, corrispondente al runtime MAMP collaudato, così il lockfile non può selezionare dipendenze che richiedono versioni PHP superiori.
+Il README radice e il manifest sono allineati su Laravel 12. Composer simula PHP `8.3.30`, corrispondente al runtime MAMP collaudato, così il lockfile non può selezionare dipendenze che richiedono versioni PHP superiori.
 
 ## 4. Topologia e runtime
 
@@ -139,7 +139,7 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 
 ### 6.2 Responsabilità delle pagine
 
-- `HomePage`: stato sessione, viste URL `auth=login|register`, login e registrazione neutra email/Google/Apple, password dimenticata/temporanea, logout, modale contatti e call to action. Il contenuto autenticato dipende ancora da `currentUser.role` fino allo STEP 9.
+- `HomePage`: stato sessione, viste URL `auth=login|register`, login e registrazione neutra email/Google/Apple, password dimenticata/temporanea, logout, switch Owner/Assistant, CTA di onboarding e call to action contestuale. Il contenuto autenticato usa `modes.current`, non `users.role`.
 - `PetOwnerProfilePage`: dati personali, coordinate, credenziali, pet, preferiti, prenotazioni e cancellazione account.
 - `ProfilePlaceholderPage`: profilo Pet Assistant; dati personali, dati operatore, servizi, prezzi, galleria, geolocalizzazione, calendario, prenotazioni e account.
 - `PetAssistantSearchPage`: filtri per date, servizi, caratteristiche, foto, preferiti e ranking; salva lo stato utile alla navigazione.
@@ -150,7 +150,8 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 
 | Componente | Responsabilità |
 | --- | --- |
-| `BookingsSection` | elenco e azioni prenotazioni; riceve `role` per presentare la prospettiva Owner/Assistant |
+| `BookingsSection` | elenco e azioni prenotazioni; riceve `perspective=owner|assistant` |
+| `ProfileModeSwitcher` | switch di modalità sui due profili e ingresso “Diventa Pet Assistant”; aggiorna una preferenza di sessione non autorizzativa |
 | `AssistantBookingForm` | selezione pet/servizi/slot e invio batch idempotente |
 | `HomeActiveBookings` | richieste attive mostrate nella home Assistant |
 | `PetAssistantFavorites` | elenco/rimozione preferiti Owner |
@@ -346,11 +347,11 @@ La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numer
 
 ### 9.2 Sessione corrente
 
-Il backend salva esclusivamente `cb_portal_user_id` nella sessione Laravel. `App\Support\PortalSession` è il resolver unico: non consulta cookie applicativi, `$_COOKIE`, header raw o ruolo fornito dal client. Login e verifica email rigenerano l'ID di sessione; logout e cancellazione account invalidano la sessione e rigenerano il token CSRF.
+Il backend salva l'identità esclusivamente in `cb_portal_user_id` nella sessione Laravel. `cb_portal_ui_mode` conserva soltanto la preferenza visuale `owner|assistant` e non concede permessi. `App\Support\PortalSession` è il resolver unico: non consulta cookie applicativi, `$_COOKIE`, header raw o ruolo fornito dal client. Login e verifica email rigenerano l'ID di sessione; logout e cancellazione account invalidano la sessione e rigenerano il token CSRF.
 
 I cookie applicativi legacy `cb_portal_user_id` e `cb_portal_user_role` non vengono più creati. Le risposte di autenticazione li cancellano esplicitamente per bonificare i browser esistenti. L'identità viaggia soltanto tramite il cookie di sessione Laravel, configurato `HttpOnly` e `SameSite=Lax`; in produzione `SESSION_SECURE_COOKIE` deve essere abilitato sotto HTTPS.
 
-`App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. `App\Http\Middleware\RequireActiveCapability`, alias `portal.capability`, autorizza le route per capability attiva leggendo l'ID già risolto dalla sessione; i preferiti richiedono `portal.capability:owner`. La stessa regola è ripetuta nel modello per difesa in profondità. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS. Il form HTML delle azioni prenotazione via email include `_token`.
+`App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. `RequireActiveCapability`, alias `portal.capability`, autorizza le route per capability attiva; `RequireAssistantProfileAccess` consente ai soli stati `draft|pending_verification|active` di compilare il profilo Assistant senza renderlo pubblico. Gli endpoint Owner richiedono capability Owner attiva. La stessa regola è ripetuta nel dominio per difesa in profondità. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS.
 
 ### 9.3 Amministrazione
 
@@ -360,7 +361,7 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 
 ### 10.1 Ruoli attuali
 
-`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con navigazione e frontend non ancora migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. Dallo STEP 6 discovery e preferiti e dallo STEP 7 booking usano `UserCapability` come policy centralizzata. Se esiste almeno una riga capability per l'account, il suo stato è autoritativo e un set parziale o sospeso fallisce in chiusura; il fallback a `users.role` è ammesso soltanto per account senza alcuna riga, durante la compatibilità transitoria. Lo switch generale di prospettiva UI viene introdotto nello STEP 9.
+`users.role` vale ancora `pet_owner` o `pet_assistant` esclusivamente per compatibilità transitoria. Ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`; dallo STEP 9 `modes.current` proviene dalla preferenza di sessione, con fallback a una modalità attiva. Discovery, preferiti, booking, profili e onboarding usano `UserCapability` come policy centralizzata. Se esiste almeno una riga capability per l'account, il suo stato è autoritativo; il fallback a `users.role` è ammesso soltanto per account senza alcuna riga fino allo STEP 10.
 
 ### 10.2 Pet Owner
 
@@ -473,7 +474,11 @@ Lo schema legacy affida gran parte dell'integrità a indici, vincoli univoci e c
 | `housefeature` / `housefeaturedata` | catalogo e caratteristiche abitazione |
 | `operatorgallery` | foto, caption e ordine gallery Assistant |
 
-Le tabelle relazione usano vincoli univoci compositi per impedire duplicati.
+Le tabelle relazione usano vincoli univoci compositi per impedire duplicati. Le qualifiche comprendono `Operatore Olistico` e sono metadati pubblici mostrati nella ricerca e nell'intestazione del profilo Assistant; non determinano servizi, prezzi o autorizzazioni alla prenotazione.
+
+I campi di `operator_public_profile` sono contenuti descrittivi facoltativi mostrati al Pet Owner prima della prenotazione. Non vengono congelati nella prenotazione e non partecipano a disponibilità, compatibilità o calcolo del prezzo.
+La bio, pur essendo memorizzata in `operatordata.bio`, è presentata nello stesso gruppo visuale dei contenuti pubblici, subito dopo la headline, perché viene mostrata come corpo principale della presentazione Assistant.
+Il consenso `publish_exact_location`, pur restando nella stessa tabella, è gestito nell'interfaccia accanto alla mappa Assistant e viene persistito anche dal salvataggio dei Dati personali; il salvataggio aggiorna soltanto questo flag e non sovrascrive gli altri contenuti pubblici.
 
 #### Pet Owner
 
@@ -657,8 +662,8 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 17. Debito tecnico e rischi conosciuti
 
-1. **Ruolo legacy ancora consumato**: le capability possono coesistere e booking/discovery sono contestuali, ma navigazione home e profili continuano a scegliere la vista iniziale tramite `users.role` fino allo STEP 9.
-2. **Autorizzazioni di capability incomplete fuori dal perimetro migrato**: discovery, preferiti e booking sono capability-aware; alcuni endpoint profilo restano da consolidare con onboarding e switch nello STEP 9.
+1. **Ruolo legacy ancora conservato**: home, profili e operazioni migrate usano capability/modalità, ma `users.role` resta nel contratto e nei fallback per client o record precedenti fino allo STEP 10.
+2. **Onboarding senza revisione amministrativa**: il gate è deterministico e server-side; eventuali verifiche documentali o fiscali esterne richiederanno un futuro stato `pending_verification` gestito dal CMS.
 3. **Copertura end-to-end OAuth**: login email è verificabile localmente; Google e Apple richiedono collaudo manuale con credenziali/provider disponibili.
 4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
 5. **Autorizzazioni distribuite residue**: i sottosistemi migrati usano `UserCapability`, ma restano controlli legacy nei flussi profilo/registrazione da rimuovere nello STEP 10.
@@ -670,12 +675,10 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 11. **Controller/modelli molto estesi**: `AuthController`, `ProfileController`, `Profile` e `Booking` hanno responsabilità ampie.
 12. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
 13. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
-14. **Documentazione versioni**: README e manifest non concordano sulla versione Laravel.
-15. **Advisory Laravel 11**: il patch-level 11.57.1 elimina la criticità TokenGuard, ma cinque advisory restano formalmente aperti e richiedono l'upgrade almeno a Laravel 12.71; le superfici email/URL firmati usate dal portale hanno mitigazioni applicative documentate.
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4, la reputazione è contestuale dallo STEP 5, discovery/preferiti consumano le capability dallo STEP 6 e booking è a doppia prospettiva dallo STEP 7; la modalità UI globale resta nello STEP 9.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Schema capability, dati profilo, reputazione, discovery, booking, registrazione neutra, onboarding e modalità UI sono implementati negli STEP 2–9. Lo STEP 10 rimuoverà i fallback soltanto dopo il collaudo finale.
 
 ### 18.1 Principi
 
@@ -687,7 +690,7 @@ Separare:
 4. stato di onboarding e pubblicazione;
 5. modalità UI corrente, che non costituisce autorizzazione.
 
-Ogni account può agire come Owner. Il profilo Assistant è opzionale, salvabile in bozza e pubblicabile dopo il completamento dei requisiti.
+Ogni account può agire come Owner. Il profilo Assistant è opzionale, salvabile in bozza e pubblicabile dopo il salvataggio dei campi obbligatori Alias e Città; la checklist estesa resta informativa.
 
 ### 18.2 Schema capability implementato nello STEP 2
 
@@ -745,14 +748,16 @@ Prenotazioni dual-role implementate nello STEP 7:
 - recensioni e reputazione dichiarano esplicitamente la capability del reviewer e del destinatario;
 - le email puntano alla pagina profilo e prospettiva corrette; i token di cancellazione derivano il lato dalla partecipazione, resa non ambigua dal divieto self-booking.
 
-### 18.3 Onboarding target
+### 18.3 Onboarding Assistant implementato nello STEP 9
 
 - Registrazione neutra “Account Coccole Bestiali”.
 - Owner disponibile senza scelta irreversibile; pet richiesto just-in-time alla prenotazione.
-- CTA “Diventa Pet Assistant”.
-- Wizard salvabile: identità, tipo operatore, dati fiscali, area, esperienza, servizi/prezzi, casa/gallery, calendario, verifiche, riepilogo.
+- CTA “Diventa Pet Assistant” crea idempotentemente una capability `draft`; se la bozza esiste diventa “Completa profilo Pet Assistant”.
+- I moduli esistenti costituiscono il wizard salvabile: identità, tipo operatore, dati fiscali, area, esperienza, servizi/prezzi, casa/gallery e calendario; `current_step` conserva l'ultima sezione.
+- `AssistantOnboarding` calcola otto indicatori informativi server-side per la percentuale, senza mostrarne la griglia nel pannello; autorizza la pubblicazione in base ai soli Alias e Città persistiti e il client non può dichiarare la completezza.
 - Profilo ricercabile solo con capability Assistant `active`.
-- Switch Owner/Assistant come preferenza di interfaccia.
+- Switch Owner/Assistant come preferenza di sessione non autorizzativa; la modalità Assistant è selezionabile solo se attiva.
+- Lo switch rilegge immediatamente capability e modalità quando la pubblicazione passa la bozza ad `active`, senza dipendere da un refresh del browser.
 - Sospensione o disattivazione Assistant non elimina l'account Owner.
 
 ### 18.4 Impatti obbligatori
@@ -866,6 +871,11 @@ Regole di esecuzione:
 | 2026-11-16 | Gate STEP 7 | Milestone booking dual-role, conferme azioni e uniformità visuale dei profili approvata dall'utente con “OK STEP 7” | Intero changeset STEP 7 sul branch `changeaccount` | Database locale migrato; prospettiva esplicita e fallback capability legacy mantenuti | Gate manuale completato dopo verifica utente |
 | 2026-11-16 | STEP 8 autenticazione nella home | Sostituite le viste login/registrazione nella hero con stato URL esclusivo, uscita esplicita, pulizia password e focus; registrazione neutra email/Google/Apple; `/register` trasformato in alias e rimossa la vecchia entry a due ruoli | `HomePage`, `home.css`, `vite.config.ts`, route e test; rimossi `RegisterPage`, `register.html`, `register.tsx`, `register.css`; `docs/migrations/changeaccount-step8-home-auth.md` | Nessuna modifica DB; endpoint `role?` ancora compatibili; bookmark `/register` preservati via redirect `302` | 61 test/326 asserzioni, build e lint; smoke browser desktop/mobile, alias, back/forward, focus e pulizia password |
 | 2026-11-16 | Audit globale e gate STEP 8 | Verificati cumulativamente STEP 0–8; aggiornati Laravel nella major 11 e toolchain npm; fissata piattaforma Composer al PHP 8.3.30 di MAMP; censiti i rischi residui | `composer.json`, `composer.lock`, `package-lock.json`, documenti STEP 1/7/8 e `docs/audits/changeaccount-step8-global-audit.md` | Nessuna modifica DB; backup e vincoli ricontrollati; upgrade Laravel 12 rinviato a milestone dedicata | Suite 61/326, build e lint; audit npm pulito; audit Composer senza criticità TokenGuard; smoke HTTP/browser desktop e mobile; gate utente `OK STEP 8` |
+| 2026-11-16 | STEP 9 onboarding e switch | Aggiunti bozza Assistant privata, checklist server-side informativa, gate di pubblicazione su Alias/Città salvati, aggiornamento automatico, modalità di sessione, CTA e switch condiviso nei profili | `AssistantOnboarding`, controller/middleware, `PortalSession`, `HomePage`, `ProfileModeSwitcher`, profili, route, test e `docs/migrations/changeaccount-step9-assistant-onboarding.md` | Nessuna nuova tabella; usa stato/current_step/timestamp di `user_capabilities`; Owner resta attivo; backup privato pre-step acquisito | Controlli manuali completati; audit globale 66 test/380 asserzioni, lint/build, npm e Composer audit puliti, invarianti DB pulite; gate esplicito in attesa |
+| 2026-11-16 | Catalogo e profilo pubblico Assistant | Aggiunta la qualifica `Operatore Olistico`; chiarito che qualifiche e testi pubblici sono informativi e migliorata la spaziatura/descrizione dei campi | `operatortitle`, `Profile`, profilo Assistant, `migration.txt`, seed configurazione, README e architettura | Inserimento idempotente `operatortitle.id=6`; nessuna modifica schema e nessun impatto sui record booking | Database locale verificato; 66 test/380 asserzioni, lint e build |
+| 2026-11-16 | Privacy mappa Assistant | Spostato il consenso alla posizione esatta accanto alla mappa e collegato il flag al salvataggio Dati personali senza sovrascrivere gli altri contenuti pubblici | profilo Assistant, `ProfileController`, `Profile`, `operator_public_profile.publish_exact_location`, test separazione profili | Nessuna modifica schema o backfill; aggiornamento mirato della sola colonna consenso | Test dedicato e suite 66/380, lint/build, diff check |
+| 2026-11-16 | Upgrade sicurezza Laravel 12 | Aggiornato Laravel 11.57.1 a 12.72.0 e chiusi i cinque advisory Composer residui | `composer.json`, `composer.lock`, README, documentazione sicurezza/audit | Nessuna modifica DB; PHP di piattaforma resta 8.3.30; aggiunto solo `symfony/polyfill-php84` | Composer audit pulito, 66 test/380 asserzioni, 107 route, smoke HTTP, lint/build/npm audit e invarianti DB |
+| 2026-11-16 | Gate STEP 9 | Milestone onboarding, switch multi-profilo, rifiniture profilo Assistant e upgrade Laravel 12 approvati dall'utente | Intero changeset STEP 9 sul branch `changeaccount` | Nessuna nuova tabella; catalogo qualifica additivo; backup pre-step integro | Controlli manuali completati, audit globale pulito e gate utente `OK STEP 9` |
 
 ### Modello per nuove righe
 

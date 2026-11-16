@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\UserAccount;
+use App\Models\UserCapability;
 use App\Models\Utility;
 use App\Support\PortalSession;
 use Exception;
@@ -659,6 +660,8 @@ class AuthController extends Controller
                 ], Response::HTTP_OK);
             }
 
+            $user = $this->withCurrentUiMode($request, $user);
+
             return response()->json([
                 'ok' => true,
                 'data' => [
@@ -678,6 +681,30 @@ class AuthController extends Controller
                 'ok' => false,
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    public function setCurrentUiMode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'mode' => ['required', 'string', 'in:owner,assistant'],
+        ]);
+        $userId = $this->resolveCurrentUserId($request);
+        $mode = (string) $validated['mode'];
+
+        if (! (new UserCapability)->hasActive($userId, $mode)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Modalità non disponibile per questo account.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        PortalSession::setUiMode($request, $mode);
+        $user = (new UserAccount)->getUserById($userId);
+
+        return response()->json([
+            'ok' => true,
+            'data' => ['user' => $this->withCurrentUiMode($request, $user)],
+        ], Response::HTTP_OK);
     }
 
     public function logout(Request $request): JsonResponse
@@ -1567,6 +1594,22 @@ class AuthController extends Controller
         return $response
             ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
             ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
+    }
+
+    private function withCurrentUiMode(Request $request, array $user): array
+    {
+        $available = array_values(array_filter(
+            $user['modes']['available'] ?? [],
+            static fn ($mode): bool => in_array($mode, ['owner', 'assistant'], true)
+        ));
+        $current = PortalSession::uiMode($request);
+        if (! in_array($current, $available, true)) {
+            $current = (string) ($user['modes']['default'] ?? '');
+        }
+
+        $user['modes']['current'] = in_array($current, $available, true) ? $current : ($available[0] ?? '');
+
+        return $user;
     }
 
     private function resolveCurrentUserId(Request $request): int

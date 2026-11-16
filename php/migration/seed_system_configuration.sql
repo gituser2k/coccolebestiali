@@ -17,12 +17,13 @@ DELETE FROM `pettype`;
 DELETE FROM `petbreed`;
 DELETE FROM `operatortitle`;
 
--- operatortitle: 5 record
+-- operatortitle: 6 record
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (1, 'Addestratore', 10, 1792702464, 1792702464);
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (2, 'Educatore', 20, 1792702464, 1792702464);
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (3, 'Veterinario', 30, 1792702464, 1792702464);
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (4, 'Petsitter', 40, 1792702464, 1792702464);
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (5, 'Toelettatore', 50, 1792702464, 1792702464);
+INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (6, 'Operatore Olistico', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP());
 
 -- petbreed: 18 record
 INSERT INTO `petbreed` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (1, 'Meticcio / Misto', 10, 1792251757, 1792329623);

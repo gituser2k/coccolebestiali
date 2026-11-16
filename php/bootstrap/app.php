@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\RejectEmailHeaderInjection;
+use App\Http\Middleware\RequireAssistantProfileAccess;
 use App\Http\Middleware\RequireActiveCapability;
 use App\Http\Middleware\RequireAdminSession;
 use App\Http\Middleware\RequirePortalSession;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', SecurityHeaders::class);
         $middleware->alias([
             'portal.auth' => RequirePortalSession::class,
+            'portal.assistant-profile' => RequireAssistantProfileAccess::class,
             'portal.capability' => RequireActiveCapability::class,
             'portal.admin' => RequireAdminSession::class,
         ]);

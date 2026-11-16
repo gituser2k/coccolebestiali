@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AssistantOnboardingController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\MessageController;
@@ -159,25 +160,38 @@ Route::prefix('api')
             Route::post('/auth/account/google', [AuthController::class, 'changeCurrentAccountToGoogle']);
             Route::post('/auth/account/apple', [AuthController::class, 'changeCurrentAccountToApple']);
             Route::post('/auth/account/apple/mock', [AuthController::class, 'changeCurrentAccountToAppleMock']);
+            Route::post('/auth/mode', [AuthController::class, 'setCurrentUiMode']);
 
-            Route::get('/profile/petowner/personal', [ProfileController::class, 'getPetOwnerPersonalProfile']);
-            Route::post('/profile/petowner/personal', [ProfileController::class, 'savePetOwnerPersonalProfile']);
-            Route::post('/profile/petowner/password', [ProfileController::class, 'changePetOwnerPassword']);
-            Route::get('/profile/petowner/pets/options', [ProfileController::class, 'getPetOwnerPetOptions']);
-            Route::get('/profile/petowner/pets', [ProfileController::class, 'getPetOwnerPets']);
-            Route::post('/profile/petowner/pets', [ProfileController::class, 'savePetOwnerPets']);
-            Route::post('/profile/petowner/pets/profile-photo', [ProfileController::class, 'updatePetOwnerProfilePhoto']);
-            Route::get('/profile/petowner/pets/documents/{documentId}', [ProfileController::class, 'downloadPetOwnerDocument'])
-                ->whereNumber('documentId');
-            Route::get('/profile/petassistant/personal', [ProfileController::class, 'getPetAssistantPersonalProfile']);
-            Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
-            Route::post('/profile/petassistant/password', [ProfileController::class, 'changePetAssistantPassword']);
-            Route::get('/profile/petassistant/operator', [ProfileController::class, 'getPetAssistantOperatorProfile']);
-            Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
-            Route::get('/profile/petassistant/calendar', [ProfileController::class, 'getPetAssistantCalendarMonth']);
-            Route::get('/profile/petassistant/calendar/day', [ProfileController::class, 'getPetAssistantCalendarDay']);
-            Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
-            Route::post('/profile/petassistant/calendar/copy', [ProfileController::class, 'copyPetAssistantCalendarDay']);
+            Route::get('/profile/petassistant/onboarding', [AssistantOnboardingController::class, 'show']);
+            Route::post('/profile/petassistant/onboarding/start', [AssistantOnboardingController::class, 'start'])
+                ->middleware(['portal.capability:owner', 'throttle:5,1']);
+            Route::patch('/profile/petassistant/onboarding/progress', [AssistantOnboardingController::class, 'progress'])
+                ->middleware('portal.assistant-profile');
+            Route::post('/profile/petassistant/onboarding/activate', [AssistantOnboardingController::class, 'activate'])
+                ->middleware(['portal.assistant-profile', 'throttle:5,1']);
+
+            Route::middleware('portal.capability:owner')->group(function () {
+                Route::get('/profile/petowner/personal', [ProfileController::class, 'getPetOwnerPersonalProfile']);
+                Route::post('/profile/petowner/personal', [ProfileController::class, 'savePetOwnerPersonalProfile']);
+                Route::post('/profile/petowner/password', [ProfileController::class, 'changePetOwnerPassword']);
+                Route::get('/profile/petowner/pets/options', [ProfileController::class, 'getPetOwnerPetOptions']);
+                Route::get('/profile/petowner/pets', [ProfileController::class, 'getPetOwnerPets']);
+                Route::post('/profile/petowner/pets', [ProfileController::class, 'savePetOwnerPets']);
+                Route::post('/profile/petowner/pets/profile-photo', [ProfileController::class, 'updatePetOwnerProfilePhoto']);
+                Route::get('/profile/petowner/pets/documents/{documentId}', [ProfileController::class, 'downloadPetOwnerDocument'])
+                    ->whereNumber('documentId');
+            });
+            Route::middleware('portal.assistant-profile')->group(function () {
+                Route::get('/profile/petassistant/personal', [ProfileController::class, 'getPetAssistantPersonalProfile']);
+                Route::post('/profile/petassistant/personal', [ProfileController::class, 'savePetAssistantPersonalProfile']);
+                Route::post('/profile/petassistant/password', [ProfileController::class, 'changePetAssistantPassword']);
+                Route::get('/profile/petassistant/operator', [ProfileController::class, 'getPetAssistantOperatorProfile']);
+                Route::post('/profile/petassistant/operator', [ProfileController::class, 'savePetAssistantOperatorProfile']);
+                Route::get('/profile/petassistant/calendar', [ProfileController::class, 'getPetAssistantCalendarMonth']);
+                Route::get('/profile/petassistant/calendar/day', [ProfileController::class, 'getPetAssistantCalendarDay']);
+                Route::post('/profile/petassistant/calendar/day', [ProfileController::class, 'savePetAssistantCalendarDay']);
+                Route::post('/profile/petassistant/calendar/copy', [ProfileController::class, 'copyPetAssistantCalendarDay']);
+            });
 
             Route::middleware('portal.capability:owner')->group(function () {
                 Route::get('/pet-assistant-favorites', [PublicPetAssistantController::class, 'favorites']);

@@ -595,6 +595,123 @@
   white-space: nowrap;
 }
 
+.profile-header-actions,
+.profile-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.profile-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profile-mode-control {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.profile-mode-buttons {
+  display: inline-flex;
+  padding: 0.2rem;
+  border: 1px solid rgba(31, 95, 167, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.profile-mode-buttons button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.48rem 0.72rem;
+  background: transparent;
+  color: #214363;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-mode-buttons button.is-active {
+  background: #1f5fa7;
+  color: #fff;
+}
+
+.profile-mode-buttons button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.profile-mode-error {
+  max-width: 24rem;
+  color: #a3231b;
+  font-weight: 800;
+}
+
+.assistant-onboarding-panel {
+  margin: 0 1.25rem 1.25rem;
+  padding: 1.25rem;
+  border: 2px solid rgba(31, 95, 167, 0.2);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1rem 2.5rem rgba(33, 67, 99, 0.1);
+}
+
+.assistant-onboarding-summary,
+.assistant-onboarding-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.assistant-onboarding-summary h1 {
+  margin: 0.2rem 0;
+  color: #214363;
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+.assistant-onboarding-summary p {
+  max-width: 52rem;
+  margin: 0;
+  color: #49647e;
+  font-weight: 700;
+}
+
+.assistant-onboarding-percentage {
+  min-width: 4.2rem;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  background: #1f5fa7;
+  color: #fff;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.assistant-onboarding-actions {
+  margin-top: 1rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.assistant-onboarding-actions .register-action {
+  min-height: 3.4rem;
+  padding: 0.72rem clamp(1.15rem, 1.8vw, 1.65rem);
+  line-height: 1.2;
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .assistant-onboarding-summary {
+    align-items: flex-start;
+  }
+
+  .assistant-onboarding-actions .register-action {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 .register-grid {
   flex: 1;
   display: grid;
@@ -1084,6 +1201,20 @@
 .profile-field {
   display: grid;
   gap: 0.46rem;
+}
+
+.profile-public-profile-section {
+  display: grid;
+  gap: 1.3rem;
+}
+
+.profile-field-help {
+  display: block;
+  margin: 0;
+  color: #52687f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .profile-field > span:not(.profile-field-label),
@@ -4099,6 +4230,16 @@
   flex: 0 0 auto;
   margin-top: 0.2rem;
   accent-color: #2f7a4a;
+}
+
+.profile-map-privacy-choice {
+  margin-top: 1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgb(31 95 167 / 16%);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 48%);
+  color: #17324d;
+  line-height: 1.4;
 }
 
 .profile-favorite-list {
