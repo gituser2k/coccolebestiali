@@ -2,7 +2,7 @@
 
 > Documento vivente e fonte di orientamento tecnico del portale.
 >
-> Ultima ricognizione completa: **10 novembre 2026**.
+> Ultima ricognizione completa: **16 novembre 2026**.
 > Stato descritto: codice presente nel workspace, incluse le modifiche locali non ancora consolidate.
 
 ## 1. Scopo e regole di manutenzione
@@ -51,7 +51,7 @@ La direzione approvata è un account globale capace di possedere contemporaneame
 | Livello | Tecnologia | Versione/vincolo rilevato |
 | --- | --- | --- |
 | Backend | PHP | `^8.2` |
-| Framework | Laravel | `^11.0` nel `composer.json` |
+| Framework | Laravel | `^11.0` nel manifest; `11.57.1` nel lockfile |
 | Database | MySQL/MariaDB | default MySQL, charset `utf8mb4` |
 | Accesso dati | Laravel Query Builder | prevalente; non sono usati aggregate Eloquent completi |
 | Frontend | React | `^19.2.4` |
@@ -63,7 +63,7 @@ La direzione approvata è un account globale capace di possedere contemporaneame
 | Test backend | PHPUnit | `^11.0` |
 | Test browser | Playwright | `^1.59.1`, usato anche dagli script screenshot |
 
-Nota: il README radice parla di Laravel 13, ma il manifest effettivo richiede Laravel 11. Il manifest è la fonte tecnica prevalente finché la documentazione non viene riallineata.
+Nota: il README radice parla di Laravel 13, ma il manifest effettivo richiede Laravel 11. Il manifest è la fonte tecnica prevalente finché la documentazione non viene riallineata. Composer simula PHP `8.3.30`, corrispondente al runtime MAMP collaudato, così il lockfile non può selezionare dipendenze che richiedono versioni PHP superiori.
 
 ## 4. Topologia e runtime
 
@@ -128,7 +128,7 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 | URL/Pagina | HTML | Bootstrap | Componente principale |
 | --- | --- | --- | --- |
 | `/` | `index.html` | `tsx/main.tsx` | `HomePage.tsx` |
-| `/register` | `register.html` | `tsx/register.tsx` | `RegisterPage.tsx` |
+| `/register` | alias HTTP `302` | — | redirect a `/?auth=register` |
 | `/profile/petowner` | `profile-petowner.html` | `tsx/profile-petowner.tsx` | `PetOwnerProfilePage.tsx` |
 | `/profile/petassistant` | `profile-petassistant.html` | `tsx/profile-petassistant.tsx` | `ProfilePlaceholderPage.tsx` |
 | `/search` | `search.html` | `tsx/search.tsx` | `PetAssistantSearchPage.tsx` |
@@ -139,8 +139,7 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 
 ### 6.2 Responsabilità delle pagine
 
-- `HomePage`: stato sessione, login email/Google/Apple, password dimenticata/temporanea, logout, modale contatti e call to action. Il contenuto autenticato dipende da `currentUser.role`.
-- `RegisterPage`: due card di registrazione alternative, una Owner e una Assistant; email/password, Google e Apple.
+- `HomePage`: stato sessione, viste URL `auth=login|register`, login e registrazione neutra email/Google/Apple, password dimenticata/temporanea, logout, modale contatti e call to action. Il contenuto autenticato dipende ancora da `currentUser.role` fino allo STEP 9.
 - `PetOwnerProfilePage`: dati personali, coordinate, credenziali, pet, preferiti, prenotazioni e cancellazione account.
 - `ProfilePlaceholderPage`: profilo Pet Assistant; dati personali, dati operatore, servizi, prezzi, galleria, geolocalizzazione, calendario, prenotazioni e account.
 - `PetAssistantSearchPage`: filtri per date, servizi, caratteristiche, foto, preferiti e ranking; salva lo stato utile alla navigazione.
@@ -222,7 +221,8 @@ La documentazione di migrazione prescrive `php artisan schedule:work` o cron `ph
 
 ### 8.1 Route pagina/file
 
-- `GET /`, `/register`, `/profile/petowner`, `/profile/petassistant`, `/search`: servono entry HTML compilati.
+- `GET /`, `/profile/petowner`, `/profile/petassistant`, `/search`: servono entry HTML compilati.
+- `GET /register`: alias compatibile che reindirizza con `302` a `/?auth=register`.
 - `GET /pet-assistants/{assistantId}`: verifica l'esistenza del profilo e serve il dettaglio.
 - `GET /cmsadminsite`: serve il CMS sorgente o dist.
 - `GET /asset/{path}`: file da `asset/` con controllo anti path traversal.
@@ -342,7 +342,7 @@ Le API `/api/admin/*` comprendono:
 - Apple, verificato tramite identity token e audience;
 - un solo collegamento social attivo per account dopo il cambio metodo.
 
-La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numero, simbolo e nessuno spazio. La registrazione backend è neutra: `role` è opzionale e, se assente, viene memorizzato `pet_owner` soltanto come default tecnico compatibile mentre si crea la capability Owner. I vecchi client possono ancora inviare il ruolo fino allo STEP 8. La conferma email usa una firma HMAC neutra con scadenza e accetta temporaneamente le firme legacy già inviate. La password dimenticata genera una password temporanea e imposta `password_reset_required`.
+La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numero, simbolo e nessuno spazio. Il client STEP 8 non invia alcun ruolo: il backend memorizza `pet_owner` soltanto come default tecnico compatibile e crea la capability Owner. Gli endpoint mantengono temporaneamente `role?` per client legacy fino al consolidamento dello STEP 10. La conferma email usa una firma HMAC neutra con scadenza e accetta temporaneamente le firme legacy già inviate. La password dimenticata genera una password temporanea e imposta `password_reset_required`.
 
 ### 9.2 Sessione corrente
 
@@ -662,7 +662,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 3. **Copertura end-to-end OAuth**: login email è verificabile localmente; Google e Apple richiedono collaudo manuale con credenziali/provider disponibili.
 4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
 5. **Autorizzazioni distribuite residue**: i sottosistemi migrati usano `UserCapability`, ma restano controlli legacy nei flussi profilo/registrazione da rimuovere nello STEP 10.
-6. **Registrazione legacy ancora visibile**: la pagina `/register` continua a chiedere Owner/Assistant fino alla sostituzione prevista nello STEP 8; il backend neutro è già disponibile.
+6. **Payload registrazione legacy ancora accettato**: la UI è neutra e `/register` è un alias della home, ma gli endpoint accettano ancora `role?` per compatibilità fino allo STEP 10.
 7. **Mirror profilo legacy**: i dati sono separati nelle nuove tabelle, ma `personaldata` resta in dual-write/fallback fino allo STEP 10 e non può rappresentare entrambe le location.
 8. **Mirror reputazione legacy**: i punteggi sono contestuali, ma `user_reputation` resta in dual-write per il solo ruolo storico fino allo STEP 10.
 9. **Schema non versionato**: uno script cumulativo rende meno esplicita la sequenza delle release.
@@ -671,6 +671,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 12. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
 13. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
 14. **Documentazione versioni**: README e manifest non concordano sulla versione Laravel.
+15. **Advisory Laravel 11**: il patch-level 11.57.1 elimina la criticità TokenGuard, ma cinque advisory restano formalmente aperti e richiedono l'upgrade almeno a Laravel 12.71; le superfici email/URL firmati usate dal portale hanno mitigazioni applicative documentate.
 
 ## 18. Architettura target multi-profilo
 
@@ -776,9 +777,9 @@ Prenotazioni dual-role implementate nello STEP 7:
 7. Rilasciare il frontend con feature flag.
 8. Monitorare e rimuovere infine campo/cookie del vecchio ruolo.
 
-### 18.6 Ingresso alla registrazione target (decisione proposta)
+### 18.6 Ingresso alla registrazione target (implementato nello STEP 8)
 
-Con la registrazione neutra non sono più necessarie le due card Owner/Assistant della pagina autonoma corrente. Il pattern raccomandato è:
+Con la registrazione neutra non sono più necessarie le due card Owner/Assistant della pagina autonoma. È implementato il seguente pattern:
 
 - il click su **Registrati** nella home sostituisce la section `.hero-cta` con un pannello inline “Crea il tuo account”, analogamente al pannello di login già esistente;
 - il pannello contiene un solo form email/password e le alternative Google/Apple, senza selezione permanente del ruolo;
@@ -787,12 +788,12 @@ Con la registrazione neutra non sono più necessarie le due card Owner/Assistant
 - login e registrazione sono viste mutuamente esclusive dello stesso contenitore e condividono componenti, validazione, errori e OAuth;
 - lo stato è rappresentato nell'URL, ad esempio `/?auth=register`, affinché refresh, back del browser, deep link e analytics restino corretti;
 - `/register` non deve essere eliminata immediatamente: diventa un alias/redirect compatibile verso `/?auth=register`, preservando bookmark e link esterni;
-- il form deve essere estratto in un componente condiviso, evitando di mantenere due implementazioni della registrazione;
+- la registrazione ha una sola implementazione in `HomePage`; i vecchi sorgenti `RegisterPage`, entry HTML/TSX e CSS dedicato sono stati rimossi;
 - su mobile il pannello rimane nel normale flusso verticale e la pagina può scorrere; non usare un modal per il form principale;
 - dopo registrazione email si mostra uno stato persistente di conferma email; dopo registrazione social si applica il redirect previsto dal nuovo account globale;
 - l'onboarding Pet Assistant resta un flusso successivo e separato, avviato dalla CTA “Diventa Pet Assistant”.
 
-La pagina autonoma va mantenuta soltanto se in futuro la registrazione richiederà contenuti legali, editoriali o step sufficientemente estesi da non essere gestibili nella hero. Nel perimetro attuale una pagina separata aggiungerebbe una transizione senza valore e produrrebbe spazio inutilizzato.
+Una pagina autonoma potrà essere reintrodotta soltanto se in futuro la registrazione richiederà contenuti legali, editoriali o step sufficientemente estesi da non essere gestibili nella hero.
 
 ### 18.7 Piano di consegna a milestone (decisione proposta)
 
@@ -863,6 +864,8 @@ Regole di esecuzione:
 | 2026-11-16 | Gate STEP 6 | Milestone discovery dual-role e policy capability approvata dall'utente con “OK STEP 6” | Intero changeset STEP 6 sul branch `changeaccount` | Database locale migrato; fallback legacy e confini STEP 7/9 mantenuti | Gate manuale completato dopo verifica utente |
 | 2026-11-16 | STEP 7 booking dual-role | Aggiunta prospettiva esplicita a inbox e azioni, autorizzazione per capability+lato, conferme modali Owner/Assistant, divieto self-booking, recensioni e notifiche contestuali; uniformati componente località, font Nunito, favicon e metadati visuali dei due profili | `Booking`, `BookingController`, route, `BookingsSection`, `ProfileFieldMeta`, HTML e UI profili/booking, `booking`, `booking_review`, `docs/migrations/changeaccount-step7-dual-perspective-booking.md` | Due colonne recensione con backfill; tre check; fallback capability legacy solo senza righe; switch UI globale rinviato allo STEP 9 | 60 test/324 assertion, build; audit browser di 66 classi condivise; restore pre-STEP 0 e migration idempotente; smoke HTTP Owner/Assistant e self-profile |
 | 2026-11-16 | Gate STEP 7 | Milestone booking dual-role, conferme azioni e uniformità visuale dei profili approvata dall'utente con “OK STEP 7” | Intero changeset STEP 7 sul branch `changeaccount` | Database locale migrato; prospettiva esplicita e fallback capability legacy mantenuti | Gate manuale completato dopo verifica utente |
+| 2026-11-16 | STEP 8 autenticazione nella home | Sostituite le viste login/registrazione nella hero con stato URL esclusivo, uscita esplicita, pulizia password e focus; registrazione neutra email/Google/Apple; `/register` trasformato in alias e rimossa la vecchia entry a due ruoli | `HomePage`, `home.css`, `vite.config.ts`, route e test; rimossi `RegisterPage`, `register.html`, `register.tsx`, `register.css`; `docs/migrations/changeaccount-step8-home-auth.md` | Nessuna modifica DB; endpoint `role?` ancora compatibili; bookmark `/register` preservati via redirect `302` | 61 test/326 asserzioni, build e lint; smoke browser desktop/mobile, alias, back/forward, focus e pulizia password |
+| 2026-11-16 | Audit globale e gate STEP 8 | Verificati cumulativamente STEP 0–8; aggiornati Laravel nella major 11 e toolchain npm; fissata piattaforma Composer al PHP 8.3.30 di MAMP; censiti i rischi residui | `composer.json`, `composer.lock`, `package-lock.json`, documenti STEP 1/7/8 e `docs/audits/changeaccount-step8-global-audit.md` | Nessuna modifica DB; backup e vincoli ricontrollati; upgrade Laravel 12 rinviato a milestone dedicata | Suite 61/326, build e lint; audit npm pulito; audit Composer senza criticità TokenGuard; smoke HTTP/browser desktop e mobile; gate utente `OK STEP 8` |
 
 ### Modello per nuove righe
 

@@ -16,7 +16,6 @@ export default defineConfig({
       input: {
         index: resolve(import.meta.dirname, 'src/html/index.html'),
         demo: resolve(import.meta.dirname, 'src/html/demo.html'),
-        register: resolve(import.meta.dirname, 'src/html/register.html'),
         profilePetOwner: resolve(import.meta.dirname, 'src/html/profile-petowner.html'),
         profilePetAssistant: resolve(import.meta.dirname, 'src/html/profile-petassistant.html'),
         search: resolve(import.meta.dirname, 'src/html/search.html'),

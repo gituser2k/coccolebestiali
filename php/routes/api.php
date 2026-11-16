@@ -30,18 +30,7 @@ Route::get('/', function () {
 });
 
 Route::get('/register', function () {
-    $registerFile = base_path('../html/dist/src/html/register.html');
-
-    if (! File::exists($registerFile)) {
-        return response(
-            'Pagina registrazione non compilata. Esegui "npm run build" nella cartella html.',
-            Response::HTTP_SERVICE_UNAVAILABLE
-        );
-    }
-
-    return response()->file($registerFile, [
-        'Content-Type' => 'text/html; charset=UTF-8',
-    ]);
+    return redirect()->to('/?auth=register', Response::HTTP_FOUND);
 });
 
 Route::get('/profile/petowner', function () {

@@ -4,7 +4,7 @@ Data: 16 novembre 2026
 
 Branch: `changeaccount`
 
-Stato milestone: **implementata e in attesa del gate manuale “OK STEP 7”**.
+Stato milestone: **approvata manualmente — OK STEP 7 ricevuto il 16 novembre 2026**.
 
 ## Obiettivo
 

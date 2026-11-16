@@ -38,7 +38,7 @@ Sono stati inoltre aggiunti rate limiting, rotazione sessione verificata, header
 | Email injection | CR/LF e caratteri di controllo nei campi email | rifiutati prima dei controller |
 | Header | nosniff, anti-frame, referrer, permissions | presenti su risposta reale MAMP |
 | Dipendenze frontend runtime | `npm audit --omit=dev` | 0 vulnerabilità |
-| Dipendenze PHP | `composer audit` dopo update Symfony | restano advisory Laravel, vedi sotto |
+| Dipendenze PHP | Laravel 11.57.1 e `composer audit` | advisory critico TokenGuard rimosso; restano cinque advisory che richiedono Laravel 12, vedi sotto |
 
 ## Correzioni implementate
 
@@ -60,14 +60,15 @@ Sono stati inoltre aggiunti rate limiting, rotazione sessione verificata, header
 
 - aggiunto `firebase/php-jwt` 7.x;
 - aggiornati i componenti Symfony interessati agli ultimi patch compatibili (`http-foundation`, `http-kernel`, `mime`, `routing` e dipendenze correlate);
-- audit npm runtime: nessuna vulnerabilità;
-- rimangono sette advisory moderate soltanto nella toolchain di sviluppo `typescript-eslint/minimatch`; la correzione automatica proposta è breaking e non influenza il bundle runtime;
-- rimangono cinque advisory su Laravel 11. Il portale non usa `TokenGuard`, coinvolto nell'advisory critico rilevato, ma il lockfile resta formalmente segnalato. La rimozione completa richiede upgrade e collaudo Laravel 12.69+.
+- audit npm completo: nessuna vulnerabilità, dopo aggiornamento compatibile della toolchain `typescript-eslint/minimatch` nello STEP 8;
+- Laravel aggiornato da 11.51.0 a 11.57.1 nello STEP 8, restando nella stessa major: l'advisory critico TokenGuard non è più presente;
+- Composer simula la piattaforma PHP 8.3.30, uguale al runtime MAMP, per impedire l'installazione accidentale di pacchetti che richiedono PHP 8.4+;
+- rimangono cinque advisory su Laravel 11, eliminabili soltanto con Laravel 12.71 o successivo. L'header injection email è già bloccata dal middleware globale e dai test; la verifica email usa una firma HMAC applicativa e non URL Laravel temporaneamente firmati. Le altre segnalazioni restano comunque censite fino al cambio major.
 
 ## Rischi residui da non nascondere
 
 1. **Reset password**: il flusso attuale sostituisce subito la password con una temporanea inviata via email. Il rate limiting riduce l'abuso, ma resta possibile provocare lockout ripetuti conoscendo l'email. Va sostituito con token monouso hashato e scadenza, senza modificare la password fino alla conferma.
-2. **Laravel 11**: serve una milestone tecnica di upgrade a una release non interessata dagli advisory correnti; non è stato eseguito un cambio major non concordato nello STEP 1.
+2. **Laravel 11**: il patch-level è 11.57.1 e la criticità TokenGuard è stata rimossa, ma cinque advisory restano formalmente aperti. Serve una milestone tecnica di upgrade almeno a Laravel 12.71; non è stato eseguito un cambio major non concordato.
 3. **CSP**: non è stata imposta una Content Security Policy rigida perché il CMS contiene script/style inline e dipendenze CDN. Prima occorre estrarre gli inline o introdurre nonce/hash.
 4. **2FA e session management**: il portale non offre MFA, elenco sessioni, revoca remota o notifica di nuovo accesso.
 5. **Rate limiting distribuito**: in produzione il limiter deve usare uno store condiviso e la configurazione proxy deve garantire un IP client affidabile.

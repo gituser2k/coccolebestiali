@@ -30,6 +30,12 @@ class ExampleTest extends TestCase
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     }
 
+    public function test_legacy_register_page_redirects_to_the_home_registration_panel(): void
+    {
+        $this->get('/register')
+            ->assertRedirect('/?auth=register');
+    }
+
     public function test_state_changing_web_requests_require_a_csrf_token(): void
     {
         $this->app->detectEnvironment(static fn (): string => 'local');

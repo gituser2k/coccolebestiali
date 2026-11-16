@@ -101,6 +101,8 @@ export default function BookingsSection({ perspective }: { perspective: 'owner' 
   const bookingHistory = bookings.filter((booking) => !ACTIVE_BOOKING_STATUSES.includes(booking.status))
   const visibleBookings = bookingsView === 'active' ? activeBookings : bookingHistory
 
+  // Reload only when the requested booking perspective changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadBookings() }, [perspective])
   useEffect(() => {
     if (!toast) return

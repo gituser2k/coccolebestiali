@@ -60,6 +60,20 @@ type PasswordChecks = {
   noSpaces: boolean
 }
 
+type AuthView = 'default' | 'login' | 'register'
+type RegistrationStatus = { type: 'error' | 'success'; message: string } | null
+
+function getAuthViewFromLocation(): AuthView {
+  const params = new URLSearchParams(window.location.search)
+  const requestedView = params.get('auth')
+
+  if (requestedView === 'login' || requestedView === 'register') {
+    return requestedView
+  }
+
+  return params.get('login') === '1' && Boolean(publicProfileReturnPath()) ? 'login' : 'default'
+}
+
 declare global {
   interface Window {
     AppleID?: {
@@ -140,10 +154,11 @@ function HomePage() {
     appleMockAuth: false,
   })
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false)
-  const [isLoginPanelOpen, setIsLoginPanelOpen] = useState(() => new URLSearchParams(window.location.search).get('login') === '1' && Boolean(publicProfileReturnPath()))
+  const [authView, setAuthView] = useState<AuthView>(getAuthViewFromLocation)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoginBusy, setIsLoginBusy] = useState(false)
   const [isCredentialLoginBusy, setIsCredentialLoginBusy] = useState(false)
+  const [isRegistrationBusy, setIsRegistrationBusy] = useState(false)
   const [isLogoutBusy, setIsLogoutBusy] = useState(false)
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false)
   const [isForgotPasswordBusy, setIsForgotPasswordBusy] = useState(false)
@@ -164,9 +179,24 @@ function HomePage() {
     email: '',
     password: '',
   })
+  const [registrationData, setRegistrationData] = useState({
+    email: '',
+    password: '',
+    passwordConfirmation: '',
+  })
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatus>(null)
   const googleTokenClientRef = useRef<GoogleTokenClient | null>(null)
   const googleIdInitializedRef = useRef(false)
+  const googleAuthIntentRef = useRef<'login' | 'register'>('login')
+  const loginTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const registerTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const lastAuthTriggerRef = useRef<HTMLButtonElement | null>(null)
   const temporaryPasswordChecks = getPasswordChecks(temporaryNewPassword)
+  const registrationPasswordChecks = getPasswordChecks(registrationData.password)
+  const hasRegistrationPasswordInput = registrationData.password.length > 0
+  const isRegistrationConfirmationValid =
+    registrationData.passwordConfirmation.length > 0 &&
+    registrationData.passwordConfirmation === registrationData.password
   const hasTemporaryPasswordInput = temporaryNewPassword.length > 0
   const isTemporaryPasswordConfirmationValid =
     temporaryConfirmPassword.length > 0 && temporaryConfirmPassword === temporaryNewPassword
@@ -184,8 +214,29 @@ function HomePage() {
     void loadAuthConfig()
     void loadCurrentUser()
     // Initial auth bootstrap must run once on page load; the functions use current module state intentionally.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setAuthView(getAuthViewFromLocation())
+      setLoginData((current) => ({ ...current, password: '' }))
+      setRegistrationData((current) => ({ ...current, password: '', passwordConfirmation: '' }))
+      setRegistrationStatus(null)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!currentUser || authView === 'default') {
+      return
+    }
+
+    setAuthView('default')
+    updateAuthUrl('default', 'replace')
+    // Authentication views are not available while a portal session is active.
+  }, [currentUser, authView])
 
   useEffect(() => {
     if (!authConfig.googleClientId) {
@@ -213,6 +264,39 @@ function HomePage() {
   function showToast(message: string, type: 'error' | 'success') {
     setToastMessage(message)
     setToastType(type)
+  }
+
+  function updateAuthUrl(view: AuthView, method: 'push' | 'replace' = 'push') {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('login')
+
+    if (view === 'default') {
+      url.searchParams.delete('auth')
+      url.searchParams.delete('verified')
+    } else {
+      url.searchParams.set('auth', view)
+    }
+
+    window.history[method === 'push' ? 'pushState' : 'replaceState']({}, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
+  function openAuthView(view: Exclude<AuthView, 'default'>, trigger: HTMLButtonElement | null) {
+    lastAuthTriggerRef.current = trigger
+    setLoginData((current) => ({ ...current, password: '' }))
+    setRegistrationData((current) => ({ ...current, password: '', passwordConfirmation: '' }))
+    setRegistrationStatus(null)
+    setAuthView(view)
+    updateAuthUrl(view)
+  }
+
+  function closeAuthView() {
+    setLoginData((current) => ({ ...current, password: '' }))
+    setRegistrationData((current) => ({ ...current, password: '', passwordConfirmation: '' }))
+    setRegistrationStatus(null)
+    setAuthView('default')
+    updateAuthUrl('default')
+
+    window.requestAnimationFrame(() => lastAuthTriggerRef.current?.focus())
   }
 
   async function reportTechnicalAuthError(context: string, message: string, details: Record<string, unknown> = {}) {
@@ -354,10 +438,15 @@ function HomePage() {
         async (response) => {
           if (!response?.credential) {
             setIsLoginBusy(false)
+            setIsRegistrationBusy(false)
             return
           }
 
-          await submitGoogleLogin(response.credential)
+          if (googleAuthIntentRef.current === 'register') {
+            await submitGoogleRegistration(response.credential)
+          } else {
+            await submitGoogleLogin(response.credential)
+          }
         }
       )
     }
@@ -369,10 +458,15 @@ function HomePage() {
           if (response?.error || !response?.access_token) {
             showToast('Autenticazione Google annullata o non riuscita.', 'error')
             setIsLoginBusy(false)
+            setIsRegistrationBusy(false)
             return
           }
 
-          await submitGoogleLogin('', response.access_token)
+          if (googleAuthIntentRef.current === 'register') {
+            await submitGoogleRegistration('', response.access_token)
+          } else {
+            await submitGoogleLogin('', response.access_token)
+          }
         },
         handleGooglePopupError
       )
@@ -383,6 +477,7 @@ function HomePage() {
 
   function handleGooglePopupError(error: GooglePopupError) {
     setIsLoginBusy(false)
+    setIsRegistrationBusy(false)
     const message = getGooglePopupMessage(error)
     showToast(message, error.type === 'popup_closed' ? 'success' : 'error')
 
@@ -413,7 +508,8 @@ function HomePage() {
 
       const user = normalizePortalUser(payload?.data?.user ?? null)
       persistCurrentUser(payload?.data?.user ?? null)
-      setIsLoginPanelOpen(false)
+      setAuthView('default')
+      updateAuthUrl('default', 'replace')
 
       if (endpoint === '/api/auth/login/email' && user?.passwordResetRequired) {
         setTemporaryNewPassword('')
@@ -544,7 +640,8 @@ function HomePage() {
       }
 
       clearPersistedUser()
-      setIsLoginPanelOpen(false)
+      setAuthView('default')
+      updateAuthUrl('default', 'replace')
       showToast('Logout completato.', 'success')
     } catch {
       showToast('Si è verificato un errore. Riprova più tardi.', 'error')
@@ -615,6 +712,8 @@ function HomePage() {
   }
 
   async function handleGoogleLogin() {
+    googleAuthIntentRef.current = 'login'
+
     if (!authConfig.googleClientId) {
       await handleGenericAuthTechnicalError(
         'HomePage.handleGoogleLogin',
@@ -710,10 +809,206 @@ function HomePage() {
     }
   }
 
+  async function postRegistration(
+    endpoint: string,
+    body: Record<string, unknown>,
+    mode: 'email' | 'social'
+  ) {
+    setIsRegistrationBusy(true)
+    setRegistrationStatus(null)
+
+    try {
+      const response = await fetchAuthRequest(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || 'Registrazione non completata.')
+      }
+
+      setRegistrationData((current) => ({ ...current, password: '', passwordConfirmation: '' }))
+
+      if (mode === 'social') {
+        persistCurrentUser(payload?.data?.user ?? null)
+        window.location.assign(sanitizeText(payload?.data?.redirect ?? '') || '/')
+        return
+      }
+
+      setRegistrationStatus({
+        type: 'success',
+        message: 'Registrazione completata. Controlla la tua email per confermare l account.',
+      })
+    } catch (error) {
+      const message = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Registrazione non completata. Riprova.'
+        : error instanceof Error ? error.message : 'Errore durante la registrazione.'
+
+      if (TECHNICAL_AUTH_MESSAGES.has(message)) {
+        await handleGenericAuthTechnicalError('HomePage.postRegistration', message, { endpoint })
+      } else {
+        setRegistrationStatus({ type: 'error', message })
+      }
+    } finally {
+      setIsRegistrationBusy(false)
+    }
+  }
+
+  async function handleEmailRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const email = sanitizeText(registrationData.email).toLowerCase()
+    if (!validateEmail(email)) {
+      setRegistrationStatus({ type: 'error', message: 'Indirizzo email errato.' })
+      return
+    }
+
+    if (!isPasswordValid(registrationData.password)) {
+      setRegistrationStatus({
+        type: 'error',
+        message: 'La password inserita non rispetta i criteri previsti.',
+      })
+      return
+    }
+
+    if (!isRegistrationConfirmationValid) {
+      setRegistrationStatus({ type: 'error', message: 'Le password inserite non coincidono.' })
+      return
+    }
+
+    await postRegistration('/api/auth/register/email', {
+      email,
+      password: registrationData.password,
+    }, 'email')
+  }
+
+  async function submitGoogleRegistration(idToken: string, accessToken: string = '') {
+    await postRegistration('/api/auth/register/google', { idToken, accessToken }, 'social')
+  }
+
+  async function submitAppleRegistration(identityToken: string, user: unknown, state: string) {
+    await postRegistration('/api/auth/register/apple', { identityToken, user, state }, 'social')
+  }
+
+  async function submitAppleMockRegistration() {
+    const now = Date.now()
+    await postRegistration('/api/auth/register/apple/mock', {
+      mockEmail: `applemock+account+${now}@privaterelay.appleid.com`,
+      mockName: 'Apple Mock Account',
+      mockSub: `apple_mock_account_${now}`,
+    }, 'social')
+  }
+
+  async function handleGoogleRegistration() {
+    googleAuthIntentRef.current = 'register'
+
+    if (!authConfig.googleClientId) {
+      await handleGenericAuthTechnicalError(
+        'HomePage.handleGoogleRegistration',
+        'GOOGLE_CLIENT_ID non configurato nel backend.'
+      )
+      return
+    }
+
+    if (!await loadGoogleIdentitySdk()) {
+      await handleGenericAuthTechnicalError('HomePage.handleGoogleRegistration', 'SDK Google non disponibile.')
+      return
+    }
+
+    setIsRegistrationBusy(true)
+    ensureGoogleClientsInitialized()
+
+    if (googleTokenClientRef.current) {
+      try {
+        googleTokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+      } catch {
+        handleGooglePopupError({ type: 'unknown' })
+      }
+      return
+    }
+
+    if (!getGoogleAccounts()?.id) {
+      await handleGenericAuthTechnicalError('HomePage.handleGoogleRegistration', 'SDK Google non disponibile.')
+      setIsRegistrationBusy(false)
+      return
+    }
+
+    const prompted = promptGoogleIdentity((notification) => {
+      if (notification?.isNotDisplayed?.()) {
+        setIsRegistrationBusy(false)
+        void handleGenericAuthTechnicalError(
+          'HomePage.handleGoogleRegistration',
+          'Google non disponibile su questo browser. Riprova o usa Email.'
+        )
+      }
+    })
+
+    if (!prompted) {
+      setIsRegistrationBusy(false)
+    }
+  }
+
+  async function handleAppleRegistration() {
+    if (authConfig.appleMockAuth) {
+      await submitAppleMockRegistration()
+      return
+    }
+
+    if (!authConfig.appleClientId || !authConfig.appleRedirectUri) {
+      showToast('Metodo di registrazione ancora non disponibile', 'success')
+      return
+    }
+
+    if (!window.AppleID?.auth) {
+      await handleGenericAuthTechnicalError('HomePage.handleAppleRegistration', 'SDK Apple non disponibile.')
+      return
+    }
+
+    setIsRegistrationBusy(true)
+
+    try {
+      const challenge = await getAppleAuthChallenge()
+      window.AppleID.auth.init({
+        clientId: authConfig.appleClientId,
+        scope: 'name email',
+        redirectURI: authConfig.appleRedirectUri,
+        usePopup: true,
+        nonce: challenge.nonce,
+        state: challenge.state,
+      })
+
+      const response = await window.AppleID.auth.signIn()
+      const identityToken = response?.authorization?.id_token ?? ''
+      if (!identityToken) {
+        throw new Error('Token Apple non disponibile.')
+      }
+
+      await submitAppleRegistration(identityToken, response?.user ?? null, challenge.state)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Errore autenticazione Apple.'
+      if (message === 'Token Apple non disponibile.') {
+        await handleGenericAuthTechnicalError('HomePage.handleAppleRegistration', message)
+      } else {
+        setRegistrationStatus({ type: 'error', message })
+      }
+      setIsRegistrationBusy(false)
+    }
+  }
+
   function renderCredentialLogin() {
     return (
       <section className="hero-login-panel" aria-label="Pannello di login">
-        <h2 className="hero-login-title">Accedi al tuo profilo</h2>
+        <div className="hero-login-head">
+          <h2 className="hero-login-title">Accedi al tuo profilo</h2>
+          <button className="hero-login-back" type="button" onClick={closeAuthView}>
+            Torna alla home
+          </button>
+        </div>
         <p className="hero-login-subtitle">
           Inserisci le tue credenziali oppure utilizza il provider che preferisci.
         </p>
@@ -805,6 +1100,138 @@ function HomePage() {
     )
   }
 
+  function renderRegistration() {
+    return (
+      <section className="hero-login-panel hero-register-panel" aria-label="Pannello di registrazione">
+        <div className="hero-login-head">
+          <h2 className="hero-login-title">Crea il tuo account</h2>
+          <button className="hero-login-back" type="button" onClick={closeAuthView}>
+            Torna alla home
+          </button>
+        </div>
+        <p className="hero-login-subtitle">
+          Un solo account per cercare assistenza e, quando vorrai, offrire i tuoi servizi.
+        </p>
+
+        <form className="hero-login-form" onSubmit={(event) => void handleEmailRegistration(event)}>
+          <label className="hero-login-field">
+            <span>Email</span>
+            <input
+              type="email"
+              name="register-email"
+              autoComplete="email"
+              placeholder="nome@email.it"
+              required
+              value={registrationData.email}
+              onChange={(event) => {
+                setRegistrationData((current) => ({ ...current, email: event.target.value }))
+                setRegistrationStatus(null)
+              }}
+            />
+          </label>
+          <div className="hero-register-password-grid">
+            <label className="hero-login-field">
+              <span>Password</span>
+              <input
+                type="password"
+                name="register-password"
+                autoComplete="new-password"
+                placeholder="Inserisci password"
+                required
+                value={registrationData.password}
+                onChange={(event) => {
+                  setRegistrationData((current) => ({ ...current, password: event.target.value }))
+                  setRegistrationStatus(null)
+                }}
+              />
+            </label>
+            <label className="hero-login-field">
+              <span>Conferma Password</span>
+              <input
+                type="password"
+                name="register-password-confirmation"
+                autoComplete="new-password"
+                placeholder="Conferma password"
+                required
+                value={registrationData.passwordConfirmation}
+                onChange={(event) => {
+                  setRegistrationData((current) => ({ ...current, passwordConfirmation: event.target.value }))
+                  setRegistrationStatus(null)
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="hero-password-guidance" aria-live="polite">
+            <strong>La password deve contenere:</strong>
+            <div className="hero-password-rule-list">
+              {[
+                ['minLength', '10+ caratteri'],
+                ['uppercase', '1 maiuscola'],
+                ['lowercase', '1 minuscola'],
+                ['number', '1 numero'],
+                ['symbol', '1 simbolo'],
+                ['noSpaces', 'nessuno spazio'],
+              ].map(([key, label]) => {
+                const isValid = registrationPasswordChecks[key as keyof PasswordChecks]
+                return (
+                  <span
+                    key={key}
+                    className={`hero-password-rule ${isValid ? 'is-valid' : hasRegistrationPasswordInput ? 'is-invalid' : ''}`}
+                  >
+                    {label}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+
+          {registrationData.passwordConfirmation && !isRegistrationConfirmationValid ? (
+            <p className="hero-login-status is-error">Le password inserite non coincidono.</p>
+          ) : null}
+
+          {registrationStatus ? (
+            <p className={`hero-login-status is-${registrationStatus.type}`} role="status">
+              {registrationStatus.message}
+            </p>
+          ) : null}
+
+          <button
+            className="hero-login-action hero-login-primary"
+            type="submit"
+            disabled={isRegistrationBusy}
+            aria-busy={isRegistrationBusy}
+          >
+            {isRegistrationBusy ? <span className="hero-login-button-spinner" aria-hidden="true" /> : null}
+            <span>Registrati con Email</span>
+          </button>
+        </form>
+
+        <div className="hero-login-divider" aria-hidden="true"><span>oppure</span></div>
+        <div className="hero-login-socials">
+          <button
+            className="hero-login-social-btn"
+            type="button"
+            disabled={isRegistrationBusy}
+            onClick={() => void handleGoogleRegistration()}
+          >
+            <GoogleIcon />
+            Registrati con Google
+          </button>
+          <button
+            className="hero-login-social-btn"
+            type="button"
+            disabled={isRegistrationBusy}
+            onClick={() => void handleAppleRegistration()}
+          >
+            <AppleIcon />
+            Registrati con Apple
+          </button>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <main className="home-shell">
       <section className="hero-card" aria-label="Banner principale">
@@ -861,23 +1288,31 @@ function HomePage() {
                   ) : (
                     <>
                       <button
+                        ref={loginTriggerRef}
                         className="action ghost"
                         type="button"
                         onClick={() => {
-                          setIsLoginPanelOpen(true)
+                          openAuthView('login', loginTriggerRef.current)
                         }}
                       >
                         Accedi
                       </button>
-                      <a className="action solid" href="/register">
+                      <button
+                        ref={registerTriggerRef}
+                        className="action solid"
+                        type="button"
+                        onClick={() => openAuthView('register', registerTriggerRef.current)}
+                      >
                         Registrati
-                      </a>
+                      </button>
                     </>
                   )}
                 </nav>
               </div>
-              {isLoginPanelOpen ? (
+              {authView === 'login' ? (
                 renderCredentialLogin()
+              ) : authView === 'register' ? (
+                renderRegistration()
               ) : currentUser?.role === 'pet_assistant' ? (
                 <HomeActiveBookings key={currentUser.id} />
               ) : (
