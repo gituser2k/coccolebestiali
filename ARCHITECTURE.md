@@ -349,7 +349,7 @@ La registrazione email richiede almeno 10 caratteri, maiuscola, minuscola, numer
 
 Il backend salva l'identità esclusivamente in `cb_portal_user_id` nella sessione Laravel. `cb_portal_ui_mode` conserva soltanto la preferenza visuale `owner|assistant` e non concede permessi. `App\Support\PortalSession` è il resolver unico: non consulta cookie applicativi, `$_COOKIE`, header raw o ruolo fornito dal client. Login e verifica email rigenerano l'ID di sessione; logout e cancellazione account invalidano la sessione e rigenerano il token CSRF.
 
-I cookie applicativi legacy `cb_portal_user_id` e `cb_portal_user_role` non vengono più creati. Le risposte di autenticazione li cancellano esplicitamente per bonificare i browser esistenti. L'identità viaggia soltanto tramite il cookie di sessione Laravel, configurato `HttpOnly` e `SameSite=Lax`; in produzione `SESSION_SECURE_COOKIE` deve essere abilitato sotto HTTPS.
+I cookie applicativi storici `cb_portal_user_id` e `cb_portal_user_role` non vengono creati né consultati. L'identità viaggia soltanto tramite il cookie di sessione Laravel, configurato `HttpOnly` e `SameSite=Lax`; in produzione `SESSION_SECURE_COOKIE` deve essere abilitato sotto HTTPS.
 
 `App\Http\Middleware\RequirePortalSession` protegge a livello route profili, account, preferiti e prenotazioni. `RequireActiveCapability`, alias `portal.capability`, autorizza le route per capability attiva; `RequireAssistantProfileAccess` consente ai soli stati `draft|pending_verification|active` di compilare il profilo Assistant senza renderlo pubblico. Gli endpoint Owner richiedono capability Owner attiva. La stessa regola è ripetuta nel dominio per difesa in profondità. Tutte le richieste mutative usano il token `XSRF-TOKEN`/`X-XSRF-TOKEN`; il frontend centralizza il comportamento in `csrfFetch`, incluso OAuth e CMS.
 
@@ -598,7 +598,6 @@ Le chiamate HTTP hanno timeout applicativi. Quando viene aggiunta un'integrazion
 Gruppi rilevanti, senza valori:
 
 - applicazione: `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_URL`, `APP_TIMEZONE`, locale/debug;
-- feature flag: `CB_MULTI_PROFILE_ENABLED`, disattivato fino all'approvazione delle milestone multi-profilo;
 - database: `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`;
 - sessione: `SESSION_DRIVER`, lifetime, domain, secure, http-only, same-site;
 - cache/queue: `CACHE_STORE`, `QUEUE_CONNECTION` e relativi parametri;
@@ -667,7 +666,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 7. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
 8. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
 
-## 18. Architettura target multi-profilo
+## 18. Architettura definitiva multi-profilo
 
 Questa sezione registra l'architettura multi-profilo consolidata negli STEP 2–10.
 
@@ -683,7 +682,7 @@ Separare:
 
 Ogni account può agire come Owner. Il profilo Assistant è opzionale, salvabile in bozza e pubblicabile dopo il salvataggio dei campi obbligatori Alias e Città; la checklist estesa resta informativa.
 
-### 18.2 Schema capability implementato nello STEP 2
+### 18.2 Schema capability e dati contestuali
 
 ```text
 user_capabilities
@@ -727,8 +726,7 @@ Discovery dual-role implementata nello STEP 6:
 - un account con capability Assistant attiva è ricercabile senza cambiare identità;
 - stato Assistant sospeso, disabilitato o parziale esclude il profilo;
 - pet, filtro preferiti e gestione preferiti dipendono dalla capability Owner attiva;
-- il self-favorite è escluso dall'API, dal dominio e dal database;
-- `viewerRole` resta nel contratto soltanto per compatibilità con navigazione e UI precedenti allo switch dello STEP 9.
+- il self-favorite è escluso dall'API, dal dominio e dal database.
 
 Prenotazioni dual-role implementate nello STEP 7:
 
@@ -739,7 +737,7 @@ Prenotazioni dual-role implementate nello STEP 7:
 - recensioni e reputazione dichiarano esplicitamente la capability del reviewer e del destinatario;
 - le email puntano alla pagina profilo e prospettiva corrette; i token di cancellazione derivano il lato dalla partecipazione, resa non ambigua dal divieto self-booking.
 
-### 18.3 Onboarding Assistant implementato nello STEP 9
+### 18.3 Onboarding Assistant
 
 - Registrazione neutra “Account Coccole Bestiali”.
 - Owner disponibile senza scelta irreversibile; pet richiesto just-in-time alla prenotazione.
@@ -758,22 +756,21 @@ Prenotazioni dual-role implementate nello STEP 7:
 - Prenotazioni accettano `perspective=owner|assistant`.
 - Impedire prenotazione, preferito e recensione verso se stessi.
 - Separare location e reputazione per contesto.
-- Il login social non dovrà mai rimuovere capacità esistenti.
+- Il login social non deve mai rimuovere capacità esistenti.
 - Distinguere disattivazione profilo dalla cancellazione account.
 - Non unire automaticamente eventuali account doppi preesistenti.
 
 ### 18.5 Strategia di migrazione completata
 
-1. Correggere autenticazione/sessione e aggiungere test di caratterizzazione.
-2. Aggiungere schema capability in modo additivo.
-3. Backfill: tutti Owner attivi; gli Assistant esistenti anche Assistant attivi.
-4. Introdurre lettura nuova con fallback temporaneo a `users.role`.
-5. Centralizzare le policy di autorizzazione.
-6. Adeguare ricerca, profili, booking, reputazione, CMS, seed ed export.
-7. Rilasciare il frontend con feature flag.
-8. Monitorare e rimuovere infine campo/cookie del vecchio ruolo.
+1. Autenticazione/sessione corrette e coperte da test di caratterizzazione.
+2. Schema capability introdotto in modo additivo.
+3. Account esistenti sottoposti a backfill: tutti Owner attivi; gli Assistant storici anche Assistant attivi.
+4. Letture e policy migrate progressivamente dalle strutture storiche alle capability.
+5. Ricerca, profili, booking, reputazione, CMS, seed ed export adeguati.
+6. Frontend neutro, onboarding e switch rilasciati e collaudati.
+7. Campo ruolo, fallback, tabelle duplicate e compatibilità runtime rimossi nel cutover finale.
 
-### 18.6 Ingresso alla registrazione target (implementato nello STEP 8)
+### 18.6 Ingresso alla registrazione
 
 Con la registrazione neutra non sono più necessarie le due card Owner/Assistant della pagina autonoma. È implementato il seguente pattern:
 
@@ -791,9 +788,9 @@ Con la registrazione neutra non sono più necessarie le due card Owner/Assistant
 
 Una pagina autonoma potrà essere reintrodotta soltanto se in futuro la registrazione richiederà contenuti legali, editoriali o step sufficientemente estesi da non essere gestibili nella hero.
 
-### 18.7 Piano di consegna a milestone (decisione proposta)
+### 18.7 Registro del piano di consegna completato
 
-La migrazione multi-profilo non deve essere implementata come un unico intervento. Si procede per milestone compatibili e verificabili. Al termine di ogni milestone l'implementazione viene fermata, vengono consegnati risultati automatici e checklist manuale, e la milestone successiva inizia soltanto dopo approvazione esplicita.
+La migrazione multi-profilo è stata eseguita per milestone compatibili e verificabili. Ogni milestone è stata chiusa con risultati automatici, checklist manuale e approvazione esplicita prima di procedere.
 
 | Step | Obiettivo | Principali modifiche | Gate di approvazione |
 | --- | --- | --- | --- |
@@ -818,7 +815,7 @@ Regole di esecuzione:
 - ogni gate include test automatici, controlli DB e una checklist manuale breve;
 - una mancata approvazione riapre lo stesso step: non si procede accumulando difetti;
 - gli step 0–3, 4–7 e 8–10 possono essere lavorati come macro-fasi tecniche, ma i gate restano separati;
-- la rimozione del ruolo esclusivo è avvenuta nello STEP 10 dopo backup, restore, prova su clone e verifica dello schema ricostruito da zero; i cookie identità applicativi, essendo insicuri, sono stati rimossi nello STEP 1 e vengono ancora cancellati dalle risposte per bonificare browser precedenti.
+- la rimozione del ruolo esclusivo è avvenuta nello STEP 10 dopo backup, restore, prova su clone e verifica dello schema ricostruito da zero; i cookie identità applicativi, essendo insicuri, non sono creati né letti.
 
 ## 19. Convenzioni per modifiche future
 
@@ -869,6 +866,7 @@ Regole di esecuzione:
 | 2026-11-16 | Gate STEP 9 | Milestone onboarding, switch multi-profilo, rifiniture profilo Assistant e upgrade Laravel 12 approvati dall'utente | Intero changeset STEP 9 sul branch `changeaccount` | Nessuna nuova tabella; catalogo qualifica additivo; backup pre-step integro | Controlli manuali completati, audit globale pulito e gate utente `OK STEP 9` |
 | 2026-11-16 | STEP 10 cutover definitivo | Rimosso il ruolo esclusivo e resi autorevoli capability, profili contestuali e reputazioni per capability; aggiornati auth, discovery, booking, CMS demo, seed/export e schema cumulativo | `users`, `user_capabilities`, profili, `profile_reputation`, modelli/controller/frontend/test, `migration.txt`, `step10_finalize_multi_profile.sql`, seed ed export, `docs/migrations/changeaccount-step10-final-cutover.md` | Eliminati `users.role`, `personaldata`, `user_reputation`; backup privato verificato; rollback solo tramite restore completo | Cutover provato su clone 42/83/83 e applicato al DB locale; rebuild vuoto 46 tabelle; seed 41 account/40 Assistant/81 reputazioni; 66 test/362 asserzioni, 110 route, lint/build, audit Composer/npm e smoke HTTP puliti |
 | 2026-11-16 | Gate STEP 10 | Approvato il consolidamento definitivo multi-profilo e la regola CTA home coerente con lo switch Owner/Assistant | Intero changeset STEP 10 sul branch `changeaccount` | Database locale sullo schema finale; rollback disponibile dal backup privato verificato | Gate utente `OK STEP 10`; migrazione multi-profilo completata |
+| 2026-11-16 | Pulizia post-cutover | Rimossi il feature flag non consumato, la compatibilità runtime del cookie ruolo, il fallback a uno snapshot demo assente e sei dump intermedi; mantenuti migration di upgrade, audit, backup pre-STEP 0 e backup pre-cutover finale | `php/.env.example`, `PortalSession`, `AuthController`, `DemoData`, `php/config/features.php`, storage backup privato e documentazione | Nessuna modifica DB; i dump intermedi sono stati spostati nel Cestino e restano recuperabili fino al suo svuotamento | Ricerca globale dei residui, suite backend, lint e build frontend |
 
 ### Modello per nuove righe
 

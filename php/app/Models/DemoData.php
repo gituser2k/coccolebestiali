@@ -10,7 +10,6 @@ use Throwable;
 class DemoData
 {
     private const HOLISTIC_SNAPSHOT = 'migration/seed_demo_holistic.sql';
-    private const LEGACY_SNAPSHOT = 'migration/seed_current_profiles.sql';
 
     private const DATA_TABLES = [
         'booking_action_token',
@@ -108,11 +107,6 @@ class DemoData
     public function seed(): array
     {
         $snapshotPath = base_path('migration/seed_demo_data.sql');
-        $legacySnapshot = ! is_file($snapshotPath);
-        if ($legacySnapshot) {
-            $snapshotPath = base_path(self::LEGACY_SNAPSHOT);
-        }
-
         $holisticPath = base_path(self::HOLISTIC_SNAPSHOT);
         foreach ([$snapshotPath, $holisticPath] as $path) {
             if (! is_file($path) || ! is_readable($path)) {
@@ -122,9 +116,7 @@ class DemoData
 
         $this->clear();
         $this->runSnapshot($snapshotPath, $holisticPath);
-        if (! $legacySnapshot) {
-            $this->restoreStorageSnapshot();
-        }
+        $this->restoreStorageSnapshot();
 
         $summary = $this->summary();
         if ($summary['assistantProfiles'] !== 40 || $summary['accounts'] !== 41) {
@@ -190,7 +182,6 @@ class DemoData
             throw new RuntimeException('Snapshot non leggibile: '.basename($snapshotPath));
         }
 
-        $legacySnapshot = basename($snapshotPath) === basename(self::LEGACY_SNAPSHOT);
         $statement = '';
         foreach ($lines as $line) {
             $line = trim($line);
@@ -201,9 +192,6 @@ class DemoData
             $statement .= $line."\n";
             if (str_ends_with($line, ';')) {
                 $sql = rtrim($statement);
-                if ($legacySnapshot && str_starts_with($sql, 'INSERT INTO `ownerpetgallery`')) {
-                    $sql = $this->upgradeLegacyPetPhoto($sql);
-                }
                 yield $sql;
                 $statement = '';
             }
@@ -212,24 +200,6 @@ class DemoData
         if ($statement !== '') {
             throw new RuntimeException('Istruzione SQL incompleta: '.basename($snapshotPath));
         }
-    }
-
-    private function upgradeLegacyPetPhoto(string $sql): string
-    {
-        // The old export includes a caption on each photo. The current schema stores a profile flag.
-        $quotedValue = "'(?:''|\\\\.|[^'\\\\])*'";
-        $updated = preg_replace(
-            "/(VALUES\\s*\\(\\s*@cb_pet_\\d+\\s*,\\s*{$quotedValue}\\s*,\\s*){$quotedValue}(?=\\s*,)/s",
-            '${1}1',
-            $sql,
-            1,
-            $count,
-        );
-        if ($count !== 1 || $updated === null) {
-            throw new RuntimeException('Foto profilo non valida nello snapshot demo precedente.');
-        }
-
-        return str_replace('`caption`', '`is_profile`', $updated);
     }
 
     private function restoreStorageSnapshot(): void

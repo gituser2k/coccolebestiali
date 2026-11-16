@@ -102,6 +102,8 @@ Backup completo immediatamente precedente all'applicazione dello STEP 5:
 php/storage/app/private/backups/changeaccount-step5-before-20261110-215036.sql
 ```
 
+Il dump intermedio è stato ritirato dal workspace dopo il cutover definitivo; restano conservati il backup pre-STEP 0 e quello immediatamente precedente allo STEP 10.
+
 | Proprietà | Valore |
 | --- | --- |
 | Dimensione | 403.606 byte |

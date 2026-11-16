@@ -8,8 +8,6 @@ final class PortalSession
 {
     public const USER_ID_KEY = 'cb_portal_user_id';
 
-    public const LEGACY_ROLE_KEY = 'cb_portal_user_role';
-
     public const UI_MODE_KEY = 'cb_portal_ui_mode';
 
     public static function userId(Request $request): int
@@ -29,7 +27,7 @@ final class PortalSession
 
         $request->session()->regenerate();
         $request->session()->put(self::USER_ID_KEY, $userId);
-        $request->session()->forget([self::LEGACY_ROLE_KEY, self::UI_MODE_KEY]);
+        $request->session()->forget(self::UI_MODE_KEY);
     }
 
     public static function uiMode(Request $request): string
@@ -56,7 +54,7 @@ final class PortalSession
             return;
         }
 
-        $request->session()->forget([self::USER_ID_KEY, self::LEGACY_ROLE_KEY, self::UI_MODE_KEY]);
+        $request->session()->forget([self::USER_ID_KEY, self::UI_MODE_KEY]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
     }

@@ -110,12 +110,14 @@ CB_MULTI_PROFILE_ENABLED=false
 
 Il flag non è ancora consumato dal codice applicativo e non cambia il comportamento. Verrà collegato esclusivamente quando un percorso multi-profilo completo sarà disponibile e approvato.
 
+Stato finale: dopo il cutover approvato dello STEP 10 il flag, rimasto intenzionalmente non consumato, è stato rimosso insieme a `config/features.php`. Il modello multi-profilo è ora il solo comportamento applicativo e non richiede un interruttore runtime.
+
 ## Strategia di rollback
 
 Per lo STEP 0 non è stata applicata alcuna modifica al database né al comportamento runtime.
 
 - Rollback codice: revert delle sole modifiche documentali/configurative dello step.
-- Rollback configurazione: mantenere o ripristinare `CB_MULTI_PROFILE_ENABLED=false`.
+- Rollback configurazione durante la migrazione: mantenere o ripristinare `CB_MULTI_PROFILE_ENABLED=false`; questa indicazione è storica e non si applica allo schema definitivo post-STEP 10.
 - Rollback DB futuro: interrompere le scritture, verificare checksum del dump, ripristinare prima su database isolato e confrontare i conteggi; il ripristino sul database di lavoro richiede una decisione esplicita perché sostituisce i dati successivi al dump.
 - Il dump privato non viene rimosso automaticamente dal rollback del codice.
 

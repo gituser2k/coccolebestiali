@@ -709,8 +709,7 @@ class AuthController extends Controller
             return response()->json([
                 'ok' => true,
             ], Response::HTTP_OK)
-                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
-                ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
+                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null));
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 
@@ -758,8 +757,7 @@ class AuthController extends Controller
                 'ok' => true,
                 'message' => 'Account rimosso definitivamente.',
             ], Response::HTTP_OK)
-                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
-                ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
+                ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null));
         } catch (QueryException $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 
@@ -1554,8 +1552,7 @@ class AuthController extends Controller
         PortalSession::start(request(), $userId);
 
         return $response
-            ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null))
-            ->withCookie(Cookie::forget(PortalSession::LEGACY_ROLE_KEY, '/', null));
+            ->withCookie(Cookie::forget(PortalSession::USER_ID_KEY, '/', null));
     }
 
     private function withCurrentUiMode(Request $request, array $user): array
