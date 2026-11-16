@@ -183,7 +183,7 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 | `ProfileController` | lettura/salvataggio dati personali Owner/Assistant; cambio password; opzioni catalogo; CRUD pet e file; dati operatore; calendario mensile/giornaliero/copia; ricerca comuni; geocoding |
 | `PetAssistantSearchController` | `getOptions(Request)`; `search(Request)` |
 | `PublicPetAssistantController` | `show(Request, assistantId)`; `availability(Request, assistantId)`; `favorites(Request)`; `setFavorite(Request, assistantId)` |
-| `BookingController` | `index(Request)`; `activeForAssistant(Request)`; `store(Request)`; `storeBatch(Request)`; accept/decline/cancel; alternative; riprogrammazione; recensione; modalità conferma; token email |
+| `BookingController` | `index(Request)` con `perspective`; `activeForAssistant(Request)`; `store(Request)`; `storeBatch(Request)`; azioni validate per lato Owner/Assistant; recensione contestuale; modalità conferma; token email |
 | `MessageController` | invio contatto; elenco/cancellazione/riposta messaggi CMS |
 | `AdminController` | sessione admin; cataloghi; servizi; policy; errori; clear/restore/seed demo |
 
@@ -200,7 +200,7 @@ I controller validano l'input, traducono eccezioni in JSON/codici HTTP e delegan
 | `Profile` | `getPersonalProfile(userId,context?)`; opzioni; CRUD pet; gallery/documenti; `getOperatorProfile(userId)`; `savePersonalProfile(userId,payload,context?)`; credenziali; `saveOperatorProfile(userId,payload)`; calendario |
 | `PetAssistantSearch` | `getOptions(userId=0)`; `search(startDate,endDate,serviceIds,petId,userId,duration,sortBy,onlyWithPhoto,optionFilters,onlyFavorites,showFavoriteStatus)`; disponibilità; distanza; compatibilità pet; servizi |
 | `PublicPetAssistant` | query base profili; dettaglio; preferiti; statistiche risposta; recensioni pubblicate; etichette catalogo |
-| `Booking` | riconciliazione; creazione singola/batch; listato; accept/decline/cancel; riprogrammazione; review; confirmation mode; token; controllo slot/prezzi/sovrapposizioni; reputazione; email ciclo vita |
+| `Booking` | riconciliazione; creazione singola/batch; `listForUser(userId,perspective,activeOnly)`; autorizzazione capability+lato; divieto self-booking; accept/decline/cancel; riprogrammazione; review contestuale; confirmation mode; token; controllo slot/prezzi/sovrapposizioni; reputazione; email ciclo vita |
 | `PortalPolicy` | definizioni statiche, valori DB/fallback, righe CMS e snapshot pubblico |
 | `Admin` | CRUD cataloghi/servizi; policy con log e notifica email; errori |
 | `DemoData` | svuotamento dati; seed; snapshot SQL; ripristino storage; riepilogo |
@@ -276,28 +276,30 @@ I token Apple reali sono verificati crittograficamente contro il JWKS ufficiale 
 
 - `GET /api/search/pet-assistants/options`: servizi, pet autenticato, ruolo legacy, `activeCapabilities`, `canUseOwnerDiscovery`, `canFilterFavorites` e policy.
 - `POST /api/search/pet-assistants`: date, servizi, durata, pet, ordinamento, foto, feature e preferiti.
-- `GET /api/pet-assistants/{assistantId}`: profilo pubblico completo; per il visitatore include `viewerCapabilities` e `canFavorite`.
+- `GET /api/pet-assistants/{assistantId}`: profilo pubblico completo; per il visitatore include `viewerCapabilities`, `viewerAuthenticated`, `canFavorite`, `canBook` e `isOwnProfile`.
 - `GET /api/pet-assistants/{assistantId}/availability?startDate=&endDate=`: slot del profilo.
 - `GET /api/pet-assistant-favorites`: preferiti dell'account con capability Owner attiva; protetta da `portal.auth` e `portal.capability:owner`.
 - `PUT /api/pet-assistants/{assistantId}/favorite`: `{favorite:boolean}`; stessa policy Owner e risposta `422` se account Owner e Assistant coincidono.
 
 ### 8.5 Prenotazioni
 
-- `GET /api/bookings`: prenotazioni dell'utente nella prospettiva determinata dal ruolo corrente.
-- `GET /api/bookings/active-for-assistant`: richieste attive Assistant, richiede sessione server.
-- `POST /api/bookings`: prenotazione singola storica.
-- `POST /api/bookings/batch`: batch idempotente con `requestKey` UUID e uno o più servizi.
-- `POST /api/bookings/confirmation-mode`: `manual|automatic`.
-- `POST /api/bookings/{id}/accept|decline|cancel`.
-- `GET /api/bookings/{id}/alternatives`.
-- `POST /api/bookings/{id}/reschedule` e `/reschedule/respond`.
-- `POST /api/bookings/{id}/review`: sentiment, testo e consenso pubblicazione.
+- `GET /api/bookings?perspective=owner|assistant`: inbox separata per capability; la prospettiva è obbligatoria.
+- `GET /api/bookings/active-for-assistant`: richieste attive Assistant, protetta da sessione e capability Assistant.
+- `POST /api/bookings`: prenotazione singola storica con `perspective=owner`; richiede capability Owner.
+- `POST /api/bookings/batch`: batch idempotente con `perspective=owner`, `requestKey` UUID e uno o più servizi.
+- `POST /api/bookings/confirmation-mode`: `perspective=assistant`, `mode=manual|automatic`.
+- `POST /api/bookings/{id}/accept|decline`: solo `perspective=assistant` e lato Assistant della prenotazione.
+- `POST /api/bookings/{id}/cancel`: `perspective=owner|assistant`, verificata rispetto al lato occupato.
+- `GET /api/bookings/{id}/alternatives?perspective=assistant`.
+- `POST /api/bookings/{id}/reschedule`: solo Assistant; `/reschedule/respond`: solo Owner.
+- `POST /api/bookings/{id}/review`: prospettiva, sentiment, testo e consenso pubblicazione; reviewer e reviewed capability sono persistite.
 - `GET|POST /api/bookings/action/{token}`: visualizzazione/consumo azione email monouso.
 
 Payload batch caratterizzante:
 
 ```json
 {
+  "perspective": "owner",
   "assistantUserId": 15,
   "petId": 1,
   "requestKey": "uuid",
@@ -358,7 +360,7 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 
 ### 10.1 Ruoli attuali
 
-`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con booking e frontend non ancora migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. Dallo STEP 6 discovery e preferiti usano `UserCapability` come policy centralizzata. Se esiste almeno una riga capability per l'account, il suo stato è autoritativo e un set parziale o sospeso fallisce in chiusura; il fallback a `users.role` è ammesso soltanto per account senza alcuna riga, durante la compatibilità transitoria. Prenotazioni e prospettiva UI vengono migrate negli STEP 7 e 9.
+`users.role` vale ancora `pet_owner` o `pet_assistant` per compatibilità con navigazione e frontend non ancora migrati. Dallo STEP 3 non è più l'unica rappresentazione funzionale: ogni risposta utente include `capabilities`, `activeCapabilities` e `modes`. Dallo STEP 6 discovery e preferiti e dallo STEP 7 booking usano `UserCapability` come policy centralizzata. Se esiste almeno una riga capability per l'account, il suo stato è autoritativo e un set parziale o sospeso fallisce in chiusura; il fallback a `users.role` è ammesso soltanto per account senza alcuna riga, durante la compatibilità transitoria. Lo switch generale di prospettiva UI viene introdotto nello STEP 9.
 
 ### 10.2 Pet Owner
 
@@ -383,6 +385,9 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 - Il prezzo viene calcolato dal backend; `expectedTotalCents` rileva variazioni durante il checkout.
 - Le feature richieste vengono congelate per nome nella prenotazione.
 - Il batch è idempotente per `(owner_user_id, request_key)` e hash payload.
+- Owner e Assistant devono essere account distinti; il self-booking è vietato da UI, dominio e check DB.
+- Ogni lettura o azione dichiara `perspective=owner|assistant`; capability attiva e lato della prenotazione devono coincidere.
+- Accettazione e rifiuto non partono direttamente dalla card: sia Assistant sia Owner devono confermare l'azione in una modale riepilogativa prima dell'invio API.
 - La transazione impedisce sovrapposizioni sul calendario dell'Assistant.
 - In modalità automatica la prenotazione nasce confermata; in manuale nasce pending con deadline.
 - Le riprogrammazioni conservano prezzo e stato precedente necessari alla decisione.
@@ -405,6 +410,7 @@ Stati osservati nel dominio:
 - Il testo pubblico richiede `publish_comment=1`.
 - Il punteggio è limitato a `0..100` e ogni variazione genera un `reputation_event`.
 - Dallo STEP 5 il punteggio è separato per capability Owner/Assistant in `profile_reputation`.
+- Dallo STEP 7 `booking_review` persiste `reviewer_capability` e `reviewed_capability`; il testo pubblico è ammesso soltanto per recensioni Owner→Assistant.
 - Ogni evento dichiara `subject_capability`; `user_reputation` resta un mirror del ruolo legacy fino al consolidamento.
 
 ### 10.6 Policy configurabili
@@ -497,11 +503,11 @@ Le tabelle relazione usano vincoli univoci compositi per impedire duplicati.
 | Tabella | Campi/relazione |
 | --- | --- |
 | `booking_counter` | anno e ultimo progressivo |
-| `booking` | numero unique, Owner, Assistant, pet, servizio, slot, data/orari, durata, prezzi, stato, deadline, cancellazione, batch, prima risposta |
+| `booking` | numero unique, Owner, Assistant distinti tramite check, pet, servizio, slot, data/orari, durata, prezzi, stato, deadline, cancellazione, batch, prima risposta |
 | `booking_batch` | Owner, request UUID e hash; unique Owner-request |
 | `booking_feature_preference` | unique booking-feature e nome snapshot |
 | `booking_reschedule` | proposta, proponente, nuovo slot/prezzo, stato precedente e stato proposta |
-| `booking_review` | booking, reviewer, reviewed, sentiment, commento, delta, consenso pubblicazione; unique booking-reviewer |
+| `booking_review` | booking, reviewer/reviewed con capability esplicita, sentiment, commento, delta, consenso pubblicazione; unique booking-reviewer; indice target+capability |
 | `profile_reputation` | PK/FK `(user_id, capability)`, score 0–100; reputazione primaria separata Owner/Assistant e indice capability-score per discovery |
 | `user_reputation` | PK `user_id`, score; mirror temporaneo della prospettiva indicata da `users.role` |
 | `reputation_event` | utente, `subject_capability`, booking, attore, tipo, delta, score risultante e nota |
@@ -651,11 +657,11 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 17. Debito tecnico e rischi conosciuti
 
-1. **Ruolo legacy ancora consumato**: le capability possono coesistere, ma parte di UI e autorizzazioni continua a scegliere una sola prospettiva tramite `users.role` fino agli step 6–9.
-2. **Autorizzazioni di capability**: la sessione è centralizzata, ma i controlli Owner/Assistant restano legati al ruolo esclusivo fino agli step 2–7.
+1. **Ruolo legacy ancora consumato**: le capability possono coesistere e booking/discovery sono contestuali, ma navigazione home e profili continuano a scegliere la vista iniziale tramite `users.role` fino allo STEP 9.
+2. **Autorizzazioni di capability incomplete fuori dal perimetro migrato**: discovery, preferiti e booking sono capability-aware; alcuni endpoint profilo restano da consolidare con onboarding e switch nello STEP 9.
 3. **Copertura end-to-end OAuth**: login email è verificabile localmente; Google e Apple richiedono collaudo manuale con credenziali/provider disponibili.
 4. **Controller legacy**: alcuni controlli difensivi di sessione rimangono nei controller oltre alle guardie di route e potranno essere semplificati dopo la migrazione.
-5. **Autorizzazioni distribuite**: controlli `where(role=...)` non centralizzati.
+5. **Autorizzazioni distribuite residue**: i sottosistemi migrati usano `UserCapability`, ma restano controlli legacy nei flussi profilo/registrazione da rimuovere nello STEP 10.
 6. **Registrazione legacy ancora visibile**: la pagina `/register` continua a chiedere Owner/Assistant fino alla sostituzione prevista nello STEP 8; il backend neutro è già disponibile.
 7. **Mirror profilo legacy**: i dati sono separati nelle nuove tabelle, ma `personaldata` resta in dual-write/fallback fino allo STEP 10 e non può rappresentare entrambe le location.
 8. **Mirror reputazione legacy**: i punteggi sono contestuali, ma `user_reputation` resta in dual-write per il solo ruolo storico fino allo STEP 10.
@@ -668,7 +674,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 
 ## 18. Architettura target multi-profilo
 
-Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4, la reputazione è contestuale dallo STEP 5 e discovery/preferiti consumano le capability dallo STEP 6; booking e modalità UI restano progressivi negli step successivi.
+Questa sezione registra la decisione progettuale per superare il ruolo esclusivo. Lo schema `user_capabilities` è implementato dallo STEP 2, i dati profilo sono separati dallo STEP 4, la reputazione è contestuale dallo STEP 5, discovery/preferiti consumano le capability dallo STEP 6 e booking è a doppia prospettiva dallo STEP 7; la modalità UI globale resta nello STEP 9.
 
 ### 18.1 Principi
 
@@ -727,7 +733,16 @@ Discovery dual-role implementata nello STEP 6:
 - stato Assistant sospeso, disabilitato o parziale esclude il profilo anche se il vecchio ruolo dice Assistant;
 - pet, filtro preferiti e gestione preferiti dipendono dalla capability Owner attiva;
 - il self-favorite è escluso dall'API, dal dominio e dal database;
-- `viewerRole` resta nel contratto soltanto per non anticipare la prospettiva booking dello STEP 7.
+- `viewerRole` resta nel contratto soltanto per compatibilità con navigazione e UI precedenti allo switch dello STEP 9.
+
+Prenotazioni dual-role implementate nello STEP 7:
+
+- il contratto API richiede `perspective=owner|assistant` per inbox e azioni;
+- il backend verifica sia la capability attiva sia la corrispondenza con `owner_user_id` o `assistant_user_id`;
+- lo stesso account può avere contemporaneamente richieste inviate e ricevute in inbox separate;
+- il self-booking è bloccato prima della transazione e dal check `chk_booking_distinct_participants`;
+- recensioni e reputazione dichiarano esplicitamente la capability del reviewer e del destinatario;
+- le email puntano alla pagina profilo e prospettiva corrette; i token di cancellazione derivano il lato dalla partecipazione, resa non ambigua dal divieto self-booking.
 
 ### 18.3 Onboarding target
 
@@ -846,6 +861,8 @@ Regole di esecuzione:
 | 2026-11-10 | Gate STEP 5 | Milestone reputazione contestuale approvata dall'utente con “OK STEP 5” | Intero changeset STEP 5 sul branch `changeaccount` | Database locale migrato; ranking legacy preservati tramite mirror selettivo | Gate manuale completato dopo verifica utente |
 | 2026-11-10 | STEP 6 discovery dual-role | Centralizzate le policy capability di discovery; ricerca, profilo pubblico e preferiti non dipendono più dal ruolo esclusivo; vietato il self-favorite | `UserCapability`, `RequireActiveCapability`, ricerca/pubblico, route e frontend discovery, `pet_assistant_favorite`, `docs/migrations/changeaccount-step6-dual-role-discovery.md` | Fallback legacy solo per account senza righe capability; booking e switch UI rinviati; cleanup idempotente di eventuali self-favorite e check DB | 58 test/304 assertion; rebuild 41 utenti/81 capability; prova MySQL ruolo Owner + Assistant attivo/sospeso; smoke HTTP preferiti e 422 self-favorite; lint/build |
 | 2026-11-16 | Gate STEP 6 | Milestone discovery dual-role e policy capability approvata dall'utente con “OK STEP 6” | Intero changeset STEP 6 sul branch `changeaccount` | Database locale migrato; fallback legacy e confini STEP 7/9 mantenuti | Gate manuale completato dopo verifica utente |
+| 2026-11-16 | STEP 7 booking dual-role | Aggiunta prospettiva esplicita a inbox e azioni, autorizzazione per capability+lato, conferme modali Owner/Assistant, divieto self-booking, recensioni e notifiche contestuali; uniformati componente località, font Nunito, favicon e metadati visuali dei due profili | `Booking`, `BookingController`, route, `BookingsSection`, `ProfileFieldMeta`, HTML e UI profili/booking, `booking`, `booking_review`, `docs/migrations/changeaccount-step7-dual-perspective-booking.md` | Due colonne recensione con backfill; tre check; fallback capability legacy solo senza righe; switch UI globale rinviato allo STEP 9 | 60 test/324 assertion, build; audit browser di 66 classi condivise; restore pre-STEP 0 e migration idempotente; smoke HTTP Owner/Assistant e self-profile |
+| 2026-11-16 | Gate STEP 7 | Milestone booking dual-role, conferme azioni e uniformità visuale dei profili approvata dall'utente con “OK STEP 7” | Intero changeset STEP 7 sul branch `changeaccount` | Database locale migrato; prospettiva esplicita e fallback capability legacy mantenuti | Gate manuale completato dopo verifica utente |
 
 ### Modello per nuove righe
 

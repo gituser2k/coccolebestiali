@@ -42,6 +42,9 @@ type PublicProfile = {
   }
   favorite: boolean
   canFavorite: boolean
+  canBook: boolean
+  isOwnProfile: boolean
+  viewerAuthenticated: boolean
   viewerCapabilities: string[]
   viewerRole: string
   pets: { id: number; name: string }[]
@@ -352,7 +355,7 @@ export default function PublicPetAssistantPage() {
             </section>}
           </div>
           <AssistantBookingForm assistantId={profile.id} services={profile.services} slots={slots} pets={profile.pets}
-            viewerRole={profile.viewerRole} confirmationMode={profile.confirmationMode} maxDuration={profile.policies.maxBookingDurationMinutes}
+            canBook={profile.canBook} isOwnProfile={profile.isOwnProfile} isAuthenticated={profile.viewerAuthenticated} confirmationMode={profile.confirmationMode} maxDuration={profile.policies.maxBookingDurationMinutes}
             minNotice={profile.policies.bookingMinNoticeHours} cancelHours={profile.policies.ownerFreeCancellationHours}
             calendarDay={calendarDay} availableDates={dateSet}
             loadingSlots={loadingSlots} loginHref={loginHref} onRefresh={() => setRevision((current) => current + 1)} />

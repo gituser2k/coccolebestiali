@@ -718,7 +718,9 @@ CREATE TABLE IF NOT EXISTS `booking` (
   KEY `idx_booking_owner` (`owner_user_id`, `status`, `booking_date`),
   KEY `idx_booking_assistant` (`assistant_user_id`, `status`, `booking_date`),
   KEY `idx_booking_slot` (`source_slot_id`, `status`),
-  KEY `idx_booking_schedule` (`assistant_user_id`, `booking_date`, `start_time`, `end_time`)
+  KEY `idx_booking_schedule` (`assistant_user_id`, `booking_date`, `start_time`, `end_time`),
+  CONSTRAINT `chk_booking_distinct_participants`
+    CHECK (`owner_user_id` <> `assistant_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `booking_feature_preference` (
@@ -771,14 +773,19 @@ CREATE TABLE IF NOT EXISTS `booking_review` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `booking_id` int(10) unsigned NOT NULL DEFAULT 0,
   `reviewer_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `reviewer_capability` varchar(16) NOT NULL DEFAULT 'owner',
   `reviewed_user_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `reviewed_capability` varchar(16) NOT NULL DEFAULT 'assistant',
   `sentiment` varchar(16) NOT NULL DEFAULT '',
   `comment` varchar(4096) NOT NULL DEFAULT '',
   `score_delta` smallint NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_booking_review_author` (`booking_id`, `reviewer_user_id`),
-  KEY `idx_booking_review_target` (`reviewed_user_id`, `created_at`)
+  KEY `idx_booking_review_target` (`reviewed_user_id`, `created_at`),
+  KEY `idx_booking_review_target_capability` (`reviewed_user_id`, `reviewed_capability`, `created_at`),
+  CONSTRAINT `chk_booking_review_reviewer_capability` CHECK (`reviewer_capability` IN ('owner', 'assistant')),
+  CONSTRAINT `chk_booking_review_reviewed_capability` CHECK (`reviewed_capability` IN ('owner', 'assistant'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `user_reputation` (
@@ -1150,6 +1157,71 @@ SET @cb_public_profile_sql = IF(EXISTS(
 PREPARE cb_public_profile_stmt FROM @cb_public_profile_sql;
 EXECUTE cb_public_profile_stmt;
 DEALLOCATE PREPARE cb_public_profile_stmt;
+
+-- STEP 7: la prospettiva di ogni recensione diventa esplicita e verificabile.
+SET @booking_review_add_reviewer_capability = IF(EXISTS(
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND COLUMN_NAME = 'reviewer_capability'
+), 'SELECT 1', "ALTER TABLE booking_review ADD COLUMN reviewer_capability varchar(16) NOT NULL DEFAULT 'owner' AFTER reviewer_user_id");
+PREPARE booking_review_reviewer_capability_stmt FROM @booking_review_add_reviewer_capability;
+EXECUTE booking_review_reviewer_capability_stmt;
+DEALLOCATE PREPARE booking_review_reviewer_capability_stmt;
+
+SET @booking_review_add_reviewed_capability = IF(EXISTS(
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND COLUMN_NAME = 'reviewed_capability'
+), 'SELECT 1', "ALTER TABLE booking_review ADD COLUMN reviewed_capability varchar(16) NOT NULL DEFAULT 'assistant' AFTER reviewed_user_id");
+PREPARE booking_review_reviewed_capability_stmt FROM @booking_review_add_reviewed_capability;
+EXECUTE booking_review_reviewed_capability_stmt;
+DEALLOCATE PREPARE booking_review_reviewed_capability_stmt;
+
+UPDATE `booking_review` AS review_row
+JOIN `booking` AS booking_row ON booking_row.`id` = review_row.`booking_id`
+SET
+  review_row.`reviewer_capability` = CASE
+    WHEN booking_row.`owner_user_id` = review_row.`reviewer_user_id` THEN 'owner'
+    ELSE 'assistant'
+  END,
+  review_row.`reviewed_capability` = CASE
+    WHEN booking_row.`assistant_user_id` = review_row.`reviewed_user_id` THEN 'assistant'
+    ELSE 'owner'
+  END;
+
+SET @booking_review_add_target_capability_index = IF(EXISTS(
+  SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND INDEX_NAME = 'idx_booking_review_target_capability'
+), 'SELECT 1', 'ALTER TABLE booking_review ADD INDEX idx_booking_review_target_capability (reviewed_user_id, reviewed_capability, created_at)');
+PREPARE booking_review_target_capability_index_stmt FROM @booking_review_add_target_capability_index;
+EXECUTE booking_review_target_capability_index_stmt;
+DEALLOCATE PREPARE booking_review_target_capability_index_stmt;
+
+SET @booking_review_add_reviewer_capability_check = IF(EXISTS(
+  SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND CONSTRAINT_NAME = 'chk_booking_review_reviewer_capability' AND CONSTRAINT_TYPE = 'CHECK'
+), 'SELECT 1', "ALTER TABLE booking_review ADD CONSTRAINT chk_booking_review_reviewer_capability CHECK (reviewer_capability IN ('owner', 'assistant'))");
+PREPARE booking_review_reviewer_capability_check_stmt FROM @booking_review_add_reviewer_capability_check;
+EXECUTE booking_review_reviewer_capability_check_stmt;
+DEALLOCATE PREPARE booking_review_reviewer_capability_check_stmt;
+
+SET @booking_review_add_reviewed_capability_check = IF(EXISTS(
+  SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_review' AND CONSTRAINT_NAME = 'chk_booking_review_reviewed_capability' AND CONSTRAINT_TYPE = 'CHECK'
+), 'SELECT 1', "ALTER TABLE booking_review ADD CONSTRAINT chk_booking_review_reviewed_capability CHECK (reviewed_capability IN ('owner', 'assistant'))");
+PREPARE booking_review_reviewed_capability_check_stmt FROM @booking_review_add_reviewed_capability_check;
+EXECUTE booking_review_reviewed_capability_check_stmt;
+DEALLOCATE PREPARE booking_review_reviewed_capability_check_stmt;
+
+-- Sugli schemi esistenti il check non viene aggiunto se emergono anomalie
+-- storiche: devono essere analizzate, non cancellate automaticamente.
+SET @booking_add_distinct_participants_check = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'booking'
+      AND CONSTRAINT_NAME = 'chk_booking_distinct_participants' AND CONSTRAINT_TYPE = 'CHECK'
+  ) OR EXISTS(
+    SELECT 1 FROM booking WHERE owner_user_id = assistant_user_id
+  ),
+  'SELECT 1',
+  'ALTER TABLE booking ADD CONSTRAINT chk_booking_distinct_participants CHECK (owner_user_id <> assistant_user_id)'
+);
+PREPARE booking_distinct_participants_check_stmt FROM @booking_add_distinct_participants_check;
+EXECUTE booking_distinct_participants_check_stmt;
+DEALLOCATE PREPARE booking_distinct_participants_check_stmt;
 
 UPDATE booking AS b
 LEFT JOIN (

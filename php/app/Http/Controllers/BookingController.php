@@ -11,7 +11,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -19,7 +18,9 @@ class BookingController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        return $this->run($request, fn (Booking $model, int $userId) => $model->listForUser($userId));
+        $perspective = $this->validatedPerspective($request);
+
+        return $this->run($request, fn (Booking $model, int $userId) => $model->listForUser($userId, $perspective));
     }
 
     public function activeForAssistant(Request $request): JsonResponse
@@ -28,17 +29,14 @@ class BookingController extends Controller
         if ($userId <= 0) {
             return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
         }
-        if (! DB::table('users')->where('id', $userId)->where('role', 'pet_assistant')->exists()) {
-            return response()->json(['ok' => false, 'message' => 'Profilo Pet Assistant richiesto.'], 403);
-        }
-
-        return $this->run($request, fn (Booking $model, int $id) => $model->listForUser($id, true))
+        return $this->run($request, fn (Booking $model, int $id) => $model->listForUser($id, Booking::PERSPECTIVE_ASSISTANT, true))
             ->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:owner'],
             'assistantUserId' => ['required', 'integer', 'min:1'],
             'petId' => ['required', 'integer', 'min:1'],
             'serviceId' => ['required', 'integer', 'min:1'],
@@ -61,6 +59,7 @@ class BookingController extends Controller
             return response()->json(['ok' => false, 'message' => 'Accedi come Pet Owner per prenotare.'], 401);
         }
         $payload = $request->validate([
+            'perspective' => ['required', 'string', 'in:owner'],
             'assistantUserId' => ['required', 'integer', 'min:1'],
             'petId' => ['required', 'integer', 'min:1'],
             'requestKey' => ['required', 'uuid'],
@@ -82,26 +81,35 @@ class BookingController extends Controller
 
     public function accept(Request $request, int $bookingId): JsonResponse
     {
+        $this->validatedPerspective($request, Booking::PERSPECTIVE_ASSISTANT);
+
         return $this->run($request, fn (Booking $model, int $userId) => $model->accept($bookingId, $userId));
     }
 
     public function decline(Request $request, int $bookingId): JsonResponse
     {
-        $validated = $request->validate(['reason' => ['nullable', 'string', 'max:2048']]);
+        $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:assistant'],
+            'reason' => ['nullable', 'string', 'max:2048'],
+        ]);
 
         return $this->run($request, fn (Booking $model, int $userId) => $model->decline($bookingId, $userId, (string) ($validated['reason'] ?? '')));
     }
 
     public function cancel(Request $request, int $bookingId): JsonResponse
     {
-        $validated = $request->validate(['reason' => ['nullable', 'string', 'max:2048']]);
+        $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:owner,assistant'],
+            'reason' => ['nullable', 'string', 'max:2048'],
+        ]);
 
-        return $this->run($request, fn (Booking $model, int $userId) => $model->cancel($bookingId, $userId, (string) ($validated['reason'] ?? '')));
+        return $this->run($request, fn (Booking $model, int $userId) => $model->cancel($bookingId, $userId, $validated['perspective'], (string) ($validated['reason'] ?? '')));
     }
 
     public function proposeReschedule(Request $request, int $bookingId): JsonResponse
     {
         $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:assistant'],
             'slotId' => ['required', 'integer', 'min:1'],
             'date' => ['required', 'date_format:Y-m-d'],
             'startTime' => ['required', 'date_format:H:i'],
@@ -114,12 +122,17 @@ class BookingController extends Controller
 
     public function alternatives(Request $request, int $bookingId): JsonResponse
     {
+        $this->validatedPerspective($request, Booking::PERSPECTIVE_ASSISTANT);
+
         return $this->run($request, fn (Booking $model, int $userId) => $model->getAlternativeSlots($bookingId, $userId));
     }
 
     public function respondReschedule(Request $request, int $bookingId): JsonResponse
     {
-        $validated = $request->validate(['accept' => ['required', 'boolean']]);
+        $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:owner'],
+            'accept' => ['required', 'boolean'],
+        ]);
 
         return $this->run($request, fn (Booking $model, int $userId) => $model->respondToReschedule($bookingId, $userId, (bool) $validated['accept']));
     }
@@ -130,17 +143,28 @@ class BookingController extends Controller
             return response()->json(['ok' => false, 'message' => 'Sessione utente non disponibile.'], 401);
         }
         $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:owner,assistant'],
             'sentiment' => ['required', 'string', 'in:positive,negative'],
             'comment' => ['required', 'string', 'max:4096'],
             'publishComment' => ['sometimes', 'boolean'],
         ]);
 
-        return $this->run($request, fn (Booking $model, int $userId) => $model->review($bookingId, $userId, $validated['sentiment'], $validated['comment']));
+        return $this->run($request, fn (Booking $model, int $userId) => $model->review(
+            $bookingId,
+            $userId,
+            $validated['perspective'],
+            $validated['sentiment'],
+            $validated['comment'],
+            (bool) ($validated['publishComment'] ?? false)
+        ));
     }
 
     public function updateConfirmationMode(Request $request): JsonResponse
     {
-        $validated = $request->validate(['mode' => ['required', 'string', 'in:manual,automatic']]);
+        $validated = $request->validate([
+            'perspective' => ['required', 'string', 'in:assistant'],
+            'mode' => ['required', 'string', 'in:manual,automatic'],
+        ]);
 
         return $this->run($request, fn (Booking $model, int $userId) => ['mode' => $model->setConfirmationMode($userId, $validated['mode'])]);
     }
@@ -196,6 +220,10 @@ class BookingController extends Controller
         } catch (RuntimeException $e) {
             $messages = [
                 'INVALID_ROLE' => 'Operazione non disponibile per questo profilo.',
+                'INVALID_PERSPECTIVE' => 'Prospettiva prenotazione non valida.',
+                'BOOKING_CAPABILITY_REQUIRED' => 'La funzionalità non è disponibile per questa prospettiva.',
+                'BOOKING_PERSPECTIVE_MISMATCH' => 'Prenotazione non disponibile nella prospettiva selezionata.',
+                'SELF_BOOKING_NOT_ALLOWED' => 'Non puoi prenotare un servizio offerto dal tuo stesso account.',
                 'PET_NOT_AVAILABLE' => 'Il pet selezionato non è disponibile.',
                 'SLOT_NOT_AVAILABLE' => 'La fascia selezionata non è più disponibile.',
                 'BOOKING_MINIMUM_NOTICE' => 'La prenotazione richiede almeno 24 ore di anticipo.',
@@ -220,7 +248,13 @@ class BookingController extends Controller
                 $error['code'] = $e->getMessage();
             }
 
-            return response()->json($error, Response::HTTP_UNPROCESSABLE_ENTITY);
+            $status = match ($e->getMessage()) {
+                'BOOKING_CAPABILITY_REQUIRED' => Response::HTTP_FORBIDDEN,
+                'BOOKING_NOT_FOUND', 'BOOKING_PERSPECTIVE_MISMATCH' => Response::HTTP_NOT_FOUND,
+                default => Response::HTTP_UNPROCESSABLE_ENTITY,
+            };
+
+            return response()->json($error, $status);
         } catch (Exception $e) {
             Utility::saveError([], $e->getMessage(), __METHOD__);
 
@@ -231,5 +265,14 @@ class BookingController extends Controller
     private function resolveCurrentUserId(Request $request): int
     {
         return PortalSession::userId($request);
+    }
+
+    private function validatedPerspective(Request $request, ?string $expected = null): string
+    {
+        $rule = $expected === null ? 'in:owner,assistant' : 'in:'.$expected;
+
+        return (string) $request->validate([
+            'perspective' => ['required', 'string', $rule],
+        ])['perspective'];
     }
 }

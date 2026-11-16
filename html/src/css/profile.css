@@ -337,6 +337,20 @@
   margin-top: 0.85rem;
 }
 
+.profile-booking-decision-modal {
+  width: min(520px, 100%);
+}
+
+.profile-booking-decision-modal p {
+  margin: 0;
+  color: #36516a;
+  line-height: 1.6;
+}
+
+.profile-booking-decision-modal .profile-booking-modal-actions {
+  margin-top: 1.25rem;
+}
+
 .profile-booking-cancel-modal {
   width: min(520px, 100%);
   text-align: center;

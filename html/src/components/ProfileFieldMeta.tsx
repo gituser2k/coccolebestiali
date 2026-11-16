@@ -76,3 +76,7 @@ export function FieldLegend() {
     </div>
   )
 }
+
+export function ProfileLocationHeading() {
+  return <p className="profile-location-kicker">INDIRIZZO LOCAZIONE</p>
+}

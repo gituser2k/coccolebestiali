@@ -91,7 +91,7 @@ class BookingFlowTest extends TestCase
         $booking = $model->create(1, $this->payload());
         $tomorrow = date('Y-m-d', time() + 43200);
         DB::table('booking')->where('id', $booking['id'])->update(['booking_date' => $tomorrow]);
-        $model->cancel($booking['id'], 1, 'Test annullamento tardivo');
+        $model->cancel($booking['id'], 1, Booking::PERSPECTIVE_OWNER, 'Test annullamento tardivo');
         $this->assertSame(55, (int) DB::table('user_reputation')->where('user_id', 1)->value('score'));
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 1, 'capability' => 'owner', 'score' => 55]);
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'owner', 'score' => 60]);
@@ -101,7 +101,7 @@ class BookingFlowTest extends TestCase
             'status' => 'completed',
             'booking_date' => date('Y-m-d', time() - 86400),
         ]);
-        $model->review($second['id'], 1, 'positive', 'Servizio professionale e puntuale.');
+        $model->review($second['id'], 1, Booking::PERSPECTIVE_OWNER, 'positive', 'Servizio professionale e puntuale.');
 
         $this->assertSame(65, (int) DB::table('user_reputation')->where('user_id', 2)->value('score'));
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'assistant', 'score' => 65]);
@@ -112,9 +112,14 @@ class BookingFlowTest extends TestCase
             'event_type' => 'review_positive',
             'score_after' => 65,
         ]);
-        $this->assertDatabaseHas('booking_review', ['booking_id' => $second['id'], 'score_delta' => 5]);
+        $this->assertDatabaseHas('booking_review', [
+            'booking_id' => $second['id'],
+            'reviewer_capability' => 'owner',
+            'reviewed_capability' => 'assistant',
+            'score_delta' => 5,
+        ]);
 
-        $model->review($second['id'], 2, 'negative', 'Esperienza Owner da migliorare.');
+        $model->review($second['id'], 2, Booking::PERSPECTIVE_ASSISTANT, 'negative', 'Esperienza Owner da migliorare.');
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 1, 'capability' => 'owner', 'score' => 50]);
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'assistant', 'score' => 65]);
         $this->assertDatabaseHas('reputation_event', [
@@ -125,14 +130,14 @@ class BookingFlowTest extends TestCase
         ]);
     }
 
-    public function test_booking_api_requires_session_and_enforces_role(): void
+    public function test_booking_api_requires_session_and_enforces_capability(): void
     {
-        $this->getJson('/api/bookings')->assertUnauthorized();
+        $this->getJson('/api/bookings?perspective=owner')->assertUnauthorized();
         $booking = (new Booking)->create(1, $this->payload());
 
         $this->withSession(['cb_portal_user_id' => 1])
-            ->postJson('/api/bookings/'.$booking['id'].'/accept')
-            ->assertUnprocessable()
+            ->postJson('/api/bookings/'.$booking['id'].'/accept', ['perspective' => 'assistant'])
+            ->assertForbidden()
             ->assertJsonPath('ok', false);
     }
 
@@ -316,6 +321,78 @@ class BookingFlowTest extends TestCase
         $this->assertSame(['rate' => null, 'medianSeconds' => null], $profiles->responseStats(1));
     }
 
+    public function test_dual_role_account_can_manage_owner_and_assistant_booking_perspectives(): void
+    {
+        $model = new Booking;
+        $incoming = $model->create(1, $this->payload());
+
+        DB::table('users')->where('id', 2)->update(['role' => 'pet_owner']);
+        DB::table('users')->insert(['id' => 3, 'role' => 'pet_assistant', 'name' => 'Second Assistant', 'email' => 'assistant2@example.test']);
+        DB::table('user_capabilities')->insert([
+            ['user_id' => 3, 'capability' => 'owner', 'status' => 'active'],
+            ['user_id' => 3, 'capability' => 'assistant', 'status' => 'active'],
+        ]);
+        DB::table('operatordata')->insert(['user_id' => 3, 'booking_confirmation_mode' => 'manual', 'updated_at' => time()]);
+        DB::table('ownerpet')->insert(['id' => 2, 'user_id' => 2, 'name' => 'Luna']);
+        DB::table('operatorservicedata')->insert(['user_id' => 3, 'service_id' => 1]);
+        DB::table('calendar_day')->insert(['id' => 3, 'user_id' => 3, 'date' => $this->date, 'enabled' => 1]);
+        DB::table('calendar_day_slot')->insert(['id' => 3, 'calendar_day_id' => 3, 'start_time' => '15:00', 'end_time' => '17:00', 'enabled' => 1]);
+        DB::table('calendar_day_slot_service')->insert(['slot_id' => 3, 'service_id' => 1, 'enabled' => 1, 'hour_price' => 22]);
+
+        $outgoing = $model->create(2, [
+            ...$this->payload(),
+            'assistantUserId' => 3,
+            'petId' => 2,
+            'slotId' => 3,
+            'startTime' => '15:00',
+            'endTime' => '16:00',
+            'featureIds' => [],
+        ]);
+
+        $this->assertSame([$incoming['id']], array_column($model->listForUser(2, Booking::PERSPECTIVE_ASSISTANT), 'id'));
+        $this->assertSame([$outgoing['id']], array_column($model->listForUser(2, Booking::PERSPECTIVE_OWNER), 'id'));
+        $this->withSession(['cb_portal_user_id' => 2])
+            ->postJson('/api/bookings/'.$incoming['id'].'/accept', ['perspective' => 'assistant'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+        $this->assertSame('cancelled', $model->cancel($outgoing['id'], 2, Booking::PERSPECTIVE_OWNER, 'Cambio programma')['status']);
+
+        try {
+            $model->cancel($incoming['id'], 2, Booking::PERSPECTIVE_OWNER, 'Tentativo dal lato errato');
+            $this->fail('The booking was actionable from the wrong perspective.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('BOOKING_PERSPECTIVE_MISMATCH', $exception->getMessage());
+        }
+
+        $this->withSession(['cb_portal_user_id' => 2])
+            ->getJson('/api/bookings?perspective=assistant')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $incoming['id'])
+            ->assertJsonPath('data.0.perspective', 'assistant');
+        $this->withSession(['cb_portal_user_id' => 2])
+            ->getJson('/api/bookings?perspective=owner')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $outgoing['id'])
+            ->assertJsonPath('data.0.perspective', 'owner');
+    }
+
+    public function test_self_booking_is_rejected_and_perspective_is_required_by_the_api(): void
+    {
+        DB::table('ownerpet')->insert(['id' => 2, 'user_id' => 2, 'name' => 'Luna']);
+
+        try {
+            (new Booking)->create(2, [...$this->payload(), 'petId' => 2]);
+            $this->fail('A self-booking was accepted.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('SELF_BOOKING_NOT_ALLOWED', $exception->getMessage());
+        }
+
+        $this->withSession(['cb_portal_user_id' => 2])
+            ->getJson('/api/bookings')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('perspective');
+    }
+
     public function test_location_requires_consent_for_exact_coordinates(): void
     {
         $this->assertSame(['latitude' => 41.9, 'longitude' => 12.5, 'exact' => false], PetAssistantSearch::publicPoint(41.902837, 12.496438, false));
@@ -346,6 +423,11 @@ class BookingFlowTest extends TestCase
         DB::table('users')->insert([
             ['id' => 1, 'role' => 'pet_owner', 'name' => 'Owner', 'email' => 'owner@example.test'],
             ['id' => 2, 'role' => 'pet_assistant', 'name' => 'Assistant', 'email' => 'assistant@example.test'],
+        ]);
+        DB::table('user_capabilities')->insert([
+            ['user_id' => 1, 'capability' => 'owner', 'status' => 'active'],
+            ['user_id' => 2, 'capability' => 'owner', 'status' => 'active'],
+            ['user_id' => 2, 'capability' => 'assistant', 'status' => 'active'],
         ]);
         DB::table('user_reputation')->insert([
             ['user_id' => 1, 'score' => 60, 'updated_at' => $now],
@@ -385,6 +467,12 @@ class BookingFlowTest extends TestCase
             $table->string('name');
             $table->string('email')->nullable();
             $table->boolean('email_verified')->default(true);
+        });
+        Schema::create('user_capabilities', function (Blueprint $table) {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
+            $table->string('status', 32);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('user_reputation', function (Blueprint $table) {
             $table->unsignedInteger('user_id')->primary();
@@ -518,7 +606,9 @@ class BookingFlowTest extends TestCase
             $table->increments('id');
             $table->unsignedInteger('booking_id');
             $table->unsignedInteger('reviewer_user_id');
+            $table->string('reviewer_capability', 16);
             $table->unsignedInteger('reviewed_user_id');
+            $table->string('reviewed_capability', 16);
             $table->string('sentiment');
             $table->string('comment', 4096);
             $table->smallInteger('score_delta');

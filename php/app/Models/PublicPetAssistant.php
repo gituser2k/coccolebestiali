@@ -63,7 +63,9 @@ class PublicPetAssistant
         $point = PetAssistantSearch::publicPoint((float) $row->location_lat, (float) $row->location_lng, (bool) $row->publish_exact_location);
         $viewerCapabilities = $viewer['activeCapabilities'] ?? [];
         $ownerId = in_array(UserCapability::OWNER, $viewerCapabilities, true) ? $viewerId : 0;
-        $canFavorite = $ownerId > 0 && $ownerId !== $assistantId;
+        $isOwnProfile = $viewerId > 0 && $viewerId === $assistantId;
+        $canFavorite = $ownerId > 0 && ! $isOwnProfile;
+        $canBook = $ownerId > 0 && ! $isOwnProfile;
 
         return [
             'id' => $assistantId,
@@ -96,6 +98,9 @@ class PublicPetAssistant
             'reviews' => $this->reviews($assistantId),
             'favorite' => $canFavorite && $this->favorites($ownerId)->where('assistant_user_id', $assistantId)->exists(),
             'canFavorite' => $canFavorite,
+            'canBook' => $canBook,
+            'isOwnProfile' => $isOwnProfile,
+            'viewerAuthenticated' => $viewerId > 0,
             'viewerCapabilities' => $viewerCapabilities,
             'viewerRole' => $viewer['authenticatedRole'],
             'pets' => $viewer['pets'],
@@ -189,6 +194,10 @@ class PublicPetAssistant
             ->where('review.reviewed_user_id', $assistantId)
             ->whereColumn('review.reviewer_user_id', 'booking.owner_user_id')
             ->whereColumn('review.reviewed_user_id', 'booking.assistant_user_id');
+        if (Schema::hasColumn('booking_review', 'reviewer_capability')) {
+            $query->where('review.reviewer_capability', UserCapability::OWNER)
+                ->where('review.reviewed_capability', UserCapability::ASSISTANT);
+        }
         $counts = (clone $query)->groupBy('review.sentiment')->selectRaw('review.sentiment, COUNT(*) AS total')
             ->pluck('total', 'sentiment');
 

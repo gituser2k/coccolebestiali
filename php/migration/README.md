@@ -64,10 +64,10 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 | Tabella | Funzione |
 | --- | --- |
 | `booking_counter` | Progressivo annuale utilizzato dai numeri di prenotazione. |
-| `booking` | Prenotazione, partecipanti, pet, servizio, orario, costo e stato. |
+| `booking` | Prenotazione, partecipanti distinti, pet, servizio, orario, costo e stato. |
 | `booking_feature_preference` | Opzioni del servizio richieste dal Pet Owner, con nome congelato al momento della prenotazione. |
 | `booking_reschedule` | Proposte strutturate di riprogrammazione. |
-| `booking_review` | Recensioni reciproche collegate a servizi conclusi. |
+| `booking_review` | Recensioni reciproche con capability esplicita di autore e destinatario. |
 | `booking_action_token` | Token monouso per le azioni sicure inviate via email. |
 
 Le prenotazioni richiedono almeno 24 ore di anticipo e riservano intervalli contigui di 30 minuti. Il comando pianificato Laravel riconcilia ogni cinque minuti richieste scadute e servizi conclusi; in produzione va eseguito con `php artisan schedule:work` oppure tramite cron con `php artisan schedule:run`.
@@ -314,3 +314,5 @@ Il blocco finale di `migration.txt` dedicato al profilo pubblico aggiunge le tab
 Il profilo usa la zona approssimativa finché il Pet Assistant non abilita il punto esatto in Dati operatore. Il consenso al punto esatto e quello alla pubblicazione del testo delle recensioni sono disattivati per i dati esistenti. Il ripristino demo svuota anche i preferiti, gli invii multipli e le impostazioni pubbliche aggiunti dopo l’ultimo snapshot.
 
 Dallo STEP 6 la discovery seleziona gli account tramite capability Assistant `active`, non tramite `users.role`. Le API dei preferiti richiedono capability Owner `active`. `pet_assistant_favorite` vieta inoltre una coppia con lo stesso account sui due lati tramite il check `chk_favorite_distinct_accounts`; la migration elimina in modo idempotente eventuali righe self-favorite legacy prima di aggiungere il vincolo.
+
+Dallo STEP 7 le API booking richiedono `perspective=owner|assistant` e verificano capability attiva e lato effettivo della prenotazione. `booking` vieta Owner e Assistant coincidenti tramite `chk_booking_distinct_participants`. Sugli schemi esistenti il check viene aggiunto soltanto in assenza di anomalie storiche, che non vengono cancellate automaticamente. `booking_review` aggiunge `reviewer_capability` e `reviewed_capability`, ricostruite dal lato occupato nella prenotazione, con check e indice contestuale.

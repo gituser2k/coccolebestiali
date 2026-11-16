@@ -8,7 +8,7 @@ import '../css/profile.css'
 import '../css/combobox.css'
 import { sanitizeText } from '../utility.js'
 import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
-import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
+import { FieldLabel, FieldLegend, ProfileLocationHeading } from '../components/ProfileFieldMeta.tsx'
 import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
 import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
 import PasswordVisibilityField from '../components/PasswordVisibilityField.tsx'
@@ -1380,7 +1380,7 @@ export default function ProfilePlaceholderPage() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ perspective: 'assistant', mode }),
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Impostazione non salvata.')
@@ -2397,9 +2397,7 @@ export default function ProfilePlaceholderPage() {
                       </section>
                       <section className="profile-form-section profile-location-section">
                         <div className="profile-location-copy">
-                          <p className="profile-location-kicker">
-                           INDIRIZZO LOCAZIONE
-                          </p>
+                          <ProfileLocationHeading />
                           <div className="profile-map-toolbar" aria-label="Controlli mappa">
                             <button
                               type="button"
@@ -3343,7 +3341,7 @@ export default function ProfilePlaceholderPage() {
                   </div>
                 </>
               ) : (
-                <BookingsSection role="pet_assistant" />
+                <BookingsSection perspective="assistant" />
               )}
             </div>
           </section>

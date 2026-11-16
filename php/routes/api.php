@@ -196,10 +196,14 @@ Route::prefix('api')
             });
 
             Route::get('/bookings', [BookingController::class, 'index']);
-            Route::post('/bookings', [BookingController::class, 'store']);
-            Route::get('/bookings/active-for-assistant', [BookingController::class, 'activeForAssistant']);
-            Route::post('/bookings/batch', [BookingController::class, 'storeBatch']);
-            Route::post('/bookings/confirmation-mode', [BookingController::class, 'updateConfirmationMode']);
+            Route::middleware('portal.capability:owner')->group(function () {
+                Route::post('/bookings', [BookingController::class, 'store']);
+                Route::post('/bookings/batch', [BookingController::class, 'storeBatch']);
+            });
+            Route::middleware('portal.capability:assistant')->group(function () {
+                Route::get('/bookings/active-for-assistant', [BookingController::class, 'activeForAssistant']);
+                Route::post('/bookings/confirmation-mode', [BookingController::class, 'updateConfirmationMode']);
+            });
             Route::post('/bookings/{bookingId}/review', [BookingController::class, 'review'])->whereNumber('bookingId');
             Route::post('/bookings/{bookingId}/accept', [BookingController::class, 'accept'])->whereNumber('bookingId');
             Route::post('/bookings/{bookingId}/decline', [BookingController::class, 'decline'])->whereNumber('bookingId');

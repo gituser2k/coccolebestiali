@@ -50,6 +50,16 @@ type AlternativeSlot = {
   hourlyRate: number
 }
 
+type BookingDecision = {
+  booking: BookingData
+  action: string
+  body: Record<string, unknown>
+  title: string
+  message: string
+  confirmLabel: string
+  destructive?: boolean
+}
+
 const STATUS_LABELS: Record<BookingStatus, string> = {
   pending: 'In attesa',
   confirmed: 'Confermata',
@@ -70,7 +80,7 @@ function formatPrice(value: number) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value)
 }
 
-export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_assistant' }) {
+export default function BookingsSection({ perspective }: { perspective: 'owner' | 'assistant' }) {
   const [bookings, setBookings] = useState<BookingData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [busyId, setBusyId] = useState(0)
@@ -84,13 +94,14 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
   const [selectedAlternative, setSelectedAlternative] = useState(0)
   const [rescheduleMessage, setRescheduleMessage] = useState('')
   const [cancellationBooking, setCancellationBooking] = useState<BookingData | null>(null)
+  const [bookingDecision, setBookingDecision] = useState<BookingDecision | null>(null)
   const [bookingsView, setBookingsView] = useState<BookingsView>('active')
 
   const activeBookings = bookings.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status))
   const bookingHistory = bookings.filter((booking) => !ACTIVE_BOOKING_STATUSES.includes(booking.status))
   const visibleBookings = bookingsView === 'active' ? activeBookings : bookingHistory
 
-  useEffect(() => { void loadBookings() }, [])
+  useEffect(() => { void loadBookings() }, [perspective])
   useEffect(() => {
     if (!toast) return
     const timer = window.setTimeout(() => setToast(null), 6000)
@@ -100,7 +111,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
   async function loadBookings() {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/bookings', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      const response = await fetch(`/api/bookings?perspective=${perspective}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       const payload = await response.json()
       if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Caricamento prenotazioni non completato.')
       setBookings(payload.data)
@@ -118,7 +129,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeaders() },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, perspective }),
       })
       const payload = await response.json()
       if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Operazione non completata.')
@@ -139,7 +150,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
   async function openReschedule(booking: BookingData) {
     setBusyId(booking.id)
     try {
-      const response = await fetch(`/api/bookings/${booking.id}/alternatives`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      const response = await fetch(`/api/bookings/${booking.id}/alternatives?perspective=${perspective}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       const payload = await response.json()
       if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Fasce alternative non disponibili.')
       setAlternatives(payload.data)
@@ -183,6 +194,12 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
       reason: 'Annullamento richiesto dal profilo.',
     })
     if (ok) setCancellationBooking(null)
+  }
+
+  async function confirmBookingDecision() {
+    if (!bookingDecision) return
+    const ok = await runAction(bookingDecision.booking.id, bookingDecision.action, bookingDecision.body)
+    if (ok) setBookingDecision(null)
   }
 
   return (
@@ -233,7 +250,7 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
             <article className={`profile-booking-card is-${booking.status}`} key={booking.id}>
               <header><div><span>{booking.bookingNumber}</span><h2>{booking.serviceName}</h2></div><strong>{STATUS_LABELS[booking.status]}</strong></header>
               <div className="profile-booking-facts">
-                <div><span>{role === 'pet_owner' ? 'Pet Assistant' : 'Pet Owner'}</span><strong>{role === 'pet_owner' ? booking.assistantName : booking.ownerName}</strong></div>
+                <div><span>{perspective === 'owner' ? 'Pet Assistant' : 'Pet Owner'}</span><strong>{perspective === 'owner' ? booking.assistantName : booking.ownerName}</strong></div>
                 <div><span>Pet</span><strong>{booking.petName}</strong></div>
                 <div><span>Quando</span><strong>{formatDate(booking.date)} · {booking.startTime}–{booking.endTime}</strong></div>
                 <div><span>Totale</span><strong>{formatPrice(booking.totalPrice)}</strong></div>
@@ -247,11 +264,11 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
               {booking.message ? <p className="profile-booking-message">{booking.message}</p> : null}
               {booking.reschedule?.status === 'pending' ? <div className="profile-booking-proposal"><strong>Nuova proposta</strong><span>{formatDate(booking.reschedule.date)} · {booking.reschedule.startTime}–{booking.reschedule.endTime} · {formatPrice(booking.reschedule.totalPrice)}</span><p>{booking.reschedule.message}</p></div> : null}
               <div className="profile-booking-actions">
-                {role === 'pet_assistant' && booking.status === 'pending' ? <button onClick={() => void runAction(booking.id, 'accept')} disabled={busyId === booking.id}>Accetta</button> : null}
-                {role === 'pet_assistant' && booking.status === 'pending' ? <button className="is-outline" onClick={() => void runAction(booking.id, 'decline', { reason: 'Richiesta non disponibile.' })} disabled={busyId === booking.id}>Rifiuta</button> : null}
-                {role === 'pet_assistant' && ['pending', 'confirmed'].includes(booking.status) ? <button className="is-outline" onClick={() => void openReschedule(booking)} disabled={busyId === booking.id}>Proponi nuovo orario</button> : null}
-                {role === 'pet_owner' && booking.status === 'reschedule_pending' ? <button onClick={() => void runAction(booking.id, 'reschedule/respond', { accept: true })} disabled={busyId === booking.id}>Accetta proposta</button> : null}
-                {role === 'pet_owner' && booking.status === 'reschedule_pending' ? <button className="is-outline" onClick={() => void runAction(booking.id, 'reschedule/respond', { accept: false })} disabled={busyId === booking.id}>Rifiuta proposta</button> : null}
+                {perspective === 'assistant' && booking.status === 'pending' ? <button onClick={() => setBookingDecision({ booking, action: 'accept', body: {}, title: 'Accettare la prenotazione?', message: `Confermi di voler accettare la prenotazione ${booking.bookingNumber} per ${booking.petName}?`, confirmLabel: 'Accetta prenotazione' })} disabled={busyId === booking.id}>Accetta</button> : null}
+                {perspective === 'assistant' && booking.status === 'pending' ? <button className="is-outline" onClick={() => setBookingDecision({ booking, action: 'decline', body: { reason: 'Richiesta non disponibile.' }, title: 'Rifiutare la prenotazione?', message: `Confermi di voler rifiutare la prenotazione ${booking.bookingNumber}? Il Pet Owner riceverà una notifica.`, confirmLabel: 'Rifiuta prenotazione', destructive: true })} disabled={busyId === booking.id}>Rifiuta</button> : null}
+                {perspective === 'assistant' && ['pending', 'confirmed'].includes(booking.status) ? <button className="is-outline" onClick={() => void openReschedule(booking)} disabled={busyId === booking.id}>Proponi nuovo orario</button> : null}
+                {perspective === 'owner' && booking.status === 'reschedule_pending' ? <button onClick={() => setBookingDecision({ booking, action: 'reschedule/respond', body: { accept: true }, title: 'Accettare il nuovo orario?', message: `Confermi la proposta per ${formatDate(booking.reschedule?.date ?? booking.date)} dalle ${booking.reschedule?.startTime ?? booking.startTime} alle ${booking.reschedule?.endTime ?? booking.endTime}?`, confirmLabel: 'Accetta nuovo orario' })} disabled={busyId === booking.id}>Accetta proposta</button> : null}
+                {perspective === 'owner' && booking.status === 'reschedule_pending' ? <button className="is-outline" onClick={() => setBookingDecision({ booking, action: 'reschedule/respond', body: { accept: false }, title: 'Rifiutare il nuovo orario?', message: `Confermi di voler rifiutare la proposta per la prenotazione ${booking.bookingNumber}?`, confirmLabel: 'Rifiuta proposta', destructive: true })} disabled={busyId === booking.id}>Rifiuta proposta</button> : null}
                 {actionable ? <button className="is-danger" onClick={() => setCancellationBooking(booking)} disabled={busyId === booking.id}>Annulla</button> : null}
                 {booking.canReview ? <button onClick={() => { setReviewBooking(booking); setReviewComment(''); setReviewSentiment('positive'); setPublishReview(false) }}>Lascia una recensione</button> : null}
               </div>
@@ -261,11 +278,25 @@ export default function BookingsSection({ role }: { role: 'pet_owner' | 'pet_ass
       </div>
 
       {reviewBooking ? <div className="profile-booking-modal-backdrop"><section className="profile-booking-modal" role="dialog" aria-modal="true"><h2>Recensione {reviewBooking.bookingNumber}</h2><div className="profile-review-choice"><button className={reviewSentiment === 'positive' ? 'is-selected' : ''} onClick={() => setReviewSentiment('positive')}>Positiva +5</button><button className={reviewSentiment === 'negative' ? 'is-selected is-negative' : ''} onClick={() => setReviewSentiment('negative')}>Negativa -5</button></div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={4096} placeholder="Racconta la tua esperienza." />
-        {role === 'pet_owner' ? <label className="profile-public-location"><input type="checkbox" checked={publishReview} onChange={(event) => setPublishReview(event.target.checked)} />
+        {perspective === 'owner' ? <label className="profile-public-location"><input type="checkbox" checked={publishReview} onChange={(event) => setPublishReview(event.target.checked)} />
           <span>Acconsento a mostrare il testo di questa recensione sul profilo pubblico del Pet Assistant.</span></label> : null}
         <div className="profile-booking-modal-actions"><button className="is-outline" onClick={() => setReviewBooking(null)}>Chiudi</button><button onClick={() => void submitReview()}>Invia recensione</button></div></section></div> : null}
 
       {rescheduleBooking ? <div className="profile-booking-modal-backdrop"><section className="profile-booking-modal" role="dialog" aria-modal="true"><h2>Proponi un nuovo orario</h2>{alternatives.length > 0 ? <select className="portal-combobox" value={selectedAlternative} onChange={(event) => setSelectedAlternative(Number(event.target.value))}>{alternatives.map((slot) => <option key={slot.slotId} value={slot.slotId}>{formatDate(slot.date)} · {slot.startTime}–{slot.endTime}</option>)}</select> : <p>Nessuna fascia alternativa disponibile.</p>}<textarea value={rescheduleMessage} onChange={(event) => setRescheduleMessage(event.target.value)} maxLength={4096} placeholder="Spiega la proposta al Pet Owner." /><div className="profile-booking-modal-actions"><button className="is-outline" onClick={() => setRescheduleBooking(null)}>Chiudi</button><button onClick={() => void submitReschedule()} disabled={alternatives.length === 0}>Invia proposta</button></div></section></div> : null}
+      {bookingDecision ? (
+        <div className="profile-booking-modal-backdrop">
+          <section className="profile-booking-modal profile-booking-decision-modal" role="dialog" aria-modal="true" aria-labelledby="booking-decision-title" aria-describedby="booking-decision-description">
+            <h2 id="booking-decision-title">{bookingDecision.title}</h2>
+            <p id="booking-decision-description">{bookingDecision.message}</p>
+            <div className="profile-booking-modal-actions">
+              <button className="is-outline" type="button" onClick={() => setBookingDecision(null)} disabled={busyId === bookingDecision.booking.id}>Torna indietro</button>
+              <button className={bookingDecision.destructive ? 'is-danger' : ''} type="button" onClick={() => void confirmBookingDecision()} disabled={busyId === bookingDecision.booking.id}>
+                {busyId === bookingDecision.booking.id ? 'Operazione in corso…' : bookingDecision.confirmLabel}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {cancellationBooking ? (
         <div className="profile-booking-modal-backdrop">
           <section className="profile-booking-modal profile-booking-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="booking-cancel-title">

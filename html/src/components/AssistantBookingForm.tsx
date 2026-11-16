@@ -42,7 +42,9 @@ type Props = {
   services: AssistantService[]
   slots: AssistantSlot[]
   pets: { id: number; name: string }[]
-  viewerRole: string
+  canBook: boolean
+  isOwnProfile: boolean
+  isAuthenticated: boolean
   confirmationMode: string
   maxDuration: number
   minNotice: number
@@ -93,7 +95,7 @@ function initialDrafts(services: AssistantService[], key: string): Record<number
 }
 
 export default function AssistantBookingForm(props: Props) {
-  const { assistantId, services, slots, pets, viewerRole, confirmationMode, maxDuration, minNotice, cancelHours, calendarDay, availableDates, loadingSlots, loginHref, onRefresh } = props
+  const { assistantId, services, slots, pets, canBook, isOwnProfile, isAuthenticated, confirmationMode, maxDuration, minNotice, cancelHours, calendarDay, availableDates, loadingSlots, loginHref, onRefresh } = props
   const storageKey = `cb_booking_draft:${assistantId}:${window.location.search}`
   const [drafts, setDrafts] = useState(() => initialDrafts(services, storageKey))
   const [petId, setPetId] = useState(pets[0]?.id ?? 0)
@@ -151,8 +153,9 @@ export default function AssistantBookingForm(props: Props) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (inFlight.current || loadingSlots || viewerRole !== 'pet_owner' || !petId || !complete) return
+    if (inFlight.current || loadingSlots || !canBook || !petId || !complete) return
     const payload = {
+      perspective: 'owner',
       assistantUserId: assistantId,
       petId,
       items: items.map(({ service, draft, slot, date, start, end, subtotal }) => ({
@@ -210,7 +213,7 @@ export default function AssistantBookingForm(props: Props) {
         <form onSubmit={submit}>
           <fieldset disabled={busy} className="public-booking-fields">
             <legend className="public-visually-hidden">Dati della prenotazione</legend>
-            {viewerRole === 'pet_owner' && pets.length > 0 ? (
+            {canBook && pets.length > 0 ? (
               <label className="public-field">Il tuo pet
                 <select value={petId} onChange={(event) => setPetId(Number(event.target.value))}>
                   {pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
@@ -262,17 +265,17 @@ export default function AssistantBookingForm(props: Props) {
                 {error?.serviceId === service.id ? <p role="alert" className="public-error">{error.text}</p> : null}
               </fieldset>
             ))}
-            {viewerRole === 'pet_owner' && items.length > 0 ? <label className="public-field">Messaggio per il Pet Assistant
+            {canBook && items.length > 0 ? <label className="public-field">Messaggio per il Pet Assistant
               <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={2} maxLength={4096} />
             </label> : null}
           </fieldset>
           <div className="public-total">Totale <strong>{complete ? euros(total) : '—'}</strong></div>
           {error && error.serviceId === undefined ? <p role="alert" className="public-error">{error.text}</p> : null}
-          {viewerRole === 'pet_owner' ? (
+          {canBook ? (
             pets.length ? <button type="submit" className="public-primary" disabled={busy || loadingSlots || !complete}>{busy ? 'Invio in corso…' : 'Prenota'}</button>
               : <a className="public-primary" href="/profile/petowner?section=pets">Aggiungi il tuo pet</a>
-          ) : !viewerRole ? <a className="public-primary" href={loginHref} onClick={rememberDraft}>Accedi per prenotare</a>
-            : <p>La prenotazione è disponibile dal profilo Pet Owner.</p>}
+          ) : !isAuthenticated ? <a className="public-primary" href={loginHref} onClick={rememberDraft}>Accedi per prenotare</a>
+            : <p>{isOwnProfile ? 'Non puoi prenotare un servizio offerto dal tuo stesso account.' : 'La prenotazione non è disponibile nella prospettiva Owner.'}</p>}
           <p className="public-muted">{confirmationMode === 'automatic' ? 'Conferma immediata.' : 'Richiede conferma del Pet Assistant.'} Prenota con almeno {minNotice} ore di anticipo. Annullamento senza penalità fino a {cancelHours} ore prima.</p>
         </form>
       )}

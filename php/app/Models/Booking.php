@@ -12,6 +12,10 @@ use RuntimeException;
 
 class Booking
 {
+    public const PERSPECTIVE_OWNER = UserCapability::OWNER;
+
+    public const PERSPECTIVE_ASSISTANT = UserCapability::ASSISTANT;
+
     private const ACTIVE_STATUSES = ['pending', 'confirmed', 'reschedule_pending'];
 
     private DateTimeZone $timezone;
@@ -71,10 +75,12 @@ class Booking
 
     public function create(int $ownerUserId, array $payload): array
     {
-        $this->assertRole($ownerUserId, 'pet_owner');
+        $this->assertPerspectiveCapability($ownerUserId, self::PERSPECTIVE_OWNER);
         $petId = (int) ($payload['petId'] ?? 0);
-        $this->assertOwnedPet($ownerUserId, $petId);
         $assistantUserId = (int) ($payload['assistantUserId'] ?? 0);
+        $this->assertDistinctParticipants($ownerUserId, $assistantUserId);
+        $this->assertPerspectiveCapability($assistantUserId, self::PERSPECTIVE_ASSISTANT);
+        $this->assertOwnedPet($ownerUserId, $petId);
         $id = DB::transaction(function () use ($ownerUserId, $petId, $assistantUserId, $payload) {
             $operator = $this->lockAssistantSchedule($assistantUserId);
 
@@ -86,8 +92,10 @@ class Booking
 
     public function createBatch(int $ownerUserId, array $payload): array
     {
-        $this->assertRole($ownerUserId, 'pet_owner');
+        $this->assertPerspectiveCapability($ownerUserId, self::PERSPECTIVE_OWNER);
         $assistantId = (int) $payload['assistantUserId'];
+        $this->assertDistinctParticipants($ownerUserId, $assistantId);
+        $this->assertPerspectiveCapability($assistantId, self::PERSPECTIVE_ASSISTANT);
         $petId = (int) $payload['petId'];
         $items = $payload['items'];
         $hash = hash('sha256', json_encode([$assistantId, $petId, $items], JSON_THROW_ON_ERROR));
@@ -238,16 +246,13 @@ class Booking
             : ($booking->confirmation_mode === 'manual' ? $now : null);
     }
 
-    public function listForUser(int $userId, bool $activeOnly = false): array
+    public function listForUser(int $userId, string $perspective, bool $activeOnly = false): array
     {
         $this->reconcile();
-        $role = $this->getRole($userId);
-        if (! in_array($role, ['pet_owner', 'pet_assistant'], true)) {
-            throw new RuntimeException('INVALID_ROLE');
-        }
+        $this->assertPerspectiveCapability($userId, $perspective);
 
         $query = $this->baseQuery();
-        if ($role === 'pet_owner') {
+        if ($perspective === self::PERSPECTIVE_OWNER) {
             $query->where('booking.owner_user_id', $userId);
         } else {
             $query->where('booking.assistant_user_id', $userId);
@@ -261,13 +266,13 @@ class Booking
         return $query->orderBy('booking.booking_date', $order)
             ->orderBy('booking.start_time', $order)
             ->get()
-            ->map(fn ($row) => $this->mapBooking($row, $userId))
+            ->map(fn ($row) => $this->mapBooking($row, $userId, $perspective))
             ->all();
     }
 
     public function accept(int $bookingId, int $assistantUserId): array
     {
-        $booking = $this->ownedBooking($bookingId, $assistantUserId, 'pet_assistant');
+        $booking = $this->ownedBooking($bookingId, $assistantUserId, self::PERSPECTIVE_ASSISTANT);
         if ($booking->status !== 'pending') {
             throw new RuntimeException('BOOKING_NOT_PENDING');
         }
@@ -299,7 +304,7 @@ class Booking
 
     public function decline(int $bookingId, int $assistantUserId, string $reason): array
     {
-        $booking = $this->ownedBooking($bookingId, $assistantUserId, 'pet_assistant');
+        $booking = $this->ownedBooking($bookingId, $assistantUserId, self::PERSPECTIVE_ASSISTANT);
         if (! in_array($booking->status, ['pending', 'reschedule_pending'], true)) {
             throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
         }
@@ -326,10 +331,10 @@ class Booking
         return $this->notifyAndReturn($result, 'declined');
     }
 
-    public function cancel(int $bookingId, int $userId, string $reason): array
+    public function cancel(int $bookingId, int $userId, string $perspective, string $reason): array
     {
         $policies = PortalPolicy::values();
-        $booking = $this->ownedBooking($bookingId, $userId);
+        $booking = $this->ownedBooking($bookingId, $userId, $perspective);
         if (! in_array($booking->status, self::ACTIVE_STATUSES, true)) {
             throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
         }
@@ -369,7 +374,7 @@ class Booking
 
     public function proposeReschedule(int $bookingId, int $assistantUserId, array $payload): array
     {
-        $booking = $this->ownedBooking($bookingId, $assistantUserId, 'pet_assistant');
+        $booking = $this->ownedBooking($bookingId, $assistantUserId, self::PERSPECTIVE_ASSISTANT);
         if (! in_array($booking->status, ['pending', 'confirmed'], true)) {
             throw new RuntimeException('BOOKING_NOT_ACTIONABLE');
         }
@@ -422,7 +427,7 @@ class Booking
 
     public function respondToReschedule(int $bookingId, int $ownerUserId, bool $accept): array
     {
-        $booking = $this->ownedBooking($bookingId, $ownerUserId, 'pet_owner');
+        $booking = $this->ownedBooking($bookingId, $ownerUserId, self::PERSPECTIVE_OWNER);
         if ($booking->status !== 'reschedule_pending') {
             throw new RuntimeException('RESCHEDULE_NOT_PENDING');
         }
@@ -468,10 +473,10 @@ class Booking
         return $this->notifyAndReturn($result, $accept ? 'reschedule_accepted' : 'reschedule_rejected');
     }
 
-    public function review(int $bookingId, int $reviewerUserId, string $sentiment, string $comment, bool $publishComment = false): array
+    public function review(int $bookingId, int $reviewerUserId, string $perspective, string $sentiment, string $comment, bool $publishComment = false): array
     {
         $policies = PortalPolicy::values();
-        $booking = $this->ownedBooking($bookingId, $reviewerUserId);
+        $booking = $this->ownedBooking($bookingId, $reviewerUserId, $perspective);
         if ($booking->status !== 'completed') {
             throw new RuntimeException('BOOKING_NOT_COMPLETED');
         }
@@ -483,27 +488,32 @@ class Booking
             throw new RuntimeException('REVIEW_ALREADY_SENT');
         }
 
-        $reviewedUserId = (int) $booking->owner_user_id === $reviewerUserId
+        $reviewedUserId = $perspective === self::PERSPECTIVE_OWNER
             ? (int) $booking->assistant_user_id
             : (int) $booking->owner_user_id;
-        $reviewedCapability = (int) $booking->owner_user_id === $reviewerUserId
+        $reviewedCapability = $perspective === self::PERSPECTIVE_OWNER
             ? ProfileReputation::ASSISTANT
             : ProfileReputation::OWNER;
         $delta = $sentiment === 'positive'
             ? $policies['positive_review_points']
             : -$policies['negative_review_penalty'];
 
-        DB::transaction(function () use ($bookingId, $reviewerUserId, $reviewedUserId, $reviewedCapability, $sentiment, $comment, $delta, $publishComment, $booking) {
-            DB::table('booking_review')->insert([
+        DB::transaction(function () use ($bookingId, $reviewerUserId, $perspective, $reviewedUserId, $reviewedCapability, $sentiment, $comment, $delta, $publishComment) {
+            $review = [
                 'booking_id' => $bookingId,
                 'reviewer_user_id' => $reviewerUserId,
                 'reviewed_user_id' => $reviewedUserId,
                 'sentiment' => $sentiment,
                 'comment' => mb_substr(trim($comment), 0, 4096),
                 'score_delta' => $delta,
-                'publish_comment' => $publishComment && (int) $booking->owner_user_id === $reviewerUserId ? 1 : 0,
+                'publish_comment' => $publishComment && $perspective === self::PERSPECTIVE_OWNER ? 1 : 0,
                 'created_at' => time(),
-            ]);
+            ];
+            if (Schema::hasColumn('booking_review', 'reviewer_capability')) {
+                $review['reviewer_capability'] = $perspective;
+                $review['reviewed_capability'] = $reviewedCapability;
+            }
+            DB::table('booking_review')->insert($review);
             $this->applyReputationDelta($reviewedUserId, $reviewedCapability, $bookingId, $reviewerUserId, 'review_'.$sentiment, $delta, $comment);
         });
 
@@ -512,7 +522,7 @@ class Booking
 
     public function setConfirmationMode(int $assistantUserId, string $mode): string
     {
-        $this->assertRole($assistantUserId, 'pet_assistant');
+        $this->assertPerspectiveCapability($assistantUserId, self::PERSPECTIVE_ASSISTANT);
         $mode = $mode === 'automatic' ? 'automatic' : 'manual';
         DB::table('operatordata')->where('user_id', $assistantUserId)->update([
             'booking_confirmation_mode' => $mode,
@@ -541,7 +551,7 @@ class Booking
 
     public function getAlternativeSlots(int $bookingId, int $assistantUserId): array
     {
-        $booking = $this->ownedBooking($bookingId, $assistantUserId, 'pet_assistant');
+        $booking = $this->ownedBooking($bookingId, $assistantUserId, self::PERSPECTIVE_ASSISTANT);
         $startDate = (new DateTimeImmutable('tomorrow', $this->timezone))->modify('+1 day')->format('Y-m-d');
         $endDate = (new DateTimeImmutable($startDate, $this->timezone))->modify('+62 days')->format('Y-m-d');
 
@@ -615,7 +625,8 @@ class Booking
         if ($action['action'] !== 'cancel') {
             throw new RuntimeException('ACTION_TOKEN_INVALID');
         }
-        $result = $this->cancel($action['bookingId'], $action['userId'], 'Annullamento richiesto tramite email.');
+        $perspective = $this->perspectiveForParticipant($action['bookingId'], $action['userId']);
+        $result = $this->cancel($action['bookingId'], $action['userId'], $perspective, 'Annullamento richiesto tramite email.');
         DB::table('booking_action_token')->where('id', $action['id'])->update(['used_at' => time()]);
 
         return $result;
@@ -772,7 +783,7 @@ class Booking
             ]);
     }
 
-    private function mapBooking(object $row, int $currentUserId): array
+    private function mapBooking(object $row, int $currentUserId, string $perspective = ''): array
     {
         $reviewWindowDays = PortalPolicy::value('review_window_days');
         $proposal = DB::table('booking_reschedule')->where('booking_id', $row->id)->orderByDesc('id')->first();
@@ -817,6 +828,7 @@ class Booking
             'cancellationReason' => (string) $row->cancellation_reason,
             'ownerScore' => (int) $row->owner_score,
             'assistantScore' => (int) $row->assistant_score,
+            'perspective' => $perspective,
             'canReview' => $currentUserId > 0 && $row->status === 'completed' && ! $reviewSent && time() <= $endTimestamp + ($reviewWindowDays * 86400),
             'reviewSent' => $reviewSent,
             'reschedule' => $proposal ? [
@@ -832,14 +844,18 @@ class Booking
         ];
     }
 
-    private function ownedBooking(int $bookingId, int $userId, ?string $requiredRole = null): object
+    private function ownedBooking(int $bookingId, int $userId, string $perspective): object
     {
-        if ($requiredRole !== null) {
-            $this->assertRole($userId, $requiredRole);
-        }
+        $this->assertPerspectiveCapability($userId, $perspective);
         $booking = DB::table('booking')->where('id', $bookingId)->first();
-        if (! $booking || ! in_array($userId, [(int) $booking->owner_user_id, (int) $booking->assistant_user_id], true)) {
+        if (! $booking) {
             throw new RuntimeException('BOOKING_NOT_FOUND');
+        }
+        $participantId = $perspective === self::PERSPECTIVE_OWNER
+            ? (int) $booking->owner_user_id
+            : (int) $booking->assistant_user_id;
+        if ($participantId !== $userId) {
+            throw new RuntimeException('BOOKING_PERSPECTIVE_MISMATCH');
         }
 
         return $booking;
@@ -854,16 +870,37 @@ class Booking
         ]);
     }
 
-    private function assertRole(int $userId, string $role): void
+    private function assertPerspectiveCapability(int $userId, string $perspective): void
     {
-        if ($this->getRole($userId) !== $role) {
-            throw new RuntimeException('INVALID_ROLE');
+        if (! in_array($perspective, [self::PERSPECTIVE_OWNER, self::PERSPECTIVE_ASSISTANT], true)) {
+            throw new RuntimeException('INVALID_PERSPECTIVE');
+        }
+        if (! (new UserCapability)->hasActive($userId, $perspective)) {
+            throw new RuntimeException('BOOKING_CAPABILITY_REQUIRED');
         }
     }
 
-    private function getRole(int $userId): string
+    private function assertDistinctParticipants(int $ownerUserId, int $assistantUserId): void
     {
-        return (string) DB::table('users')->where('id', $userId)->value('role');
+        if ($ownerUserId > 0 && $ownerUserId === $assistantUserId) {
+            throw new RuntimeException('SELF_BOOKING_NOT_ALLOWED');
+        }
+    }
+
+    private function perspectiveForParticipant(int $bookingId, int $userId): string
+    {
+        $booking = DB::table('booking')->where('id', $bookingId)->first(['owner_user_id', 'assistant_user_id']);
+        if (! $booking) {
+            throw new RuntimeException('BOOKING_NOT_FOUND');
+        }
+        if ((int) $booking->owner_user_id === $userId && (int) $booking->assistant_user_id !== $userId) {
+            return self::PERSPECTIVE_OWNER;
+        }
+        if ((int) $booking->assistant_user_id === $userId && (int) $booking->owner_user_id !== $userId) {
+            return self::PERSPECTIVE_ASSISTANT;
+        }
+
+        throw new RuntimeException('BOOKING_PERSPECTIVE_MISMATCH');
     }
 
     private function toTimestamp(string $date, string $time): int
@@ -922,8 +959,8 @@ class Booking
                 default => 'aggiornamento',
             };
             $recipients = [
-                ['email' => (string) $row->owner_email, 'userId' => (int) $booking['ownerUserId'], 'role' => 'Pet Owner'],
-                ['email' => (string) $row->assistant_email, 'userId' => (int) $booking['assistantUserId'], 'role' => 'Pet Assistant'],
+                ['email' => (string) $row->owner_email, 'userId' => (int) $booking['ownerUserId'], 'perspective' => self::PERSPECTIVE_OWNER],
+                ['email' => (string) $row->assistant_email, 'userId' => (int) $booking['assistantUserId'], 'perspective' => self::PERSPECTIVE_ASSISTANT],
             ];
             foreach ($recipients as $recipient) {
                 $email = $recipient['email'];
@@ -936,7 +973,7 @@ class Booking
                     $token = $this->createActionToken((int) $booking['id'], $recipient['userId'], 'cancel', $this->toTimestamp($booking['date'], $booking['startTime']));
                     $cancelUrl = url('/api/bookings/action/'.$token);
                 }
-                $isOwnerRecipient = $recipient['role'] === 'Pet Owner';
+                $isOwnerRecipient = $recipient['perspective'] === self::PERSPECTIVE_OWNER;
                 $confirmationPolicy = $booking['confirmationMode'] === 'manual'
                     ? ($isOwnerRecipient
                         ? 'Il Pet Assistant deve rispondere entro il '.$this->formatTimestamp((int) $booking['responseDeadline']).'.'
@@ -951,7 +988,7 @@ class Booking
                 $cancelledByOwner = (int) ($booking['cancelledByUserId'] ?? 0) === (int) $booking['ownerUserId'];
                 $informationText = $confirmationPolicy.' '.$rolePolicy;
                 if ($isCancelled) {
-                    if ($recipient['role'] === 'Pet Owner') {
+                    if ($isOwnerRecipient) {
                         $informationText = $cancelledByOwner
                             ? 'Abbiamo notificato al Pet Assistant l’annullamento della prenotazione '.$booking['bookingNumber'].'.'
                             : 'Il Pet Assistant ha annullato la prenotazione '.$booking['bookingNumber'].'.';
@@ -962,7 +999,8 @@ class Booking
                     }
                 }
                 $informationBlock = '<p style="margin:0;font-size:14px;line-height:1.7;color:#425466;">'.e($informationText).'</p>';
-                $profileUrl = url($recipient['role'] === 'Pet Owner' ? '/profile/petowner' : '/profile/petassistant');
+                $profilePath = $isOwnerRecipient ? '/profile/petowner' : '/profile/petassistant';
+                $profileUrl = url($profilePath).'?section=bookings&perspective='.$recipient['perspective'];
                 $actions = $isActionable
                     ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 0 0;">'
                         .'<tr><td style="padding:0 0 12px 0;">'

@@ -9,7 +9,7 @@ import '../css/profile.css'
 import '../css/combobox.css'
 import { sanitizeText } from '../utility.js'
 import AccountChangeModal, { SocialAccountSwitchActions } from '../components/AccountChangeModal.tsx'
-import { FieldLabel, FieldLegend } from '../components/ProfileFieldMeta.tsx'
+import { FieldLabel, FieldLegend, ProfileLocationHeading } from '../components/ProfileFieldMeta.tsx'
 import PetOwnerPetsSection, { PetsIcon } from '../components/PetOwnerPetsSection.tsx'
 import RemoveAccountModal from '../components/RemoveAccountModal.tsx'
 import BookingsSection, { BookingsIcon } from '../components/BookingsSection.tsx'
@@ -879,9 +879,7 @@ export default function PetOwnerProfilePage() {
 
                   <section className="profile-form-section profile-location-section">
                     <div className="profile-location-copy">
-                      <p className="profile-location-kicker">
-                       INDIRIZZO LOCAZIONE
-                      </p>
+                      <ProfileLocationHeading />
                       <div className="profile-map-toolbar" aria-label="Controlli mappa">
                         <button
                           type="button"
@@ -1019,7 +1017,7 @@ export default function PetOwnerProfilePage() {
               ) : activeMenu === 'favorites' ? (
                 <PetAssistantFavorites />
               ) : (
-                <BookingsSection role="pet_owner" />
+                <BookingsSection perspective="owner" />
               )}
             </div>
           </section>

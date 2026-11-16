@@ -91,6 +91,14 @@ class ExampleTest extends TestCase
                 $this->assertContains('portal.auth', $middleware, $uri);
             }
 
+            if (($uri === 'api/bookings' && in_array('POST', $route->methods(), true)) || $uri === 'api/bookings/batch') {
+                $this->assertContains('portal.capability:owner', $middleware, $uri);
+            }
+
+            if (in_array($uri, ['api/bookings/active-for-assistant', 'api/bookings/confirmation-mode'], true)) {
+                $this->assertContains('portal.capability:assistant', $middleware, $uri);
+            }
+
             if ($uri === 'api/pet-assistant-favorites' || str_ends_with($uri, '/favorite')) {
                 $this->assertContains('portal.auth', $middleware, $uri);
                 $this->assertContains('portal.capability:owner', $middleware, $uri);
