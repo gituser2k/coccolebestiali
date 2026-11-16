@@ -20,7 +20,6 @@ class NeutralAccountCompatibilityTest extends TestCase
         Schema::dropAllTables();
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role', 32);
             $table->string('name')->default('');
             $table->string('email')->nullable()->unique();
             $table->boolean('email_verified')->default(false);
@@ -57,10 +56,22 @@ class NeutralAccountCompatibilityTest extends TestCase
             $table->integer('updated_at')->default(0);
             $table->unique(['provider', 'provider_sub']);
         });
-        Schema::create('user_reputation', function (Blueprint $table): void {
-            $table->unsignedInteger('user_id')->primary();
+        Schema::create('portal_policy', function (Blueprint $table): void {
+            $table->string('policy_key')->primary();
+            $table->integer('value');
+            $table->integer('updated_at')->default(0);
+        });
+        DB::table('portal_policy')->insert([
+            'policy_key' => 'initial_reputation_score',
+            'value' => 60,
+            'updated_at' => 1000,
+        ]);
+        Schema::create('profile_reputation', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
             $table->unsignedTinyInteger('score')->default(60);
             $table->integer('updated_at')->default(0);
+            $table->primary(['user_id', 'capability']);
         });
         Mail::fake();
         $this->withoutMiddleware(ValidateCsrfToken::class);
@@ -74,7 +85,6 @@ class NeutralAccountCompatibilityTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.user.role', 'pet_owner')
             ->assertJsonPath('data.user.activeCapabilities.0', 'owner')
             ->assertJsonPath('data.user.modes.default', 'owner')
             ->assertJsonPath('data.user.capabilitySource', 'user_capabilities');
@@ -84,9 +94,14 @@ class NeutralAccountCompatibilityTest extends TestCase
             'status' => 'active',
         ]);
         $this->assertDatabaseCount('user_capabilities', 1);
+        $this->assertDatabaseHas('profile_reputation', [
+            'user_id' => $response->json('data.user.id'),
+            'capability' => 'owner',
+            'score' => 60,
+        ]);
     }
 
-    public function test_legacy_assistant_registration_payload_remains_compatible(): void
+    public function test_legacy_role_registration_payload_is_rejected(): void
     {
         $response = $this->postJson('/api/auth/register/email', [
             'role' => 'pet_assistant',
@@ -94,10 +109,8 @@ class NeutralAccountCompatibilityTest extends TestCase
             'password' => 'Password1!',
         ]);
 
-        $response->assertOk()
-            ->assertJsonPath('data.user.role', 'pet_assistant')
-            ->assertJsonPath('data.user.activeCapabilities', ['owner', 'assistant'])
-            ->assertJsonPath('data.user.modes.default', 'assistant');
+        $response->assertUnprocessable();
+        $this->assertDatabaseMissing('users', ['email' => 'legacy-assistant@example.test']);
     }
 
     public function test_google_registration_without_a_role_creates_a_neutral_account(): void
@@ -116,7 +129,6 @@ class NeutralAccountCompatibilityTest extends TestCase
 
         $this->postJson('/api/auth/register/google', ['idToken' => 'valid-test-token'])
             ->assertOk()
-            ->assertJsonPath('data.user.role', 'pet_owner')
             ->assertJsonPath('data.user.activeCapabilities', ['owner'])
             ->assertJsonPath('data.user.provider', 'google');
     }
@@ -134,7 +146,6 @@ class NeutralAccountCompatibilityTest extends TestCase
                 'mockEmail' => 'neutral-apple@example.test',
                 'mockSub' => 'neutral-apple-sub',
             ])->assertOk()
-                ->assertJsonPath('data.user.role', 'pet_owner')
                 ->assertJsonPath('data.user.activeCapabilities', ['owner'])
                 ->assertJsonPath('data.user.provider', 'apple');
         } finally {
@@ -147,14 +158,13 @@ class NeutralAccountCompatibilityTest extends TestCase
 
     public function test_social_registration_never_changes_an_existing_role_or_capability_state(): void
     {
-        $this->insertUser(10, 'pet_assistant', 'existing@example.test');
+        $this->insertUser(10, 'existing@example.test');
         $this->insertCapability(10, 'owner', 'active');
         $this->insertCapability(10, 'assistant', 'suspended', 1234);
 
         $user = (new UserAccount)->upsertSocialUser(
             'google',
             'google-existing-10',
-            'pet_owner',
             'existing@example.test',
             true,
             'Existing User',
@@ -163,7 +173,6 @@ class NeutralAccountCompatibilityTest extends TestCase
             ['sub' => 'google-existing-10']
         );
 
-        $this->assertSame('pet_assistant', DB::table('users')->where('id', 10)->value('role'));
         $this->assertSame(['owner'], $user['activeCapabilities']);
         $this->assertSame('owner', $user['modes']['default']);
         $this->assertDatabaseHas('user_capabilities', [
@@ -175,36 +184,36 @@ class NeutralAccountCompatibilityTest extends TestCase
         $this->assertDatabaseCount('user_capabilities', 2);
     }
 
-    public function test_capability_read_falls_back_to_the_legacy_role_when_backfill_is_missing(): void
+    public function test_capability_read_fails_closed_when_rows_are_missing(): void
     {
-        $this->insertUser(20, 'pet_assistant', 'fallback@example.test');
+        $this->insertUser(20, 'fallback@example.test');
 
         $user = (new UserAccount)->getUserById(20);
 
-        $this->assertSame('legacy_fallback', $user['capabilitySource']);
-        $this->assertSame(['owner', 'assistant'], $user['activeCapabilities']);
-        $this->assertSame(['available' => ['owner', 'assistant'], 'default' => 'assistant'], $user['modes']);
+        $this->assertSame('user_capabilities', $user['capabilitySource']);
+        $this->assertSame([], $user['activeCapabilities']);
+        $this->assertSame(['available' => [], 'default' => ''], $user['modes']);
         $this->assertDatabaseCount('user_capabilities', 0);
     }
 
-    public function test_auth_me_exposes_capabilities_without_removing_the_legacy_role(): void
+    public function test_auth_me_exposes_capabilities_without_a_role_field(): void
     {
-        $this->insertUser(30, 'pet_owner', 'session@example.test');
+        $this->insertUser(30, 'session@example.test');
         $this->insertCapability(30, 'owner', 'active');
 
         $this->withSession([PortalSession::USER_ID_KEY => 30])
             ->getJson('/api/auth/me')
             ->assertOk()
-            ->assertJsonPath('data.user.role', 'pet_owner')
+            ->assertJsonMissingPath('data.user.role')
             ->assertJsonPath('data.user.capabilities.0.capability', 'owner')
             ->assertJsonPath('data.user.capabilities.0.status', 'active')
             ->assertJsonPath('data.user.modes.default', 'owner');
     }
 
-    public function test_new_and_legacy_email_verification_signatures_are_both_accepted(): void
+    public function test_only_neutral_email_verification_signatures_are_accepted(): void
     {
-        $this->insertUser(40, 'pet_owner', 'new-link@example.test', false);
-        $this->insertUser(41, 'pet_assistant', 'legacy-link@example.test', false);
+        $this->insertUser(40, 'new-link@example.test', false);
+        $this->insertUser(41, 'legacy-link@example.test', false);
         $expires = time() + 600;
         $key = (string) config('app.key');
 
@@ -221,16 +230,15 @@ class NeutralAccountCompatibilityTest extends TestCase
             'role' => 'pet_assistant',
             'expires' => $expires,
             'signature' => $legacySignature,
-        ]))->assertRedirect('/?auth=login&verified=1');
+        ]))->assertStatus(400);
 
-        $this->assertSame(2, DB::table('users')->where('email_verified', 1)->count());
+        $this->assertSame(1, DB::table('users')->where('email_verified', 1)->count());
     }
 
-    private function insertUser(int $id, string $role, string $email, bool $verified = true): void
+    private function insertUser(int $id, string $email, bool $verified = true): void
     {
         DB::table('users')->insert([
             'id' => $id,
-            'role' => $role,
             'name' => '',
             'email' => $email,
             'email_verified' => $verified,

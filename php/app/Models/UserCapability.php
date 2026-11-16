@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 final class UserCapability
@@ -25,50 +24,27 @@ final class UserCapability
 
     public const STATUS_DISABLED = 'disabled';
 
-    /**
-     * Preserve legacy access while dual-writing the additive capability model.
-     * Existing rows are never overwritten, so a suspended or disabled profile
-     * cannot be accidentally reactivated by login or account maintenance.
-     */
-    public function provisionForLegacyRole(int $userId, string $legacyRole, ?int $timestamp = null): void
+    public function provisionOwner(int $userId, ?int $timestamp = null): void
     {
         if ($userId <= 0) {
             throw new InvalidArgumentException('Invalid user id.');
-        }
-
-        if (! in_array($legacyRole, ['pet_owner', 'pet_assistant'], true)) {
-            throw new InvalidArgumentException('Invalid legacy role.');
         }
 
         $now = $timestamp ?? time();
         $this->insertActive($userId, self::OWNER, $now);
-
-        if ($legacyRole === 'pet_assistant') {
-            $this->insertActive($userId, self::ASSISTANT, $now);
-        }
     }
 
-    /**
-     * Read the additive model and fall back to the legacy role while mixed
-     * deployments or accounts without a completed backfill still exist.
-     */
-    public function resolveForUser(int $userId, string $legacyRole): array
+    /** Read the authoritative capability model. Missing rows grant no access. */
+    public function resolveForUser(int $userId): array
     {
         if ($userId <= 0) {
             throw new InvalidArgumentException('Invalid user id.');
         }
 
-        $rows = Schema::hasTable('user_capabilities')
-            ? DB::table('user_capabilities')
-                ->where('user_id', $userId)
-                ->orderByRaw("CASE capability WHEN 'owner' THEN 1 WHEN 'assistant' THEN 2 ELSE 3 END")
-                ->get()
-            : collect();
-        $source = $rows->isEmpty() ? 'legacy_fallback' : 'user_capabilities';
-
-        if ($rows->isEmpty()) {
-            $rows = collect($this->legacyFallbackRows($legacyRole));
-        }
+        $rows = DB::table('user_capabilities')
+            ->where('user_id', $userId)
+            ->orderByRaw("CASE capability WHEN 'owner' THEN 1 WHEN 'assistant' THEN 2 ELSE 3 END")
+            ->get();
 
         $items = $rows->map(static fn ($row): array => [
             'capability' => (string) $row->capability,
@@ -85,10 +61,7 @@ final class UserCapability
             static fn (array $item): string => $item['capability'],
             array_filter($items, static fn (array $item): bool => $item['status'] === self::STATUS_ACTIVE)
         ));
-        $preferred = $legacyRole === 'pet_assistant' ? self::ASSISTANT : self::OWNER;
-        $defaultMode = in_array($preferred, $active, true)
-            ? $preferred
-            : (in_array(self::OWNER, $active, true) ? self::OWNER : ($active[0] ?? ''));
+        $defaultMode = in_array(self::OWNER, $active, true) ? self::OWNER : ($active[0] ?? '');
 
         return [
             'items' => $items,
@@ -97,66 +70,46 @@ final class UserCapability
                 'available' => $active,
                 'default' => $defaultMode,
             ],
-            'source' => $source,
+            'source' => 'user_capabilities',
         ];
     }
 
-    public function hasActive(int $userId, string $capability, ?string $legacyRole = null): bool
+    public function hasActive(int $userId, string $capability): bool
     {
         $this->assertCapability($capability);
         if ($userId <= 0) {
             return false;
         }
 
-        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
-        if (Schema::hasTable('user_capabilities')) {
-            $rows = DB::table('user_capabilities')->where('user_id', $userId);
-            if ((clone $rows)->exists()) {
-                return (clone $rows)
-                    ->where('capability', $capability)
-                    ->where('status', self::STATUS_ACTIVE)
-                    ->exists();
-            }
-        }
-
-        return $this->legacyRoleGrants($legacyRole, $capability);
+        return DB::table('user_capabilities')
+            ->where('user_id', $userId)
+            ->where('capability', $capability)
+            ->where('status', self::STATUS_ACTIVE)
+            ->exists();
     }
 
-    public function activeForUser(int $userId, ?string $legacyRole = null): array
+    public function activeForUser(int $userId): array
     {
         if ($userId <= 0) {
             return [];
         }
-        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
-
-        return $this->resolveForUser($userId, $legacyRole)['active'];
+        return $this->resolveForUser($userId)['active'];
     }
 
-    public function hasAssistantProfileAccess(int $userId, ?string $legacyRole = null): bool
+    public function hasAssistantProfileAccess(int $userId): bool
     {
         if ($userId <= 0) {
             return false;
         }
 
-        $legacyRole ??= (string) DB::table('users')->where('id', $userId)->value('role');
-        if (Schema::hasTable('user_capabilities')) {
-            $rows = DB::table('user_capabilities')->where('user_id', $userId);
-            if ((clone $rows)->exists()) {
-                return (clone $rows)
-                    ->where('capability', self::ASSISTANT)
-                    ->whereIn('status', [self::STATUS_DRAFT, self::STATUS_PENDING_VERIFICATION, self::STATUS_ACTIVE])
-                    ->exists();
-            }
-        }
-
-        return $legacyRole === 'pet_assistant';
+        return DB::table('user_capabilities')
+            ->where('user_id', $userId)
+            ->where('capability', self::ASSISTANT)
+            ->whereIn('status', [self::STATUS_DRAFT, self::STATUS_PENDING_VERIFICATION, self::STATUS_ACTIVE])
+            ->exists();
     }
 
-    /**
-     * Restrict a user-based query to an active capability. Accounts without
-     * any backfilled row retain the legacy fallback; partial or inactive
-     * capability state is always authoritative and fails closed.
-     */
+    /** Restrict a user-based query to an active capability. */
     public function scopeActive(
         Builder $query,
         string $userAlias,
@@ -166,54 +119,13 @@ final class UserCapability
         $this->assertCapability($capability);
         $this->assertAlias($userAlias);
         $this->assertAlias($capabilityAlias);
-        $legacyRoles = $capability === self::ASSISTANT
-            ? ['pet_assistant']
-            : ['pet_owner', 'pet_assistant'];
-
-        if (! Schema::hasTable('user_capabilities')) {
-            return $query->whereIn($userAlias.'.role', $legacyRoles);
-        }
-
-        $allAlias = $capabilityAlias.'_all';
-        $query->leftJoin('user_capabilities as '.$capabilityAlias, function ($join) use ($userAlias, $capabilityAlias, $capability) {
+        $query->join('user_capabilities as '.$capabilityAlias, function ($join) use ($userAlias, $capabilityAlias, $capability) {
             $join->on($capabilityAlias.'.user_id', '=', $userAlias.'.id')
-                ->where($capabilityAlias.'.capability', $capability);
+                ->where($capabilityAlias.'.capability', $capability)
+                ->where($capabilityAlias.'.status', self::STATUS_ACTIVE);
         });
 
-        return $query->where(function ($where) use ($userAlias, $capabilityAlias, $allAlias, $legacyRoles) {
-            $where->where($capabilityAlias.'.status', self::STATUS_ACTIVE)
-                ->orWhere(function ($fallback) use ($userAlias, $capabilityAlias, $allAlias, $legacyRoles) {
-                    $fallback->whereNull($capabilityAlias.'.user_id')
-                        ->whereIn($userAlias.'.role', $legacyRoles)
-                        ->whereNotExists(function ($subquery) use ($userAlias, $allAlias) {
-                            $subquery->selectRaw('1')
-                                ->from('user_capabilities as '.$allAlias)
-                                ->whereColumn($allAlias.'.user_id', $userAlias.'.id');
-                        });
-                });
-        });
-    }
-
-    private function legacyFallbackRows(string $legacyRole): array
-    {
-        if (! in_array($legacyRole, ['pet_owner', 'pet_assistant'], true)) {
-            return [];
-        }
-
-        $row = static fn (string $capability): object => (object) [
-            'capability' => $capability,
-            'status' => self::STATUS_ACTIVE,
-            'onboarding_version' => 1,
-            'current_step' => 'complete',
-            'completed_at' => 0,
-            'activated_at' => 0,
-            'suspended_at' => 0,
-            'disabled_at' => 0,
-        ];
-
-        return $legacyRole === 'pet_assistant'
-            ? [$row(self::OWNER), $row(self::ASSISTANT)]
-            : [$row(self::OWNER)];
+        return $query;
     }
 
     private function insertActive(int $userId, string $capability, int $timestamp): void
@@ -231,13 +143,6 @@ final class UserCapability
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
         ]);
-    }
-
-    private function legacyRoleGrants(string $legacyRole, string $capability): bool
-    {
-        return $capability === self::OWNER
-            ? in_array($legacyRole, ['pet_owner', 'pet_assistant'], true)
-            : $legacyRole === 'pet_assistant';
     }
 
     private function assertCapability(string $capability): void

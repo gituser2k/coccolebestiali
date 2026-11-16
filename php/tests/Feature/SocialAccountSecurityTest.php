@@ -17,7 +17,6 @@ class SocialAccountSecurityTest extends TestCase
         Schema::dropAllTables();
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role');
             $table->string('name')->default('');
             $table->string('email')->nullable()->unique();
             $table->boolean('email_verified')->default(false);
@@ -26,6 +25,18 @@ class SocialAccountSecurityTest extends TestCase
             $table->string('avatar')->default('');
             $table->integer('created_at')->default(0);
             $table->integer('updated_at')->default(0);
+        });
+        Schema::create('user_capabilities', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
+            $table->string('status', 32);
+            $table->unsignedSmallInteger('onboarding_version')->default(1);
+            $table->string('current_step', 64)->default('');
+            $table->unsignedInteger('completed_at')->default(0);
+            $table->unsignedInteger('activated_at')->default(0);
+            $table->unsignedInteger('suspended_at')->default(0);
+            $table->unsignedInteger('disabled_at')->default(0);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('social_accounts', function (Blueprint $table): void {
             $table->increments('id');
@@ -42,10 +53,15 @@ class SocialAccountSecurityTest extends TestCase
         });
         DB::table('users')->insert([
             'id' => 1,
-            'role' => 'pet_owner',
             'name' => 'Victim',
             'email' => 'victim@example.test',
             'email_verified' => true,
+        ]);
+        DB::table('user_capabilities')->insert([
+            'user_id' => 1,
+            'capability' => 'owner',
+            'status' => 'active',
+            'current_step' => 'complete',
         ]);
     }
 
@@ -73,7 +89,7 @@ class SocialAccountSecurityTest extends TestCase
         (new UserAccount)->loginSocialUser('apple', 'trusted-google-sub');
     }
 
-    public function test_verified_provider_email_can_link_a_legacy_account_once(): void
+    public function test_verified_provider_email_can_link_an_existing_account_once(): void
     {
         $user = (new UserAccount)->loginSocialUser(
             'google',
@@ -93,7 +109,7 @@ class SocialAccountSecurityTest extends TestCase
         ]);
     }
 
-    public function test_unverified_provider_email_never_links_a_legacy_account(): void
+    public function test_unverified_provider_email_never_links_an_existing_account(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('LOGIN_SOCIAL_USER_NOT_FOUND');

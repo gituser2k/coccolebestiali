@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class PublicPetAssistant
@@ -13,21 +12,13 @@ class PublicPetAssistant
     {
         $query = DB::table('users as u')
             ->join('operatordata as operator', 'operator.user_id', '=', 'u.id')
-            ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'u.id')
+            ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'u.id')
+            ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'u.id')
             ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'u.id')
-            ->leftJoin('user_reputation as legacy_reputation', 'legacy_reputation.user_id', '=', 'u.id');
-
-        if ($this->usesSeparatedProfiles()) {
-            $query
-                ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'u.id')
-                ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'u.id');
-        }
-        if ($this->usesContextualReputation()) {
-            $query->leftJoin('profile_reputation as assistant_reputation', function ($join) {
+            ->leftJoin('profile_reputation as assistant_reputation', function ($join) {
                 $join->on('assistant_reputation.user_id', '=', 'u.id')
                     ->where('assistant_reputation.capability', ProfileReputation::ASSISTANT);
             });
-        }
 
         return (new UserCapability)->scopeActive(
             $query,
@@ -102,7 +93,6 @@ class PublicPetAssistant
             'isOwnProfile' => $isOwnProfile,
             'viewerAuthenticated' => $viewerId > 0,
             'viewerCapabilities' => $viewerCapabilities,
-            'viewerRole' => $viewer['authenticatedRole'],
             'pets' => $viewer['pets'],
             'policies' => $viewer['policies'],
         ];
@@ -194,10 +184,8 @@ class PublicPetAssistant
             ->where('review.reviewed_user_id', $assistantId)
             ->whereColumn('review.reviewer_user_id', 'booking.owner_user_id')
             ->whereColumn('review.reviewed_user_id', 'booking.assistant_user_id');
-        if (Schema::hasColumn('booking_review', 'reviewer_capability')) {
-            $query->where('review.reviewer_capability', UserCapability::OWNER)
-                ->where('review.reviewed_capability', UserCapability::ASSISTANT);
-        }
+        $query->where('review.reviewer_capability', UserCapability::OWNER)
+            ->where('review.reviewed_capability', UserCapability::ASSISTANT);
         $counts = (clone $query)->groupBy('review.sentiment')->selectRaw('review.sentiment, COUNT(*) AS total')
             ->pluck('total', 'sentiment');
 
@@ -227,37 +215,19 @@ class PublicPetAssistant
         return trim((string) $row->business_name) ?: (string) $row->name;
     }
 
-    private function usesSeparatedProfiles(): bool
-    {
-        return Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
-    }
-
-    private function usesContextualReputation(): bool
-    {
-        return Schema::hasTable('profile_reputation');
-    }
-
     private function assistantReputationExpression(): string
     {
         $initialScore = PortalPolicy::value('initial_reputation_score');
-        $legacyFallback = "CASE WHEN u.role = 'pet_assistant' THEN COALESCE(legacy_reputation.score, {$initialScore}) ELSE {$initialScore} END";
-
-        return $this->usesContextualReputation()
-            ? "CASE WHEN assistant_reputation.user_id IS NOT NULL THEN assistant_reputation.score ELSE {$legacyFallback} END"
-            : $legacyFallback;
+        return "COALESCE(assistant_reputation.score, {$initialScore})";
     }
 
     private function commonPhotoExpression(): string
     {
-        return $this->usesSeparatedProfiles()
-            ? "CASE WHEN account_common.user_id IS NOT NULL THEN account_common.photo ELSE COALESCE(personal.photo, '') END"
-            : "COALESCE(personal.photo, '')";
+        return "COALESCE(account_common.photo, '')";
     }
 
     private function assistantFieldExpression(string $field, string $fallback): string
     {
-        return $this->usesSeparatedProfiles()
-            ? "CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.{$field} ELSE COALESCE(personal.{$field}, {$fallback}) END"
-            : "COALESCE(personal.{$field}, {$fallback})";
+        return "COALESCE(assistant_location.{$field}, {$fallback})";
     }
 }

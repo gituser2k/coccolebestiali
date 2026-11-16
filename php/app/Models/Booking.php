@@ -748,13 +748,7 @@ class Booking
             ->join('users as assistant', 'assistant.id', '=', 'booking.assistant_user_id')
             ->join('ownerpet as pet', 'pet.id', '=', 'booking.pet_id')
             ->join('service', 'service.id', '=', 'booking.service_id')
-            ->leftJoin('user_reputation as owner_legacy_rep', 'owner_legacy_rep.user_id', '=', 'owner.id')
-            ->leftJoin('user_reputation as assistant_legacy_rep', 'assistant_legacy_rep.user_id', '=', 'assistant.id');
-
-        $usesContextualReputation = Schema::hasTable('profile_reputation');
-        if ($usesContextualReputation) {
-            $query
-                ->leftJoin('profile_reputation as owner_profile_rep', function ($join) {
+            ->leftJoin('profile_reputation as owner_profile_rep', function ($join) {
                     $join->on('owner_profile_rep.user_id', '=', 'owner.id')
                         ->where('owner_profile_rep.capability', ProfileReputation::OWNER);
                 })
@@ -762,16 +756,9 @@ class Booking
                     $join->on('assistant_profile_rep.user_id', '=', 'assistant.id')
                         ->where('assistant_profile_rep.capability', ProfileReputation::ASSISTANT);
                 });
-        }
         $initialScore = PortalPolicy::value('initial_reputation_score');
-        $ownerLegacyFallback = "CASE WHEN owner.role = 'pet_owner' THEN COALESCE(owner_legacy_rep.score, {$initialScore}) ELSE {$initialScore} END";
-        $assistantLegacyFallback = "CASE WHEN assistant.role = 'pet_assistant' THEN COALESCE(assistant_legacy_rep.score, {$initialScore}) ELSE {$initialScore} END";
-        $ownerScore = $usesContextualReputation
-            ? "CASE WHEN owner_profile_rep.user_id IS NOT NULL THEN owner_profile_rep.score ELSE {$ownerLegacyFallback} END"
-            : $ownerLegacyFallback;
-        $assistantScore = $usesContextualReputation
-            ? "CASE WHEN assistant_profile_rep.user_id IS NOT NULL THEN assistant_profile_rep.score ELSE {$assistantLegacyFallback} END"
-            : $assistantLegacyFallback;
+        $ownerScore = "COALESCE(owner_profile_rep.score, {$initialScore})";
+        $assistantScore = "COALESCE(assistant_profile_rep.score, {$initialScore})";
 
         return $query->select([
                 'booking.*',

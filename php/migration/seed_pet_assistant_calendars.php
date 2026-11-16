@@ -16,10 +16,12 @@ if (! in_array('--force', $argv, true)) {
 require_once __DIR__.'/pet_assistant_calendar_seed.php';
 
 $userIds = DB::table('users')
-    ->where('role', 'pet_assistant')
+    ->join('user_capabilities', 'user_capabilities.user_id', '=', 'users.id')
+    ->where('user_capabilities.capability', 'assistant')
+    ->where('user_capabilities.status', 'active')
     ->where('email', 'like', 'utente%@email.it')
-    ->orderBy('id')
-    ->pluck('id')
+    ->orderBy('users.id')
+    ->pluck('users.id')
     ->map(fn ($id) => (int) $id)
     ->all();
 

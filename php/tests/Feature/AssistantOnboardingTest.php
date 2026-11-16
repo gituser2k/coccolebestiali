@@ -18,7 +18,6 @@ class AssistantOnboardingTest extends TestCase
         Schema::dropAllTables();
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role', 32);
             $table->string('name')->default('');
             $table->string('email')->default('');
             $table->boolean('email_verified')->default(false);
@@ -30,6 +29,23 @@ class AssistantOnboardingTest extends TestCase
             $table->unsignedInteger('user_id');
             $table->string('provider');
             $table->integer('updated_at')->default(0);
+        });
+        Schema::create('portal_policy', function (Blueprint $table): void {
+            $table->string('policy_key')->primary();
+            $table->integer('value');
+            $table->integer('updated_at')->default(0);
+        });
+        DB::table('portal_policy')->insert([
+            'policy_key' => 'initial_reputation_score',
+            'value' => 60,
+            'updated_at' => 1000,
+        ]);
+        Schema::create('profile_reputation', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
+            $table->unsignedTinyInteger('score')->default(60);
+            $table->integer('updated_at')->default(0);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('user_capabilities', function (Blueprint $table): void {
             $table->unsignedInteger('user_id');
@@ -97,7 +113,6 @@ class AssistantOnboardingTest extends TestCase
 
         DB::table('users')->insert([
             'id' => 1,
-            'role' => 'pet_owner',
             'name' => '',
             'email' => 'globale@example.test',
             'email_verified' => true,
@@ -159,6 +174,11 @@ class AssistantOnboardingTest extends TestCase
             ->assertJsonPath('data.completionPercentage', 25);
         $this->assertTrue((new UserCapability)->hasActive(1, UserCapability::OWNER));
         $this->assertTrue((new UserCapability)->hasActive(1, UserCapability::ASSISTANT));
+        $this->assertDatabaseHas('profile_reputation', [
+            'user_id' => 1,
+            'capability' => 'assistant',
+            'score' => 60,
+        ]);
 
         $this->withSession([PortalSession::USER_ID_KEY => 1])
             ->postJson('/api/auth/mode', ['mode' => 'assistant'])

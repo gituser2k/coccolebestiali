@@ -28,7 +28,6 @@ type PetOption = {
 type SearchOptions = {
   services: ServiceOption[]
   pets: PetOption[]
-  authenticatedRole: string
   activeCapabilities: string[]
   canUseOwnerDiscovery: boolean
   canFilterFavorites: boolean
@@ -107,7 +106,6 @@ type SearchResponse = {
 const EMPTY_OPTIONS: SearchOptions = {
   services: [],
   pets: [],
-  authenticatedRole: '',
   activeCapabilities: [],
   canUseOwnerDiscovery: false,
   canFilterFavorites: false,

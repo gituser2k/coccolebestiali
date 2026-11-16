@@ -20,7 +20,6 @@ class CapabilityDiscoveryTest extends TestCase
         Schema::dropAllTables();
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role', 32);
             $table->string('name')->default('');
             $table->string('avatar', 1024)->default('');
         });
@@ -35,18 +34,24 @@ class CapabilityDiscoveryTest extends TestCase
             $table->unsignedInteger('user_id')->unique();
             $table->string('business_name')->default('');
         });
-        Schema::create('personaldata', function (Blueprint $table): void {
-            $table->increments('id');
-            $table->unsignedInteger('user_id')->unique();
+        Schema::create('account_profile', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id')->primary();
             $table->string('photo', 1024)->default('');
+        });
+        Schema::create('assistant_profile', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id')->primary();
             $table->string('city')->default('');
+            $table->decimal('location_lat', 10, 7)->default(0);
+            $table->decimal('location_lng', 10, 7)->default(0);
         });
         Schema::create('operator_public_profile', function (Blueprint $table): void {
             $table->unsignedInteger('user_id')->primary();
         });
-        Schema::create('user_reputation', function (Blueprint $table): void {
-            $table->unsignedInteger('user_id')->primary();
+        Schema::create('profile_reputation', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
             $table->unsignedTinyInteger('score')->default(60);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('pet_assistant_favorite', function (Blueprint $table): void {
             $table->unsignedInteger('owner_user_id');
@@ -56,24 +61,27 @@ class CapabilityDiscoveryTest extends TestCase
         });
 
         DB::table('users')->insert([
-            ['id' => 1, 'role' => 'pet_owner', 'name' => 'Dual Role'],
-            ['id' => 2, 'role' => 'pet_assistant', 'name' => 'Suspended Assistant'],
-            ['id' => 3, 'role' => 'pet_assistant', 'name' => 'Legacy Assistant'],
-            ['id' => 4, 'role' => 'pet_owner', 'name' => 'Suspended Owner'],
+            ['id' => 1, 'name' => 'Dual Role'],
+            ['id' => 2, 'name' => 'Suspended Assistant'],
+            ['id' => 3, 'name' => 'Active Assistant'],
+            ['id' => 4, 'name' => 'Suspended Owner'],
         ]);
         foreach ([1, 2, 3] as $userId) {
             DB::table('operatordata')->insert(['user_id' => $userId]);
-            DB::table('personaldata')->insert(['user_id' => $userId, 'city' => 'Roma']);
+            DB::table('account_profile')->insert(['user_id' => $userId]);
+            DB::table('assistant_profile')->insert(['user_id' => $userId, 'city' => 'Roma']);
         }
         $this->insertCapability(1, UserCapability::OWNER, 'active');
         $this->insertCapability(1, UserCapability::ASSISTANT, 'active');
         $this->insertCapability(2, UserCapability::OWNER, 'active');
         $this->insertCapability(2, UserCapability::ASSISTANT, 'suspended');
+        $this->insertCapability(3, UserCapability::OWNER, 'active');
+        $this->insertCapability(3, UserCapability::ASSISTANT, 'active');
         $this->insertCapability(4, UserCapability::OWNER, 'suspended');
         $this->withoutMiddleware(ValidateCsrfToken::class);
     }
 
-    public function test_public_discovery_uses_active_assistant_capability_with_legacy_fallback(): void
+    public function test_public_discovery_uses_only_active_assistant_capabilities(): void
     {
         $profiles = new PublicPetAssistant;
 

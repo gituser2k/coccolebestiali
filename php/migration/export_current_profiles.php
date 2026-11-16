@@ -28,7 +28,6 @@ $demoTables = [
     'users',
     'user_capabilities',
     'social_accounts',
-    'personaldata',
     'account_profile',
     'owner_profile',
     'assistant_profile',
@@ -52,7 +51,6 @@ $demoTables = [
     'calendar_day_slot',
     'calendar_day_slot_service',
     'profile_reputation',
-    'user_reputation',
     'booking_counter',
     'booking_batch',
     'booking',
@@ -177,10 +175,10 @@ function cbCopyStorageFile(string $relativePath, string $sourceRoot, string $tar
     return copy($source, $target);
 }
 
-$ownerCount = DB::table('users')->where('role', 'pet_owner')->count();
-$assistantCount = DB::table('users')->where('role', 'pet_assistant')->count();
-if ($ownerCount !== 1 || $assistantCount !== 40 || DB::table('users')->count() !== 41) {
-    fwrite(STDERR, "Dataset demo non valido: sono richiesti 1 Pet Owner e 40 Pet Assistant.\n");
+$accountCount = DB::table('users')->count();
+$assistantCount = DB::table('user_capabilities')->where('capability', 'assistant')->where('status', 'active')->count();
+if ($assistantCount !== 40 || $accountCount !== 41) {
+    fwrite(STDERR, "Dataset demo non valido: sono richiesti 41 account e 40 profili Pet Assistant attivi.\n");
     exit(1);
 }
 
@@ -195,9 +193,6 @@ mkdir($snapshotStorage.'/private', 0775, true);
 $publicPaths = [];
 $privatePaths = [];
 foreach (DB::table('users')->pluck('avatar') as $path) {
-    $publicPaths[(string) $path] = true;
-}
-foreach (DB::table('personaldata')->pluck('photo') as $path) {
     $publicPaths[(string) $path] = true;
 }
 if (Schema::hasTable('account_profile')) {
@@ -240,6 +235,6 @@ fwrite(STDOUT, sprintf(
     "Snapshot creati: sistema=%d tabelle, demo=%d tabelle, utenti=%d, file=%d.\n",
     count($systemTables),
     count($demoTables),
-    $ownerCount + $assistantCount,
+    $accountCount,
     count($copiedPublic) + count($copiedPrivate)
 ));

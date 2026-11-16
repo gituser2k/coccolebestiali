@@ -46,17 +46,15 @@ Lo script può essere rieseguito per ripristinare tabelle o seed mancanti. Prima
 
 | Tabella | Funzione |
 | --- | --- |
-| `users` | Account, ruolo, alias, email e credenziali. |
+| `users` | Account globale, alias, email e credenziali; non contiene un ruolo esclusivo. |
 | `user_capabilities` | Capability Owner/Assistant, stato e avanzamento onboarding per account. |
 | `social_accounts` | Collegamenti con Google e Apple. |
 | `account_profile` | Nome, foto, età e telefono condivisi dall'account. |
 | `owner_profile` | Residenza e coordinate usate nella prospettiva Pet Owner. |
 | `assistant_profile` | Sede/area operativa, coordinate e raggio del Pet Assistant. |
-| `personaldata` | Mirror legacy temporaneo dei dati profilo, mantenuto durante la migrazione multi-profilo. |
 | `operatordata` | Informazioni professionali del Pet Assistant. |
 | `operatorassociatedata` | Associati collegati a un operatore di tipo associazione. |
 | `profile_reputation` | Punteggio 0–100 separato per capability Owner/Assistant. |
-| `user_reputation` | Mirror legacy temporaneo del punteggio associato a `users.role`. |
 | `reputation_event` | Registro immutabile delle variazioni, etichettate per capability del soggetto. |
 
 ### Prenotazioni e recensioni
@@ -315,8 +313,10 @@ Il blocco finale di `migration.txt` dedicato al profilo pubblico aggiunge le tab
 
 Il profilo usa la zona approssimativa finché il Pet Assistant non abilita il punto esatto in Dati operatore. Il consenso al punto esatto e quello alla pubblicazione del testo delle recensioni sono disattivati per i dati esistenti. Il ripristino demo svuota anche i preferiti, gli invii multipli e le impostazioni pubbliche aggiunti dopo l’ultimo snapshot.
 
-Dallo STEP 6 la discovery seleziona gli account tramite capability Assistant `active`, non tramite `users.role`. Le API dei preferiti richiedono capability Owner `active`. `pet_assistant_favorite` vieta inoltre una coppia con lo stesso account sui due lati tramite il check `chk_favorite_distinct_accounts`; la migration elimina in modo idempotente eventuali righe self-favorite legacy prima di aggiungere il vincolo.
+Dallo STEP 6 la discovery seleziona gli account tramite capability Assistant `active`. Le API dei preferiti richiedono capability Owner `active`. `pet_assistant_favorite` vieta inoltre una coppia con lo stesso account sui due lati tramite il check `chk_favorite_distinct_accounts`.
 
 Dallo STEP 7 le API booking richiedono `perspective=owner|assistant` e verificano capability attiva e lato effettivo della prenotazione. `booking` vieta Owner e Assistant coincidenti tramite `chk_booking_distinct_participants`. Sugli schemi esistenti il check viene aggiunto soltanto in assenza di anomalie storiche, che non vengono cancellate automaticamente. `booking_review` aggiunge `reviewer_capability` e `reviewed_capability`, ricostruite dal lato occupato nella prenotazione, con check e indice contestuale.
 
 Dallo STEP 9 l'onboarding Assistant riusa `user_capabilities`: `draft` identifica una bozza privata, `current_step` l'ultima sezione salvata e `active` la pubblicazione. Non viene aggiunta alcuna tabella. L'attivazione è transazionale e richiede soltanto i campi obbligatori persistiti della sezione Dati personali: Alias in `users.name` e Città in `assistant_profile.city`. La checklist server-side su recapiti, geolocalizzazione, dati fiscali e professionali, servizi, galleria, calendario ed email resta una guida di completezza e non blocca la pubblicazione. Stati `suspended`, `rejected` e `disabled` non possono essere riattivati dall'utente.
+
+Dallo STEP 10 `user_capabilities`, `account_profile`/`owner_profile`/`assistant_profile` e `profile_reputation` sono le sole fonti autorevoli. La migrazione una tantum [`step10_finalize_multi_profile.sql`](./step10_finalize_multi_profile.sql) esegue backfill e validazioni prima di rimuovere `users.role`, `personaldata` e `user_reputation`. `migration.txt` descrive direttamente lo schema finale ed è stato verificato sia su database vuoto sia con il dataset demo completo.

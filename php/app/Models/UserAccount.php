@@ -39,7 +39,7 @@ class UserAccount extends Model
         return $user;
     }
 
-    public function registerEmailUser(string $role, string $email, string $password): array
+    public function registerEmailUser(string $email, string $password): array
     {
         $this->ensurePasswordResetRequiredColumn();
         $existing = DB::table('users')
@@ -51,10 +51,9 @@ class UserAccount extends Model
             throw new RuntimeException('EMAIL_ALREADY_EXISTS');
         }
 
-        return DB::transaction(function () use ($role, $email, $password): array {
+        return DB::transaction(function () use ($email, $password): array {
             $now = time();
             $userId = (int) DB::table('users')->insertGetId([
-                'role' => $role,
                 'name' => '',
                 'email' => $email,
                 'email_verified' => 0,
@@ -64,8 +63,8 @@ class UserAccount extends Model
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            (new UserCapability)->provisionForLegacyRole($userId, $role, $now);
-            (new ProfileReputation)->initializeForLegacyRole($userId, $role, $now);
+            (new UserCapability)->provisionOwner($userId, $now);
+            (new ProfileReputation)->initialize($userId, ProfileReputation::OWNER, $now);
 
             return $this->getUserById($userId);
         });
@@ -74,7 +73,6 @@ class UserAccount extends Model
     public function upsertSocialUser(
         string $provider,
         string $providerSub,
-        string $role,
         string $email,
         bool $emailVerified,
         string $name,
@@ -85,7 +83,6 @@ class UserAccount extends Model
         return DB::transaction(function () use (
             $provider,
             $providerSub,
-            $role,
             $email,
             $emailVerified,
             $name,
@@ -119,7 +116,6 @@ class UserAccount extends Model
             if (! $userId) {
                 $isNewUser = true;
                 $userId = (int) DB::table('users')->insertGetId([
-                    'role' => $role,
                     'name' => $name,
                     'email' => $email !== '' ? $email : null,
                     'email_verified' => $emailVerified ? 1 : 0,
@@ -140,10 +136,10 @@ class UserAccount extends Model
                     ]);
             }
 
-            $storedRole = $isNewUser
-                ? $role
-                : (string) DB::table('users')->where('id', $userId)->value('role');
-            (new UserCapability)->provisionForLegacyRole($userId, $storedRole, $now);
+            if ($isNewUser) {
+                (new UserCapability)->provisionOwner($userId, $now);
+                (new ProfileReputation)->initialize($userId, ProfileReputation::OWNER, $now);
+            }
 
             $claimsJson = json_encode($rawClaims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (strlen((string) $claimsJson) > 4096) {
@@ -173,8 +169,6 @@ class UserAccount extends Model
                     'updated_at' => $now,
                 ]);
             }
-
-            (new ProfileReputation)->initializeForLegacyRole($userId, $storedRole, $now);
 
             return $this->getUserById($userId);
         });
@@ -404,7 +398,7 @@ class UserAccount extends Model
     {
         $this->ensurePasswordResetRequiredColumn();
         $row = DB::table('users')
-            ->select(['id', 'role', 'name', 'email', 'email_verified', 'password_reset_required', 'avatar'])
+            ->select(['id', 'name', 'email', 'email_verified', 'password_reset_required', 'avatar'])
             ->where('id', $userId)
             ->first();
 
@@ -417,11 +411,10 @@ class UserAccount extends Model
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->value('provider');
-        $capabilityState = (new UserCapability)->resolveForUser($userId, (string) $row->role);
+        $capabilityState = (new UserCapability)->resolveForUser($userId);
 
         return [
             'id' => (int) $row->id,
-            'role' => (string) $row->role,
             'name' => (string) $row->name,
             'email' => $row->email ? (string) $row->email : '',
             'emailVerified' => (bool) $row->email_verified,
@@ -586,7 +579,6 @@ class UserAccount extends Model
                 DB::table('reputation_event')->where('user_id', $userId)->orWhere('actor_user_id', $userId)->delete();
             }
             $this->deleteByUserId('profile_reputation', $userId);
-            $this->deleteByUserId('user_reputation', $userId);
             if ($calendarSlotIds !== [] && Schema::hasTable('calendar_day_slot_service')) {
                 DB::table('calendar_day_slot_service')->whereIn('slot_id', $calendarSlotIds)->delete();
             }
@@ -634,7 +626,6 @@ class UserAccount extends Model
             $this->deleteByUserId('owner_profile', $userId);
             $this->deleteByUserId('assistant_profile', $userId);
             $this->deleteByUserId('account_profile', $userId);
-            $this->deleteByUserId('personaldata', $userId);
             $this->deleteByUserId('social_accounts', $userId);
             $this->deleteByUserId('user_capabilities', $userId);
             DB::table('users')->where('id', $userId)->delete();
@@ -650,9 +641,6 @@ class UserAccount extends Model
     {
         $paths = [$avatar];
 
-        if (Schema::hasTable('personaldata')) {
-            $paths[] = (string) DB::table('personaldata')->where('user_id', $userId)->value('photo');
-        }
         if (Schema::hasTable('account_profile')) {
             $paths[] = (string) DB::table('account_profile')->where('user_id', $userId)->value('photo');
         }

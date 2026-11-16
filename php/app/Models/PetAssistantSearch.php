@@ -5,7 +5,6 @@ namespace App\Models;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class PetAssistantSearch
@@ -34,12 +33,10 @@ class PetAssistantSearch
             ->all();
 
         $pets = [];
-        $role = '';
         $activeCapabilities = [];
 
         if ($userId > 0) {
-            $role = (string) DB::table('users')->where('id', $userId)->value('role');
-            $activeCapabilities = (new UserCapability)->activeForUser($userId, $role);
+            $activeCapabilities = (new UserCapability)->activeForUser($userId);
 
             if (in_array(UserCapability::OWNER, $activeCapabilities, true)) {
                 $pets = DB::table('ownerpet as p')
@@ -65,7 +62,6 @@ class PetAssistantSearch
         return [
             'services' => $services,
             'pets' => $pets,
-            'authenticatedRole' => $role,
             'activeCapabilities' => $activeCapabilities,
             'canUseOwnerDiscovery' => in_array(UserCapability::OWNER, $activeCapabilities, true),
             'policies' => PortalPolicy::publicSnapshot(),
@@ -89,10 +85,14 @@ class PetAssistantSearch
             ->join('calendar_day_slot as slot', 'slot.calendar_day_id', '=', 'day.id')
             ->join('calendar_day_slot_service as slot_service', 'slot_service.slot_id', '=', 'slot.id')
             ->join('users as user', 'user.id', '=', 'day.user_id')
-            ->leftJoin('personaldata as personal', 'personal.user_id', '=', 'user.id')
+            ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'user.id')
+            ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'user.id')
             ->join('operatordata as operator', 'operator.user_id', '=', 'user.id')
             ->join('service', 'service.id', '=', 'slot_service.service_id')
-            ->leftJoin('user_reputation as legacy_reputation', 'legacy_reputation.user_id', '=', 'user.id')
+            ->leftJoin('profile_reputation as assistant_reputation', function ($join) {
+                $join->on('assistant_reputation.user_id', '=', 'user.id')
+                    ->where('assistant_reputation.capability', ProfileReputation::ASSISTANT);
+            })
             ->leftJoin('operator_public_profile as public_profile', 'public_profile.user_id', '=', 'user.id')
             ->join('operatorservicedata as operator_service', function ($join) {
                 $join->on('operator_service.user_id', '=', 'user.id')
@@ -111,36 +111,12 @@ class PetAssistantSearch
             'assistant_discovery_capability'
         );
 
-        $usesSeparatedProfiles = Schema::hasTable('account_profile') && Schema::hasTable('assistant_profile');
-        if ($usesSeparatedProfiles) {
-            $availabilityQuery
-                ->leftJoin('account_profile as account_common', 'account_common.user_id', '=', 'user.id')
-                ->leftJoin('assistant_profile as assistant_location', 'assistant_location.user_id', '=', 'user.id');
-        }
-        $usesContextualReputation = Schema::hasTable('profile_reputation');
-        if ($usesContextualReputation) {
-            $availabilityQuery->leftJoin('profile_reputation as assistant_reputation', function ($join) {
-                $join->on('assistant_reputation.user_id', '=', 'user.id')
-                    ->where('assistant_reputation.capability', ProfileReputation::ASSISTANT);
-            });
-        }
         $initialScore = PortalPolicy::value('initial_reputation_score');
-        $legacyReputationFallback = "CASE WHEN user.role = 'pet_assistant' THEN COALESCE(legacy_reputation.score, {$initialScore}) ELSE {$initialScore} END";
-        $reputationExpression = $usesContextualReputation
-            ? "CASE WHEN assistant_reputation.user_id IS NOT NULL THEN assistant_reputation.score ELSE {$legacyReputationFallback} END"
-            : $legacyReputationFallback;
-        $photoExpression = $usesSeparatedProfiles
-            ? "CASE WHEN account_common.user_id IS NOT NULL THEN account_common.photo ELSE COALESCE(personal.photo, '') END"
-            : "COALESCE(personal.photo, '')";
-        $cityExpression = $usesSeparatedProfiles
-            ? "CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.city ELSE COALESCE(personal.city, '') END"
-            : "COALESCE(personal.city, '')";
-        $latitudeExpression = $usesSeparatedProfiles
-            ? 'CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.location_lat ELSE COALESCE(personal.location_lat, 0) END'
-            : 'COALESCE(personal.location_lat, 0)';
-        $longitudeExpression = $usesSeparatedProfiles
-            ? 'CASE WHEN assistant_location.user_id IS NOT NULL THEN assistant_location.location_lng ELSE COALESCE(personal.location_lng, 0) END'
-            : 'COALESCE(personal.location_lng, 0)';
+        $reputationExpression = "COALESCE(assistant_reputation.score, {$initialScore})";
+        $photoExpression = "COALESCE(account_common.photo, '')";
+        $cityExpression = "COALESCE(assistant_location.city, '')";
+        $latitudeExpression = 'COALESCE(assistant_location.location_lat, 0)';
+        $longitudeExpression = 'COALESCE(assistant_location.location_lng, 0)';
 
         $availability = $availabilityQuery
             ->when($onlyWithPhoto, fn ($query) => $query->whereRaw('TRIM('.$photoExpression.") <> ''"))

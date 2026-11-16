@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS `messageback` (
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `role` varchar(32) NOT NULL DEFAULT '',
   `name` varchar(255) NOT NULL DEFAULT '',
   `email` varchar(255) DEFAULT NULL,
   `email_verified` tinyint(1) NOT NULL DEFAULT 0,
@@ -45,8 +44,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `uk_users_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Capability additive per la migrazione multi-profilo.
--- users.role resta temporaneamente la fonte letta dal portale fino allo STEP 3.
+-- Capability autorevole: un account puo possedere contemporaneamente i profili Owner e Assistant.
 CREATE TABLE IF NOT EXISTS `user_capabilities` (
   `user_id` int(10) unsigned NOT NULL,
   `capability` varchar(16) NOT NULL,
@@ -80,17 +78,6 @@ SELECT
   UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
 FROM `users`;
 
--- Gli account con ruolo legacy Pet Assistant mantengono anche l'accesso Assistant.
-INSERT IGNORE INTO `user_capabilities` (
-  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
-  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
-)
-SELECT
-  `id`, 'assistant', 'active', 1, 'complete',
-  UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()
-FROM `users`
-WHERE `role` = 'pet_assistant';
-
 CREATE TABLE IF NOT EXISTS `social_accounts` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
@@ -105,25 +92,6 @@ CREATE TABLE IF NOT EXISTS `social_accounts` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_provider_sub` (`provider`, `provider_sub`),
   KEY `idx_social_accounts_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `personaldata` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` int(10) unsigned NOT NULL DEFAULT 0,
-  `name` varchar(255) NOT NULL DEFAULT '',
-  `photo` varchar(1024) NOT NULL DEFAULT '',
-  `age` int NOT NULL DEFAULT 0,
-  `city` varchar(255) NOT NULL DEFAULT '',
-  `phone` varchar(64) NOT NULL DEFAULT '',
-  `address` varchar(255) NOT NULL DEFAULT '',
-  `addressnumber` varchar(64) NOT NULL DEFAULT '',
-  `location_lat` decimal(10,7) NOT NULL DEFAULT 0.0000000,
-  `location_lng` decimal(10,7) NOT NULL DEFAULT 0.0000000,
-  `service_radius_km` smallint unsigned NOT NULL DEFAULT 5,
-  `created_at` int NOT NULL DEFAULT 0,
-  `updated_at` int NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_personaldata_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Profilo comune dell'account, indipendente dalla prospettiva Owner/Assistant.
@@ -185,38 +153,6 @@ CREATE TABLE IF NOT EXISTS `assistant_profile` (
   CONSTRAINT `chk_assistant_profile_radius`
     CHECK (`service_radius_km` BETWEEN 1 AND 200)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Backfill comune per tutti gli account. INSERT IGNORE preserva scritture successive.
-INSERT IGNORE INTO `account_profile` (
-  `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
-)
-SELECT
-  `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
-FROM `personaldata`;
-
--- Solo i ruoli Owner legacy trasferiscono la loro location nel contesto Owner.
-INSERT IGNORE INTO `owner_profile` (
-  `user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `created_at`, `updated_at`
-)
-SELECT
-  personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
-  personal.`location_lat`, personal.`location_lng`, personal.`created_at`, personal.`updated_at`
-FROM `personaldata` AS personal
-INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
-WHERE account.`role` = 'pet_owner';
-
--- Solo i ruoli Assistant legacy trasferiscono sede e raggio nel contesto Assistant.
-INSERT IGNORE INTO `assistant_profile` (
-  `user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`,
-  `service_radius_km`, `created_at`, `updated_at`
-)
-SELECT
-  personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
-  personal.`location_lat`, personal.`location_lng`, personal.`service_radius_km`,
-  personal.`created_at`, personal.`updated_at`
-FROM `personaldata` AS personal
-INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
-WHERE account.`role` = 'pet_assistant';
 
 CREATE TABLE IF NOT EXISTS `operatordata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -788,14 +724,6 @@ CREATE TABLE IF NOT EXISTS `booking_review` (
   CONSTRAINT `chk_booking_review_reviewed_capability` CHECK (`reviewed_capability` IN ('owner', 'assistant'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `user_reputation` (
-  `user_id` int(10) unsigned NOT NULL,
-  `score` tinyint unsigned NOT NULL DEFAULT 60,
-  `updated_at` int NOT NULL DEFAULT 0,
-  PRIMARY KEY (`user_id`),
-  KEY `idx_user_reputation_score` (`score`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Punteggio separato per la prospettiva Owner e Assistant dello stesso account.
 CREATE TABLE IF NOT EXISTS `profile_reputation` (
   `user_id` int(10) unsigned NOT NULL,
@@ -868,15 +796,12 @@ PREPARE reputation_event_capability_check_stmt FROM @reputation_event_add_capabi
 EXECUTE reputation_event_capability_check_stmt;
 DEALLOCATE PREPARE reputation_event_capability_check_stmt;
 
--- Per lo storico la capability si ricava dal lato occupato nella prenotazione;
--- il ruolo legacy è usato soltanto per eventuali eventi senza booking valido.
+-- Per lo storico la capability si ricava dal lato occupato nella prenotazione.
 UPDATE `reputation_event` AS event
 LEFT JOIN `booking` AS booking_row ON booking_row.`id` = event.`booking_id`
-LEFT JOIN `users` AS account ON account.`id` = event.`user_id`
 SET event.`subject_capability` = CASE
   WHEN booking_row.`assistant_user_id` = event.`user_id` THEN 'assistant'
   WHEN booking_row.`owner_user_id` = event.`user_id` THEN 'owner'
-  WHEN account.`role` = 'pet_assistant' THEN 'assistant'
   ELSE 'owner'
 END;
 
@@ -893,10 +818,6 @@ CREATE TABLE IF NOT EXISTS `booking_action_token` (
   UNIQUE KEY `uk_booking_action_token_hash` (`token_hash`),
   KEY `idx_booking_action_token_booking` (`booking_id`, `action`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`)
-SELECT `id`, 60, UNIX_TIMESTAMP() FROM `users`
-ON DUPLICATE KEY UPDATE `user_id` = VALUES(`user_id`);
 
 CREATE TABLE IF NOT EXISTS `portal_policy` (
   `policy_key` varchar(96) NOT NULL,
@@ -932,33 +853,12 @@ INSERT INTO `portal_policy` (`policy_key`, `value`, `updated_at`) VALUES
 ('max_booking_duration_minutes', 480, UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE `policy_key` = VALUES(`policy_key`);
 
--- Tutti gli account hanno una reputazione Owner. Per gli Assistant legacy
--- parte dal valore iniziale, senza riusare il ranking professionale storico.
+-- Ogni capability possiede una reputazione indipendente.
 INSERT IGNORE INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
 SELECT
-  account.`id`,
-  'owner',
-  CASE
-    WHEN account.`role` = 'pet_owner' THEN COALESCE(legacy.`score`, policy.`value`, 60)
-    ELSE COALESCE(policy.`value`, 60)
-  END,
-  CASE
-    WHEN account.`role` = 'pet_owner' THEN COALESCE(legacy.`updated_at`, UNIX_TIMESTAMP())
-    ELSE UNIX_TIMESTAMP()
-  END
-FROM `users` AS account
-LEFT JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
+  capability.`user_id`, capability.`capability`, COALESCE(policy.`value`, 60), UNIX_TIMESTAMP()
+FROM `user_capabilities` AS capability
 LEFT JOIN `portal_policy` AS policy ON policy.`policy_key` = 'initial_reputation_score';
-
--- Il ranking storico degli Assistant resta identico nella capability Assistant.
-INSERT IGNORE INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
-SELECT
-  account.`id`, 'assistant', COALESCE(legacy.`score`, policy.`value`, 60),
-  COALESCE(legacy.`updated_at`, UNIX_TIMESTAMP())
-FROM `users` AS account
-LEFT JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
-LEFT JOIN `portal_policy` AS policy ON policy.`policy_key` = 'initial_reputation_score'
-WHERE account.`role` = 'pet_assistant';
 
 INSERT INTO `servicefeature` (`id`, `name`, `created_at`, `updated_at`) VALUES
   (1, 'Tracking GPS', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
@@ -972,15 +872,16 @@ ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `updated_at` = VALUES(`updated_at`);
 
-INSERT INTO `service` (`id`, `name`, `description`, `created_at`, `updated_at`) VALUES
-  (1, 'Passeggiata', 'Passeggiate personalizzate per il tuo pet, con attenzione ai ritmi, al benessere e alle abitudini quotidiane.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (2, 'Soggiorno a domicilio', 'Assistenza direttamente a casa del cliente per garantire continuita, serenita e cura nell''ambiente abituale del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (3, 'Soggiorno presso il petassistant', 'Ospitalita in ambiente accogliente e controllato presso il petassistant, con presenza costante e cura dedicata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (4, 'Asilo diurno', 'Accoglienza giornaliera con momenti di gioco, relax e attenzione continua, ideale per assenze durante la giornata.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (5, 'Pet Taxi', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+INSERT INTO `service` (`id`, `name`, `description`, `requires_home_photo`, `created_at`, `updated_at`) VALUES
+  (1, 'Passeggiata', 'Passeggiate personalizzate per il tuo pet, con attenzione ai ritmi, al benessere e alle abitudini quotidiane.', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (2, 'Soggiorno a domicilio', 'Assistenza direttamente a casa del cliente per garantire continuita, serenita e cura nell''ambiente abituale del pet.', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 'Soggiorno presso il petassistant', 'Ospitalita in ambiente accogliente e controllato presso il petassistant, con presenza costante e cura dedicata.', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (4, 'Asilo diurno', 'Accoglienza giornaliera con momenti di gioco, relax e attenzione continua, ideale per assenze durante la giornata.', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (5, 'Pet Taxi', 'Trasporto organizzato e affidabile verso veterinari, toelettatori o appuntamenti dedicati alla salute e al benessere del pet.', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `description` = VALUES(`description`),
+  `requires_home_photo` = VALUES(`requires_home_photo`),
   `updated_at` = VALUES(`updated_at`);
 
 INSERT IGNORE INTO `servicefeaturedata` (`service_id`, `feature_id`, `created_at`, `updated_at`) VALUES

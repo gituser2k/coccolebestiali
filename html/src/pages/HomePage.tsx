@@ -45,7 +45,6 @@ type PublicAuthConfig = {
 
 type PortalUser = {
   id: number
-  role: string
   name: string
   email: string
   passwordResetRequired?: boolean
@@ -343,7 +342,6 @@ function HomePage() {
 
     const candidate = user as Record<string, unknown>
     const id = Number(candidate.id ?? 0)
-    const role = sanitizeText(candidate.role ?? '')
     const name = sanitizeText(candidate.name ?? '')
     const email = sanitizeText(candidate.email ?? '')
     const passwordResetRequired = Boolean(candidate.passwordResetRequired)
@@ -373,7 +371,6 @@ function HomePage() {
 
     return {
       id,
-      role,
       name,
       email,
       passwordResetRequired,
@@ -739,6 +736,7 @@ function HomePage() {
   const assistantCapability = currentUser?.capabilities.find((item) => item.capability === 'assistant')
   const hasAssistantDraft = Boolean(assistantCapability && ['draft', 'pending_verification'].includes(assistantCapability.status))
   const isAssistantUnavailable = Boolean(assistantCapability && ['suspended', 'rejected', 'disabled'].includes(assistantCapability.status))
+  const showAssistantOnboardingCta = Boolean(currentUser && !hasActiveAssistant && !isAssistantUnavailable)
 
   async function handleCredentialLogin() {
     const email = sanitizeText(loginData.email)
@@ -1430,18 +1428,16 @@ function HomePage() {
                     <a className="cta-btn cta-primary" href="/search">
                       Cerca Un Pet Assistant
                     </a>
-                    {currentUser ? (
+                    {showAssistantOnboardingCta ? (
                       <button
                         className="cta-btn cta-secondary"
                         type="button"
-                        disabled={isAssistantOnboardingBusy || isAssistantUnavailable}
+                        disabled={isAssistantOnboardingBusy}
                         onClick={() => void startAssistantOnboarding()}
                       >
                         {isAssistantOnboardingBusy
                           ? 'Apertura profilo...'
-                          : isAssistantUnavailable
-                            ? 'Profilo Pet Assistant non disponibile'
-                            : hasAssistantDraft
+                          : hasAssistantDraft
                             ? 'Completa profilo Pet Assistant'
                             : 'Diventa Pet Assistant'}
                       </button>

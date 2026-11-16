@@ -100,7 +100,7 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
+                'role' => ['prohibited'],
                 'email' => ['required', 'email', 'max:255'],
                 'password' => [
                     'required',
@@ -119,10 +119,9 @@ class AuthController extends Controller
                 'password.not_regex' => 'La password non puo contenere spazi.',
             ]);
 
-            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $m = new UserAccount;
             $email = strtolower((string) $validated['email']);
-            $user = $m->registerEmailUser($role, $email, (string) $validated['password']);
+            $user = $m->registerEmailUser($email, (string) $validated['password']);
             $this->sendRegistrationEmailConfirmation($email);
 
             return response()->json([
@@ -334,12 +333,11 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
+                'role' => ['prohibited'],
                 'idToken' => ['nullable', 'string'],
                 'accessToken' => ['nullable', 'string'],
             ]);
 
-            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $idToken = trim((string) ($validated['idToken'] ?? ''));
             $accessToken = trim((string) ($validated['accessToken'] ?? ''));
 
@@ -355,7 +353,6 @@ class AuthController extends Controller
             $user = $m->upsertSocialUser(
                 'google',
                 $claims['sub'],
-                $role,
                 $claims['email'],
                 $claims['emailVerified'],
                 $claims['name'],
@@ -613,13 +610,10 @@ class AuthController extends Controller
     public function verifyEmail(Request $request)
     {
         $email = strtolower(trim((string) $request->query('email', '')));
-        $legacyRole = strtolower(trim((string) $request->query('role', '')));
         $expires = (int) $request->query('expires', 0);
         $signature = (string) $request->query('signature', '');
 
-        $signedPayload = $legacyRole !== ''
-            ? $email.'|'.$legacyRole.'|'.$expires
-            : $email.'|'.$expires;
+        $signedPayload = $email.'|'.$expires;
         $expected = hash_hmac('sha256', $signedPayload, (string) config('app.key'));
 
         if ($email === '' || $expires <= time() || ! hash_equals($expected, $signature)) {
@@ -789,13 +783,12 @@ class AuthController extends Controller
 
         try {
             $validated = $request->validate([
-                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
+                'role' => ['prohibited'],
                 'identityToken' => ['required', 'string'],
                 'user' => ['nullable'],
                 'state' => ['required', 'string', 'max:128'],
             ]);
 
-            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $claims = $this->verifyAppleIdentityToken(
                 (string) $validated['identityToken'],
                 $validated['user'] ?? null,
@@ -806,7 +799,6 @@ class AuthController extends Controller
             $user = $m->upsertSocialUser(
                 'apple',
                 $claims['sub'],
-                $role,
                 $claims['email'],
                 $claims['emailVerified'],
                 $claims['name'],
@@ -994,19 +986,18 @@ class AuthController extends Controller
             }
 
             $validated = $request->validate([
-                'role' => ['sometimes', 'nullable', 'string', 'in:pet_owner,pet_assistant'],
+                'role' => ['prohibited'],
                 'mockEmail' => ['nullable', 'email', 'max:255'],
                 'mockName' => ['nullable', 'string', 'max:255'],
                 'mockSub' => ['nullable', 'string', 'max:255'],
             ]);
 
-            $role = $this->normalizeRegistrationRole($validated['role'] ?? null);
             $email = strtolower((string) ($validated['mockEmail'] ?? ''));
             $name = trim((string) ($validated['mockName'] ?? 'Apple Mock User'));
             $sub = trim((string) ($validated['mockSub'] ?? ''));
 
             if ($sub === '') {
-                $sub = 'apple_mock_'.sha1(($email !== '' ? $email : $name).'|'.$role);
+                $sub = 'apple_mock_'.sha1($email !== '' ? $email : $name);
             }
 
             $claims = [
@@ -1023,7 +1014,6 @@ class AuthController extends Controller
             $user = $m->upsertSocialUser(
                 'apple',
                 $sub,
-                $role,
                 $email,
                 true,
                 $name,
@@ -1206,22 +1196,6 @@ class AuthController extends Controller
                 'ok' => false,
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-    }
-
-    private function normalizeRegistrationRole(mixed $role): string
-    {
-        $normalized = strtolower(trim((string) $role));
-        if ($normalized === '') {
-            return 'pet_owner';
-        }
-
-        $allowed = ['pet_owner', 'pet_assistant'];
-
-        if (! in_array($normalized, $allowed, true)) {
-            throw new RuntimeException('INVALID_ROLE');
-        }
-
-        return $normalized;
     }
 
     private function verifyGoogleIdToken(string $idToken): array
@@ -1572,18 +1546,6 @@ class AuthController extends Controller
     private function isAppleMockEnabled(): bool
     {
         return in_array(strtolower((string) env('APPLE_MOCK_AUTH', 'false')), ['1', 'true', 'yes', 'on'], true);
-    }
-
-    private function profileRedirectPathForRole(string $role): string
-    {
-        return $role === 'pet_owner' ? '/profile/petowner' : '/profile/petassistant';
-    }
-
-    private function profileRedirectPathForRoleAndEntry(string $role, string $entry): string
-    {
-        $basePath = $this->profileRedirectPathForRole($role);
-
-        return $basePath.'?entry='.urlencode($entry);
     }
 
     private function withPortalUserCookies($response, array $user)

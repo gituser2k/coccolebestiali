@@ -17,7 +17,6 @@ class UserCapabilityTest extends TestCase
         Schema::dropAllTables();
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role');
         });
         Schema::create('user_capabilities', function (Blueprint $table): void {
             $table->unsignedInteger('user_id');
@@ -35,9 +34,9 @@ class UserCapabilityTest extends TestCase
         });
     }
 
-    public function test_legacy_owner_receives_only_the_active_owner_capability(): void
+    public function test_new_account_receives_only_the_active_owner_capability(): void
     {
-        (new UserCapability)->provisionForLegacyRole(10, 'pet_owner', 1234);
+        (new UserCapability)->provisionOwner(10, 1234);
 
         $this->assertDatabaseHas('user_capabilities', [
             'user_id' => 10,
@@ -49,15 +48,10 @@ class UserCapabilityTest extends TestCase
         $this->assertDatabaseCount('user_capabilities', 1);
     }
 
-    public function test_legacy_assistant_receives_owner_and_assistant_capabilities(): void
+    public function test_missing_capabilities_grant_no_access(): void
     {
-        (new UserCapability)->provisionForLegacyRole(20, 'pet_assistant', 2345);
-
-        $this->assertSame(
-            ['assistant', 'owner'],
-            DB::table('user_capabilities')->where('user_id', 20)->orderBy('capability')->pluck('capability')->all()
-        );
-        $this->assertSame(2, DB::table('user_capabilities')->where('status', 'active')->count());
+        $this->assertSame([], (new UserCapability)->activeForUser(20));
+        $this->assertFalse((new UserCapability)->hasActive(20, UserCapability::OWNER));
     }
 
     public function test_provisioning_is_idempotent_and_never_reactivates_an_existing_capability(): void
@@ -74,8 +68,8 @@ class UserCapabilityTest extends TestCase
         ]);
 
         $capabilities = new UserCapability;
-        $capabilities->provisionForLegacyRole(30, 'pet_assistant', 4000);
-        $capabilities->provisionForLegacyRole(30, 'pet_assistant', 5000);
+        $capabilities->provisionOwner(30, 4000);
+        $capabilities->provisionOwner(30, 5000);
 
         $this->assertDatabaseHas('user_capabilities', [
             'user_id' => 30,
@@ -87,11 +81,11 @@ class UserCapabilityTest extends TestCase
         $this->assertSame(2, DB::table('user_capabilities')->where('user_id', 30)->count());
     }
 
-    public function test_invalid_legacy_roles_are_rejected(): void
+    public function test_invalid_user_ids_are_rejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new UserCapability)->provisionForLegacyRole(40, 'administrator');
+        (new UserCapability)->provisionOwner(0);
     }
 
     public function test_no_ui_mode_is_granted_when_every_capability_is_inactive(): void
@@ -108,7 +102,7 @@ class UserCapabilityTest extends TestCase
             ]);
         }
 
-        $state = (new UserCapability)->resolveForUser(50, 'pet_assistant');
+        $state = (new UserCapability)->resolveForUser(50);
 
         $this->assertSame([], $state['active']);
         $this->assertSame(['available' => [], 'default' => ''], $state['modes']);
@@ -117,10 +111,10 @@ class UserCapabilityTest extends TestCase
     public function test_active_scope_supports_dual_role_and_fails_closed_for_suspended_or_partial_state(): void
     {
         DB::table('users')->insert([
-            ['id' => 61, 'role' => 'pet_owner'],
-            ['id' => 62, 'role' => 'pet_assistant'],
-            ['id' => 63, 'role' => 'pet_assistant'],
-            ['id' => 64, 'role' => 'pet_owner'],
+            ['id' => 61],
+            ['id' => 62],
+            ['id' => 63],
+            ['id' => 64],
         ]);
         $this->insertCapability(61, 'owner', 'active');
         $this->insertCapability(61, 'assistant', 'active');
@@ -133,10 +127,10 @@ class UserCapabilityTest extends TestCase
         $ids = $capabilities->scopeActive($query, 'account', UserCapability::ASSISTANT, 'assistant_capability')
             ->orderBy('account.id')->pluck('account.id')->all();
 
-        $this->assertSame([61, 63], $ids);
+        $this->assertSame([61], $ids);
         $this->assertTrue($capabilities->hasActive(61, UserCapability::ASSISTANT));
         $this->assertFalse($capabilities->hasActive(62, UserCapability::ASSISTANT));
-        $this->assertTrue($capabilities->hasActive(63, UserCapability::OWNER));
+        $this->assertFalse($capabilities->hasActive(63, UserCapability::OWNER));
         $this->assertFalse($capabilities->hasActive(64, UserCapability::ASSISTANT));
     }
 

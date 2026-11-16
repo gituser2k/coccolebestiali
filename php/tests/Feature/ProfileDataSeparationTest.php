@@ -20,28 +20,17 @@ class ProfileDataSeparationTest extends TestCase
 
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
-            $table->string('role', 32);
             $table->string('name')->default('');
             $table->string('email')->default('');
             $table->string('avatar', 1024)->default('');
             $table->integer('created_at')->default(0);
             $table->integer('updated_at')->default(0);
         });
-        Schema::create('personaldata', function (Blueprint $table): void {
-            $table->increments('id');
-            $table->unsignedInteger('user_id')->unique();
-            $table->string('name')->default('');
-            $table->string('photo', 1024)->default('');
-            $table->unsignedInteger('age')->default(0);
-            $table->string('city')->default('');
-            $table->string('phone')->default('');
-            $table->string('address')->default('');
-            $table->string('addressnumber', 32)->default('');
-            $table->decimal('location_lat', 10, 7)->default(0);
-            $table->decimal('location_lng', 10, 7)->default(0);
-            $table->unsignedInteger('service_radius_km')->default(5);
-            $table->integer('created_at')->default(0);
-            $table->integer('updated_at')->default(0);
+        Schema::create('user_capabilities', function (Blueprint $table): void {
+            $table->unsignedInteger('user_id');
+            $table->string('capability', 16);
+            $table->string('status', 32);
+            $table->primary(['user_id', 'capability']);
         });
         Schema::create('account_profile', function (Blueprint $table): void {
             $table->unsignedInteger('user_id')->primary();
@@ -83,10 +72,14 @@ class ProfileDataSeparationTest extends TestCase
         });
     }
 
-    public function test_legacy_location_is_exposed_only_in_its_original_role_context(): void
+    public function test_contextual_locations_are_strictly_separated(): void
     {
-        $this->insertLegacyUser(1, 'pet_assistant', 'Milano', 45.4642, 9.1900);
-        $this->insertLegacyUser(2, 'pet_owner', 'Roma', 41.9028, 12.4964);
+        $this->insertUser(1);
+        $this->insertUser(2);
+        DB::table('account_profile')->insert($this->commonRow(1, 'User 1'));
+        DB::table('account_profile')->insert($this->commonRow(2, 'User 2'));
+        DB::table('assistant_profile')->insert($this->locationRow(1, 'Milano', 45.4642, 9.1900, 25));
+        DB::table('owner_profile')->insert($this->locationRow(2, 'Roma', 41.9028, 12.4964));
         $profiles = new ProfileData;
 
         $assistant = $profiles->read(1, ProfileData::ASSISTANT);
@@ -95,18 +88,18 @@ class ProfileDataSeparationTest extends TestCase
         $ownerAsAssistant = $profiles->read(2, ProfileData::ASSISTANT);
 
         $this->assertSame('Milano', $assistant['city']);
-        $this->assertSame('personaldata', $assistant['profileSources']['location']);
+        $this->assertSame('assistant_profile', $assistant['profileSources']['location']);
         $this->assertSame('', $assistantAsOwner['city']);
         $this->assertSame('empty', $assistantAsOwner['profileSources']['location']);
         $this->assertSame('Roma', $owner['city']);
         $this->assertSame('', $ownerAsAssistant['city']);
-        $this->assertSame('Legacy User 1', $assistantAsOwner['name']);
-        $this->assertSame('Legacy User 2', $ownerAsAssistant['name']);
+        $this->assertSame('User 1', $assistantAsOwner['name']);
+        $this->assertSame('User 2', $ownerAsAssistant['name']);
     }
 
     public function test_saving_owner_profile_for_legacy_assistant_does_not_overwrite_operational_area(): void
     {
-        $this->insertLegacyUser(10, 'pet_assistant', 'Milano', 45.4642, 9.1900);
+        $this->insertUser(10);
         DB::table('account_profile')->insert($this->commonRow(10, 'Assistant Name'));
         DB::table('assistant_profile')->insert($this->locationRow(10, 'Milano', 45.4642, 9.1900, 25));
 
@@ -134,17 +127,11 @@ class ProfileDataSeparationTest extends TestCase
             'city' => 'Milano',
             'service_radius_km' => 25,
         ]);
-        $this->assertDatabaseHas('personaldata', [
-            'user_id' => 10,
-            'name' => 'Shared New Name',
-            'city' => 'Milano',
-            'service_radius_km' => 25,
-        ]);
     }
 
     public function test_saving_assistant_profile_for_legacy_owner_does_not_overwrite_residence(): void
     {
-        $this->insertLegacyUser(20, 'pet_owner', 'Bologna', 44.4949, 11.3426);
+        $this->insertUser(20);
         DB::table('account_profile')->insert($this->commonRow(20, 'Owner Name'));
         DB::table('owner_profile')->insert($this->locationRow(20, 'Bologna', 44.4949, 11.3426));
 
@@ -165,15 +152,11 @@ class ProfileDataSeparationTest extends TestCase
         $this->assertSame('Bologna', $profiles->read(20, ProfileData::OWNER)['city']);
         $this->assertSame('Firenze', $profiles->read(20, ProfileData::ASSISTANT)['city']);
         $this->assertSame([44.4949, 11.3426], $profiles->ownerLocation(20));
-        $this->assertDatabaseHas('personaldata', [
-            'user_id' => 20,
-            'city' => 'Bologna',
-        ]);
     }
 
     public function test_common_photo_is_synchronized_without_touching_either_location(): void
     {
-        $this->insertLegacyUser(30, 'pet_assistant', 'Napoli', 40.8518, 14.2681);
+        $this->insertUser(30);
         DB::table('account_profile')->insert($this->commonRow(30, 'Shared'));
         DB::table('owner_profile')->insert($this->locationRow(30, 'Caserta', 41.0747, 14.3323));
         DB::table('assistant_profile')->insert($this->locationRow(30, 'Napoli', 40.8518, 14.2681, 30));
@@ -181,14 +164,13 @@ class ProfileDataSeparationTest extends TestCase
         (new ProfileData)->syncCommonPhoto(30, '/uploads/shared.jpg', 4000);
 
         $this->assertDatabaseHas('account_profile', ['user_id' => 30, 'photo' => '/uploads/shared.jpg']);
-        $this->assertDatabaseHas('personaldata', ['user_id' => 30, 'photo' => '/uploads/shared.jpg', 'city' => 'Napoli']);
         $this->assertDatabaseHas('owner_profile', ['user_id' => 30, 'city' => 'Caserta']);
         $this->assertDatabaseHas('assistant_profile', ['user_id' => 30, 'city' => 'Napoli']);
     }
 
     public function test_owner_profile_endpoint_persists_the_geocoded_residence(): void
     {
-        $this->insertLegacyUser(40, 'pet_owner', 'Roma', 41.9028, 12.4964);
+        $this->insertUser(40);
         DB::table('account_profile')->insert($this->commonRow(40, 'Owner'));
         DB::table('owner_profile')->insert($this->locationRow(40, 'Roma', 41.9028, 12.4964));
 
@@ -218,17 +200,11 @@ class ProfileDataSeparationTest extends TestCase
             'location_lat' => 45.0703,
             'location_lng' => 7.6869,
         ]);
-        $this->assertDatabaseHas('personaldata', [
-            'user_id' => 40,
-            'city' => 'Torino',
-            'location_lat' => 45.0703,
-            'location_lng' => 7.6869,
-        ]);
     }
 
     public function test_assistant_personal_save_updates_only_the_public_map_consent(): void
     {
-        $this->insertLegacyUser(50, 'pet_assistant', 'Roma', 41.9028, 12.4964);
+        $this->insertUser(50);
         DB::table('operator_public_profile')->insert([
             'user_id' => 50,
             'headline' => 'Presentazione esistente',
@@ -257,29 +233,18 @@ class ProfileDataSeparationTest extends TestCase
         ]);
     }
 
-    private function insertLegacyUser(int $id, string $role, string $city, float $lat, float $lng): void
+    private function insertUser(int $id): void
     {
         DB::table('users')->insert([
             'id' => $id,
-            'role' => $role,
             'name' => 'alias-'.$id,
             'email' => 'user'.$id.'@example.test',
             'avatar' => '',
         ]);
-        DB::table('personaldata')->insert([
+        DB::table('user_capabilities')->insert([
             'user_id' => $id,
-            'name' => 'Legacy User '.$id,
-            'photo' => '/uploads/legacy-'.$id.'.jpg',
-            'age' => 30,
-            'city' => $city,
-            'phone' => '+39 333 1234567',
-            'address' => 'Via Legacy',
-            'addressnumber' => '1',
-            'location_lat' => $lat,
-            'location_lng' => $lng,
-            'service_radius_km' => 25,
-            'created_at' => 1000,
-            'updated_at' => 1000,
+            'capability' => 'owner',
+            'status' => 'active',
         ]);
     }
 

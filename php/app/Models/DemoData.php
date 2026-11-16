@@ -23,7 +23,6 @@ class DemoData
         'pet_assistant_favorite',
         'operator_public_profile',
         'profile_reputation',
-        'user_reputation',
         'booking_counter',
         'calendar_day_slot_service',
         'calendar_day_slot',
@@ -45,7 +44,6 @@ class DemoData
         'assistant_profile',
         'owner_profile',
         'account_profile',
-        'personaldata',
         'social_accounts',
         'user_capabilities',
         'users',
@@ -129,7 +127,7 @@ class DemoData
         }
 
         $summary = $this->summary();
-        if ($summary['petAssistants'] !== 40 || $summary['petOwners'] !== 1) {
+        if ($summary['assistantProfiles'] !== 40 || $summary['accounts'] !== 41) {
             throw new RuntimeException('Il dataset demo importato non contiene i 41 account attesi.');
         }
 
@@ -279,8 +277,9 @@ class DemoData
     {
         return [
             'users' => DB::table('users')->count(),
-            'petOwners' => DB::table('users')->where('role', 'pet_owner')->count(),
-            'petAssistants' => DB::table('users')->where('role', 'pet_assistant')->count(),
+            'accounts' => DB::table('users')->count(),
+            'ownerProfiles' => DB::table('user_capabilities')->where('capability', UserCapability::OWNER)->where('status', UserCapability::STATUS_ACTIVE)->count(),
+            'assistantProfiles' => DB::table('user_capabilities')->where('capability', UserCapability::ASSISTANT)->where('status', UserCapability::STATUS_ACTIVE)->count(),
             'pets' => DB::table('ownerpet')->count(),
             'calendarDays' => DB::table('calendar_day')->count(),
         ];

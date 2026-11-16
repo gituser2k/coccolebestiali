@@ -1,5 +1,5 @@
 -- Coccole Bestiali - snapshot dati demo
--- Generato il 2026-10-22 23:14:00 Europe/Rome.
+-- Generato il 2026-11-16 23:04:05 Europe/Rome.
 -- Prerequisito: eseguire prima migration/migration.txt.
 
 SET NAMES utf8mb4;
@@ -14,10 +14,11 @@ DELETE FROM `booking_action_token`;
 DELETE FROM `reputation_event`;
 DELETE FROM `booking_review`;
 DELETE FROM `booking_reschedule`;
+DELETE FROM `booking_feature_preference`;
 DELETE FROM `booking`;
+DELETE FROM `booking_batch`;
 DELETE FROM `booking_counter`;
 DELETE FROM `profile_reputation`;
-DELETE FROM `user_reputation`;
 DELETE FROM `calendar_day_slot_service`;
 DELETE FROM `calendar_day_slot`;
 DELETE FROM `calendar_day`;
@@ -34,145 +35,232 @@ DELETE FROM `pettypedata`;
 DELETE FROM `petbreeddata`;
 DELETE FROM `operatortitledata`;
 DELETE FROM `operatorassociatedata`;
+DELETE FROM `pet_assistant_favorite`;
+DELETE FROM `operator_public_profile`;
 DELETE FROM `operatordata`;
 DELETE FROM `assistant_profile`;
 DELETE FROM `owner_profile`;
 DELETE FROM `account_profile`;
-DELETE FROM `personaldata`;
 DELETE FROM `social_accounts`;
 DELETE FROM `user_capabilities`;
 DELETE FROM `users`;
 
 -- users: 41 record
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (1, 'pet_owner', 'Francesco', 'frabe75@gmail.com', 1, '', 0, 'https://lh3.googleusercontent.com/a/ACg8ocLU-vXdeF20AcdH0IghfaiD0xAjw2eNs78_YuHXgat1aA9gbg=s96-c', 1792247266, 1792249495);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (2, 'pet_assistant', 'utente1', 'utente1@email.it', 1, '$2y$12$hG/zh5tME/2hNIPPk3xR5OGv2tkp1V4bPUzPaB0wu2syQYGMZY08.', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (3, 'pet_assistant', 'utente2', 'utente2@email.it', 1, '$2y$12$x6UqvaFGMo/kbckGYPxmH.eB27kw5WFnkT2CckjoYHlm3Y2V8b3vS', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (4, 'pet_assistant', 'utente3', 'utente3@email.it', 1, '$2y$12$TwFxBh1gtQI.3P8/9eN53.FGlmbiCXKga1OXCETWsf04qRMRv5eNa', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (5, 'pet_assistant', 'utente4', 'utente4@email.it', 1, '$2y$12$PItwbWIVX2XoJuR6/FTIxecIHPqK.BK7rKK37zbDDFav8kuUDhddi', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (6, 'pet_assistant', 'utente5', 'utente5@email.it', 1, '$2y$12$MSOwTlY0iJWey72Fz0pie.YrBq.rCn4F9MQXKW0/pmC1uFVFKeqo.', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (7, 'pet_assistant', 'utente6', 'utente6@email.it', 1, '$2y$12$vZ1mYVHnZsxX1KLLczrPcuTs7Uy5nM0zasgjO0vHf2WAy2S3tAZqa', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (8, 'pet_assistant', 'utente7', 'utente7@email.it', 1, '$2y$12$9uKym6.nsq9Vw8b1.EF.7.LysE1tq1UF9ZlNGXlkTJV/bNzQX7VSu', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (9, 'pet_assistant', 'utente8', 'utente8@email.it', 1, '$2y$12$D29YgutcjOh3Iv2NCWMk9eC7YjlqGpUhVUJvbgImW8.BOS4HRbqWy', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (10, 'pet_assistant', 'utente9', 'utente9@email.it', 1, '$2y$12$ma3sP/caU3qfBjDcMZnpqeJy//QbCn3mG7AEqzqRSgWIl4eyo01Qa', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (11, 'pet_assistant', 'utente10', 'utente10@email.it', 1, '$2y$12$bKB5zovHERHiVMaOr78L/eWrR4anj9qDLSZbdpIdI6WIwnKMAk6Fe', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (12, 'pet_assistant', 'utente11', 'utente11@email.it', 1, '$2y$12$fXztkFfQpKnKqhuOsyyGDeThQgH3RBI02vsvvvQW/R7kcK0U39f7K', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (13, 'pet_assistant', 'utente12', 'utente12@email.it', 1, '$2y$12$7uETGZvOIADePxKklYG0kuis3VdoKpJztV7oVMgleP4a9cJvrDiOS', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (14, 'pet_assistant', 'utente13', 'utente13@email.it', 1, '$2y$12$FuoTADBGoThdBrCHe6df6OuYvZ6Z7wOHT8bRReMDhzdLfQ9WemnLe', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (15, 'pet_assistant', 'utente14', 'devfra75@gmail.com', 1, '$2y$12$bEqv4wpFADgK6fSmCQEageiPSsb4rJ0fY3e/wmolxo5m4hB13LpGe', 0, '', 1792246803, 1792336870);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (16, 'pet_assistant', 'utente15', 'utente15@email.it', 1, '$2y$12$3Xrcm.UNQE1WmRX6xnNVzufim6/1/A9dV7FSML4.dA5E070NAvm6S', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (17, 'pet_assistant', 'utente16', 'utente16@email.it', 1, '$2y$12$a6cyiXIka0gqNGzKKeMkpuVcT7CWADNe1EK11mM0VMJ8lFxVSOcji', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (18, 'pet_assistant', 'utente17', 'utente17@email.it', 1, '$2y$12$CkLJJdtWEMKZPPKUOsZVsenzewpUwHXjHAG6uztvJ2sZycJE9nukK', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (19, 'pet_assistant', 'utente18', 'utente18@email.it', 1, '$2y$12$EJsJVy9DdmEfQG1rEzuaTOzVvE8HJo4Wd0oIWhX7qhjhJI65kWTAi', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (20, 'pet_assistant', 'utente19', 'utente19@email.it', 1, '$2y$12$viXPF7yRhRa7uO6mdDxeZ.yg3lA4i4tfD.89wdMeqL/TO8NEv..YK', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (21, 'pet_assistant', 'utente20', 'utente20@email.it', 1, '$2y$12$RlkdAMGnv2qVQDeDX.gdjO6gCFtvmq0Bm6qLAywijqOxelzXlimwa', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (22, 'pet_assistant', 'utente21', 'utente21@email.it', 1, '$2y$12$sh6n9GB.Wt/.BjHFKFneG.HkAkZVidE/LADLAy9M6i/FaPd5aowa.', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (23, 'pet_assistant', 'utente22', 'utente22@email.it', 1, '$2y$12$8ci/seZl5/C.psirCXrmB.DkiwAmBw1WfAi2aBQfmHgaI1baFU99u', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (24, 'pet_assistant', 'utente23', 'utente23@email.it', 1, '$2y$12$uYhQ8fEwrWYcxuw45E05ZOAzgy7oXgWsqYr0Qf6RnfZNVcCZFURYW', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (25, 'pet_assistant', 'utente24', 'utente24@email.it', 1, '$2y$12$njgOwwh2QoNdOMCJ5sidlu.O0T0AtF/aRR66nDcWhHrsTm2Cx1z9a', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (26, 'pet_assistant', 'utente25', 'utente25@email.it', 1, '$2y$12$8ej.txAMT2fgBV/o1626.ePLynr3qgUn3oTzIpD1bzThBhlAX2irS', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (27, 'pet_assistant', 'utente26', 'utente26@email.it', 1, '$2y$12$DBUpxFEPp79IvUq1nU6e7OGpu9dGw.FtVGpH6uSbTQGEsBrWwFWDS', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (28, 'pet_assistant', 'utente27', 'utente27@email.it', 1, '$2y$12$cXNe6ZXT0IpCVCHsqN302.SgmO/9o00i9TBkA27dZnOw7Bt532khu', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (29, 'pet_assistant', 'utente28', 'utente28@email.it', 1, '$2y$12$SmQIvLrYe4g2VPRxjaO9T.z6wvZoT7CaEfWb30XnpbwUf78ZDQ2QC', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (30, 'pet_assistant', 'utente29', 'utente29@email.it', 1, '$2y$12$7aMsRtFisdd/LhgaFRYk5OihOtKDi47SmYespXeyLoTLkC88Uvv3e', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (31, 'pet_assistant', 'utente30', 'utente30@email.it', 1, '$2y$12$dqifJ0mxgmYKpZyK3SMvUuk.RAsfPsMDEjERczxQ8LQE7BLFybMwu', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (32, 'pet_assistant', 'utente31', 'utente31@email.it', 1, '$2y$12$Z/MHslos/2MFCAqF5gxD3OTJev6QVdoyFGQDALgpMgRMe055YF82G', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (33, 'pet_assistant', 'utente32', 'utente32@email.it', 1, '$2y$12$Ri8dw9B3FEKGDbqycbENL.PQJhExhAvREJSyr1gP.6mdtWzPmBisK', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (34, 'pet_assistant', 'utente33', 'utente33@email.it', 1, '$2y$12$AXuHgYMzh5wvr.9s4mT7MeqM8oexE6f.lADLRK6ZmYoSUHibtMP0G', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (35, 'pet_assistant', 'utente34', 'utente34@email.it', 1, '$2y$12$6TcI69d9iYTqMrNyL4s1C.wRUkXZeZVVc3M1sDwZmg3QWsqVj.Rxq', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (36, 'pet_assistant', 'utente35', 'utente35@email.it', 1, '$2y$12$BicgXBDtBD7iUJnYjvV60O89XjX08OkVV4IVlpTXBmKj.3pZOdovG', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (37, 'pet_assistant', 'utente36', 'utente36@email.it', 1, '$2y$12$U.3MWb0gg8tgbl9u7OzZPusNV0G4B4LTXo2k8t7WT1uMgmZQVDOJ6', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (38, 'pet_assistant', 'utente37', 'utente37@email.it', 1, '$2y$12$cotVxlZ5C6mznJ638ZinUeIQgUy4YAxkTPDeJ6T8xnv6TFR9mmyTS', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (39, 'pet_assistant', 'utente38', 'utente38@email.it', 1, '$2y$12$.AT3G.5LVq6/Bp6cS6eubeRyxuAcbVXCXk4hoFWKMUpzE7LOpeZK.', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (40, 'pet_assistant', 'utente39', 'utente39@email.it', 1, '$2y$12$Qnl.syuhGTgHXRAdFdnrfOs537n7JsQ4fqLsUYjPX82TntwZKYRbW', 0, '', 1792246803, 1792246803);
-INSERT INTO `users` (`id`, `role`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (41, 'pet_assistant', 'utente40', 'utente40@email.it', 1, '$2y$12$bV8Yqm78E60spBjYILOCU.fiNdcE2KV0.fxSwSgZHhTsaKUnhZm5q', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (1, 'Francesco', 'frabe75@gmail.com', 1, '', 0, 'https://lh3.googleusercontent.com/a/ACg8ocLU-vXdeF20AcdH0IghfaiD0xAjw2eNs78_YuHXgat1aA9gbg=s96-c', 1792247266, 1792249495);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (2, 'utente1', 'utente1@email.it', 1, '$2y$12$hG/zh5tME/2hNIPPk3xR5OGv2tkp1V4bPUzPaB0wu2syQYGMZY08.', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (3, 'utente2', 'utente2@email.it', 1, '$2y$12$x6UqvaFGMo/kbckGYPxmH.eB27kw5WFnkT2CckjoYHlm3Y2V8b3vS', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (4, 'utente3', 'utente3@email.it', 1, '$2y$12$TwFxBh1gtQI.3P8/9eN53.FGlmbiCXKga1OXCETWsf04qRMRv5eNa', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (5, 'utente4', 'utente4@email.it', 1, '$2y$12$PItwbWIVX2XoJuR6/FTIxecIHPqK.BK7rKK37zbDDFav8kuUDhddi', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (6, 'utente5', 'utente5@email.it', 1, '$2y$12$MSOwTlY0iJWey72Fz0pie.YrBq.rCn4F9MQXKW0/pmC1uFVFKeqo.', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (7, 'utente6', 'utente6@email.it', 1, '$2y$12$vZ1mYVHnZsxX1KLLczrPcuTs7Uy5nM0zasgjO0vHf2WAy2S3tAZqa', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (8, 'utente7', 'utente7@email.it', 1, '$2y$12$9uKym6.nsq9Vw8b1.EF.7.LysE1tq1UF9ZlNGXlkTJV/bNzQX7VSu', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (9, 'utente8', 'utente8@email.it', 1, '$2y$12$D29YgutcjOh3Iv2NCWMk9eC7YjlqGpUhVUJvbgImW8.BOS4HRbqWy', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (10, 'utente9', 'utente9@email.it', 1, '$2y$12$ma3sP/caU3qfBjDcMZnpqeJy//QbCn3mG7AEqzqRSgWIl4eyo01Qa', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (11, 'utente10', 'utente10@email.it', 1, '$2y$12$bKB5zovHERHiVMaOr78L/eWrR4anj9qDLSZbdpIdI6WIwnKMAk6Fe', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (12, 'utente11', 'utente11@email.it', 1, '$2y$12$fXztkFfQpKnKqhuOsyyGDeThQgH3RBI02vsvvvQW/R7kcK0U39f7K', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (13, 'utente12', 'utente12@email.it', 1, '$2y$12$7uETGZvOIADePxKklYG0kuis3VdoKpJztV7oVMgleP4a9cJvrDiOS', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (14, 'utente13', 'utente13@email.it', 1, '$2y$12$FuoTADBGoThdBrCHe6df6OuYvZ6Z7wOHT8bRReMDhzdLfQ9WemnLe', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (15, 'utente14', 'devfra75@gmail.com', 1, '$2y$12$bEqv4wpFADgK6fSmCQEageiPSsb4rJ0fY3e/wmolxo5m4hB13LpGe', 0, '', 1792246803, 1792336870);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (16, 'utente15', 'utente15@email.it', 1, '$2y$12$3Xrcm.UNQE1WmRX6xnNVzufim6/1/A9dV7FSML4.dA5E070NAvm6S', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (17, 'utente16', 'utente16@email.it', 1, '$2y$12$a6cyiXIka0gqNGzKKeMkpuVcT7CWADNe1EK11mM0VMJ8lFxVSOcji', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (18, 'utente17', 'utente17@email.it', 1, '$2y$12$CkLJJdtWEMKZPPKUOsZVsenzewpUwHXjHAG6uztvJ2sZycJE9nukK', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (19, 'utente18', 'utente18@email.it', 1, '$2y$12$EJsJVy9DdmEfQG1rEzuaTOzVvE8HJo4Wd0oIWhX7qhjhJI65kWTAi', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (20, 'utente19', 'utente19@email.it', 1, '$2y$12$viXPF7yRhRa7uO6mdDxeZ.yg3lA4i4tfD.89wdMeqL/TO8NEv..YK', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (21, 'utente20', 'utente20@email.it', 1, '$2y$12$RlkdAMGnv2qVQDeDX.gdjO6gCFtvmq0Bm6qLAywijqOxelzXlimwa', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (22, 'utente21', 'utente21@email.it', 1, '$2y$12$sh6n9GB.Wt/.BjHFKFneG.HkAkZVidE/LADLAy9M6i/FaPd5aowa.', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (23, 'utente22', 'utente22@email.it', 1, '$2y$12$8ci/seZl5/C.psirCXrmB.DkiwAmBw1WfAi2aBQfmHgaI1baFU99u', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (24, 'utente23', 'utente23@email.it', 1, '$2y$12$uYhQ8fEwrWYcxuw45E05ZOAzgy7oXgWsqYr0Qf6RnfZNVcCZFURYW', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (25, 'utente24', 'utente24@email.it', 1, '$2y$12$njgOwwh2QoNdOMCJ5sidlu.O0T0AtF/aRR66nDcWhHrsTm2Cx1z9a', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (26, 'utente25', 'utente25@email.it', 1, '$2y$12$8ej.txAMT2fgBV/o1626.ePLynr3qgUn3oTzIpD1bzThBhlAX2irS', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (27, 'utente26', 'utente26@email.it', 1, '$2y$12$DBUpxFEPp79IvUq1nU6e7OGpu9dGw.FtVGpH6uSbTQGEsBrWwFWDS', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (28, 'utente27', 'utente27@email.it', 1, '$2y$12$cXNe6ZXT0IpCVCHsqN302.SgmO/9o00i9TBkA27dZnOw7Bt532khu', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (29, 'utente28', 'utente28@email.it', 1, '$2y$12$SmQIvLrYe4g2VPRxjaO9T.z6wvZoT7CaEfWb30XnpbwUf78ZDQ2QC', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (30, 'utente29', 'utente29@email.it', 1, '$2y$12$7aMsRtFisdd/LhgaFRYk5OihOtKDi47SmYespXeyLoTLkC88Uvv3e', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (31, 'utente30', 'utente30@email.it', 1, '$2y$12$dqifJ0mxgmYKpZyK3SMvUuk.RAsfPsMDEjERczxQ8LQE7BLFybMwu', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (32, 'utente31', 'utente31@email.it', 1, '$2y$12$Z/MHslos/2MFCAqF5gxD3OTJev6QVdoyFGQDALgpMgRMe055YF82G', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (33, 'utente32', 'utente32@email.it', 1, '$2y$12$Ri8dw9B3FEKGDbqycbENL.PQJhExhAvREJSyr1gP.6mdtWzPmBisK', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (34, 'utente33', 'utente33@email.it', 1, '$2y$12$AXuHgYMzh5wvr.9s4mT7MeqM8oexE6f.lADLRK6ZmYoSUHibtMP0G', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (35, 'utente34', 'utente34@email.it', 1, '$2y$12$6TcI69d9iYTqMrNyL4s1C.wRUkXZeZVVc3M1sDwZmg3QWsqVj.Rxq', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (36, 'utente35', 'utente35@email.it', 1, '$2y$12$BicgXBDtBD7iUJnYjvV60O89XjX08OkVV4IVlpTXBmKj.3pZOdovG', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (37, 'utente36', 'utente36@email.it', 1, '$2y$12$U.3MWb0gg8tgbl9u7OzZPusNV0G4B4LTXo2k8t7WT1uMgmZQVDOJ6', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (38, 'utente37', 'utente37@email.it', 1, '$2y$12$cotVxlZ5C6mznJ638ZinUeIQgUy4YAxkTPDeJ6T8xnv6TFR9mmyTS', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (39, 'utente38', 'utente38@email.it', 1, '$2y$12$.AT3G.5LVq6/Bp6cS6eubeRyxuAcbVXCXk4hoFWKMUpzE7LOpeZK.', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (40, 'utente39', 'utente39@email.it', 1, '$2y$12$Qnl.syuhGTgHXRAdFdnrfOs537n7JsQ4fqLsUYjPX82TntwZKYRbW', 0, '', 1792246803, 1792246803);
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified`, `password_hash`, `password_reset_required`, `avatar`, `created_at`, `updated_at`) VALUES (41, 'utente40', 'utente40@email.it', 1, '$2y$12$bV8Yqm78E60spBjYILOCU.fiNdcE2KV0.fxSwSgZHhTsaKUnhZm5q', 0, '', 1792246803, 1792246803);
 
--- user_capabilities: 81 record (41 Owner + 40 Assistant)
-INSERT INTO `user_capabilities` (
-  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
-  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
-)
-SELECT
-  `id`, 'owner', 'active', 1, 'complete',
-  `created_at`, `created_at`, 0, 0, `created_at`, `updated_at`
-FROM `users`;
-
-INSERT INTO `user_capabilities` (
-  `user_id`, `capability`, `status`, `onboarding_version`, `current_step`,
-  `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`
-)
-SELECT
-  `id`, 'assistant', 'active', 1, 'complete',
-  `created_at`, `created_at`, 0, 0, `created_at`, `updated_at`
-FROM `users`
-WHERE `role` = 'pet_assistant';
+-- user_capabilities: 81 record
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (1, 'owner', 'active', 1, 'complete', 1792247266, 1792247266, 0, 0, 1792247266, 1792249495);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (2, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (2, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (3, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (3, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (4, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (4, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (5, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (5, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (6, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (6, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (7, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (7, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (8, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (8, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (9, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (9, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (10, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (10, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (11, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (11, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (12, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (12, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (13, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (13, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (14, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (14, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (15, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792336870);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (15, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792336870);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (16, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (16, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (17, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (17, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (18, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (18, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (19, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (19, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (20, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (20, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (21, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (21, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (22, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (22, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (23, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (23, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (24, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (24, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (25, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (25, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (26, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (26, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (27, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (27, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (28, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (28, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (29, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (29, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (30, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (30, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (31, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (31, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (32, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (32, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (33, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (33, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (34, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (34, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (35, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (35, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (36, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (36, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (37, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (37, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (38, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (38, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (39, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (39, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (40, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (40, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (41, 'assistant', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
+INSERT INTO `user_capabilities` (`user_id`, `capability`, `status`, `onboarding_version`, `current_step`, `completed_at`, `activated_at`, `suspended_at`, `disabled_at`, `created_at`, `updated_at`) VALUES (41, 'owner', 'active', 1, 'complete', 1792246803, 1792246803, 0, 0, 1792246803, 1792246803);
 
 -- social_accounts: 1 record
 INSERT INTO `social_accounts` (`id`, `user_id`, `provider`, `provider_sub`, `provider_email`, `provider_email_verified`, `is_private_email`, `raw_claims`, `created_at`, `updated_at`) VALUES (1, 1, 'google', '112898879279943370243', 'frabe75@gmail.com', 1, 0, '{\"tokeninfo\":{\"azp\":\"408014807362-gv881e8utiligcb242h0tba8nin1gu35.apps.googleusercontent.com\",\"aud\":\"408014807362-gv881e8utiligcb242h0tba8nin1gu35.apps.googleusercontent.com\",\"sub\":\"112898879279943370243\",\"scope\":\"email profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid\",\"exp\":\"1792250864\",\"expires_in\":\"3597\",\"email\":\"frabe75@gmail.com\",\"email_verified\":\"true\",\"access_type\":\"online\"},\"userinfo\":{\"sub\":\"112898879279943370243\",\"name\":\"Francesco Bernardi\",\"given_name\":\"Francesco\",\"family_name\":\"Bernardi\",\"picture\":\"https://lh3.googleusercontent.com/a/ACg8ocLU-vXdeF20AcdH0IghfaiD0xAjw2eNs78_YuHXgat1aA9gbg=s96-c\",\"email\":\"frabe75@gmail.com\",\"email_verified\":true}}', 1792247266, 1792247266);
 
--- personaldata: 41 record
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (1, 1, 'Francesco Bernardi', 'owner-pet-gallery/rex-pastore-tedesco.png', 51, 'Roma', '+39 333 123 4567', 'Via Corinna', '20', '41.7662686', '12.3605441', 5, 1792249495, 1792698951);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (2, 2, 'Pet Assistant 1', '', 23, 'Roma', '0670000001', 'Via Appia Nuova', '12', '41.9028000', '12.5423000', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (3, 3, 'Pet Assistant 2', '', 24, 'Roma', '0670000002', 'Via Tuscolana', '19', '41.9095267', '12.5537353', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (4, 4, 'Pet Assistant 3', '', 25, 'Roma', '0670000003', 'Via Nomentana', '26', '41.9188689', '12.5631642', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (5, 5, 'Pet Assistant 4', '', 26, 'Roma', '0670000004', 'Via Cassia', '33', '41.9304934', '12.5697744', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (6, 6, 'Pet Assistant 5', '', 27, 'Roma', '0670000005', 'Via Aurelia', '40', '41.9174946', '12.5237043', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (7, 7, 'Pet Assistant 6', '', 28, 'Roma', '0670000006', 'Via Ostiense', '47', '41.9268416', '12.5288562', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (8, 8, 'Pet Assistant 7', '', 29, 'Roma', '0670000007', 'Via Prenestina', '54', '41.9375877', '12.5305209', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (9, 9, 'Pet Assistant 8', '', 30, 'Roma', '0670000008', 'Via Tiburtina', '61', '41.9491323', '12.5282701', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (10, 10, 'Pet Assistant 9', '', 31, 'Roma', '0670000009', 'Viale Marconi', '68', '41.9608144', '12.5218475', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (11, 11, 'Pet Assistant 10', '', 32, 'Roma', '0670000010', 'Via Cristoforo Colombo', '75', '41.9274922', '12.5016797', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (12, 12, 'Pet Assistant 11', '', 33, 'Roma', '0670000011', 'Via Trionfale', '82', '41.9368000', '12.4964000', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (13, 13, 'Pet Assistant 12', '', 34, 'Roma', '0670000012', 'Via Salaria', '89', '41.9452706', '12.4873190', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (14, 14, 'Pet Assistant 13', '', 35, 'Roma', '0670000013', 'Via Laurentina', '96', '41.9522549', '12.4747070', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (15, 15, 'Pet Assistant 14', '', 36, 'Roma', '0670000014', 'Viale Libia', '103', '41.9571514', '12.4590139', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (16, 16, 'Pet Assistant 15', '', 37, 'Roma', '0670000015', 'Via Gregorio VII', '110', '41.9230254', '12.4765622', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (17, 17, 'Pet Assistant 16', '', 38, 'Roma', '0670000016', 'Via di Acilia', '117', '41.9268416', '12.4639438', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (18, 18, 'Pet Assistant 17', '', 39, 'Roma', '0670000017', 'Via Casilina', '124', '41.9280748', '12.4494366', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (19, 19, 'Pet Assistant 18', '', 40, 'Roma', '0670000018', 'Via Boccea', '131', '41.9264075', '12.4338513', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (20, 20, 'Pet Assistant 19', '', 41, 'Roma', '0670000019', 'Viale Europa', '138', '41.9216500', '12.4180805', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (21, 21, 'Pet Assistant 20', '', 42, 'Roma', '0670000020', 'Via del Pigneto', '145', '41.9067109', '12.4630655', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (22, 22, 'Pet Assistant 21', '', 43, 'Roma', '0670000021', 'Via Appia Nuova', '152', '41.9028000', '12.4505000', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (23, 23, 'Pet Assistant 22', '', 44, 'Roma', '0670000022', 'Via Tuscolana', '159', '41.8960733', '12.4390647', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (24, 24, 'Pet Assistant 23', '', 45, 'Roma', '0670000023', 'Via Nomentana', '166', '41.8867311', '12.4296358', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (25, 25, 'Pet Assistant 24', '', 46, 'Roma', '0670000024', 'Via Cassia', '173', '41.8751066', '12.4230256', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (26, 26, 'Pet Assistant 25', '', 47, 'Roma', '0670000025', 'Via Aurelia', '180', '41.8881054', '12.4690957', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (27, 27, 'Pet Assistant 26', '', 48, 'Roma', '0670000026', 'Via Ostiense', '7', '41.8787584', '12.4639438', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (28, 28, 'Pet Assistant 27', '', 49, 'Roma', '0670000027', 'Via Prenestina', '14', '41.8680123', '12.4622791', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (29, 29, 'Pet Assistant 28', '', 50, 'Roma', '0670000028', 'Via Tiburtina', '21', '41.8564677', '12.4645299', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (30, 30, 'Pet Assistant 29', '', 51, 'Roma', '0670000029', 'Viale Marconi', '28', '41.8447856', '12.4709525', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (31, 31, 'Pet Assistant 30', '', 52, 'Roma', '0670000030', 'Via Cristoforo Colombo', '35', '41.8781078', '12.4911203', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (32, 32, 'Pet Assistant 31', '', 53, 'Roma', '0670000031', 'Via Trionfale', '42', '41.8688000', '12.4964000', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (33, 33, 'Pet Assistant 32', '', 54, 'Roma', '0670000032', 'Via Salaria', '49', '41.8603294', '12.5054810', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (34, 34, 'Pet Assistant 33', '', 55, 'Roma', '0670000033', 'Via Laurentina', '56', '41.8533451', '12.5180930', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (35, 35, 'Pet Assistant 34', '', 56, 'Roma', '0670000034', 'Viale Libia', '63', '41.8484486', '12.5337861', 10, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (36, 36, 'Pet Assistant 35', '', 57, 'Roma', '0670000035', 'Via Gregorio VII', '70', '41.8825746', '12.5162378', 15, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (37, 37, 'Pet Assistant 36', '', 58, 'Roma', '0670000036', 'Via di Acilia', '77', '41.8787584', '12.5288562', 20, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (38, 38, 'Pet Assistant 37', '', 59, 'Roma', '0670000037', 'Via Casilina', '84', '41.8775252', '12.5433634', 3, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (39, 39, 'Pet Assistant 38', '', 60, 'Roma', '0670000038', 'Via Boccea', '91', '41.8791925', '12.5589487', 5, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (40, 40, 'Pet Assistant 39', '', 22, 'Roma', '0670000039', 'Viale Europa', '98', '41.8839500', '12.5747195', 8, 1792246803, 1792246803);
-INSERT INTO `personaldata` (`id`, `user_id`, `name`, `photo`, `age`, `city`, `phone`, `address`, `addressnumber`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (41, 41, 'Pet Assistant 40', '', 23, 'Roma', '0670000040', 'Via del Pigneto', '105', '41.8988891', '12.5297345', 10, 1792246803, 1792246803);
-
 -- account_profile: 41 record
-INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`)
-SELECT `user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`
-FROM `personaldata`;
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (1, 'Francesco Bernardi', 'owner-pet-gallery/rex-pastore-tedesco.png', 51, '+39 333 123 4567', 1792249495, 1792698951);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (2, 'Pet Assistant 1', '', 23, '0670000001', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (3, 'Pet Assistant 2', '', 24, '0670000002', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (4, 'Pet Assistant 3', '', 25, '0670000003', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (5, 'Pet Assistant 4', '', 26, '0670000004', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (6, 'Pet Assistant 5', '', 27, '0670000005', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (7, 'Pet Assistant 6', '', 28, '0670000006', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (8, 'Pet Assistant 7', '', 29, '0670000007', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (9, 'Pet Assistant 8', '', 30, '0670000008', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (10, 'Pet Assistant 9', '', 31, '0670000009', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (11, 'Pet Assistant 10', '', 32, '0670000010', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (12, 'Pet Assistant 11', '', 33, '0670000011', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (13, 'Pet Assistant 12', '', 34, '0670000012', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (14, 'Pet Assistant 13', '', 35, '0670000013', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (15, 'Pet Assistant 14', '', 36, '0670000014', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (16, 'Pet Assistant 15', '', 37, '0670000015', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (17, 'Pet Assistant 16', '', 38, '0670000016', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (18, 'Pet Assistant 17', '', 39, '0670000017', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (19, 'Pet Assistant 18', '', 40, '0670000018', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (20, 'Pet Assistant 19', '', 41, '0670000019', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (21, 'Pet Assistant 20', '', 42, '0670000020', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (22, 'Pet Assistant 21', '', 43, '0670000021', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (23, 'Pet Assistant 22', '', 44, '0670000022', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (24, 'Pet Assistant 23', '', 45, '0670000023', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (25, 'Pet Assistant 24', '', 46, '0670000024', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (26, 'Pet Assistant 25', '', 47, '0670000025', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (27, 'Pet Assistant 26', '', 48, '0670000026', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (28, 'Pet Assistant 27', '', 49, '0670000027', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (29, 'Pet Assistant 28', '', 50, '0670000028', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (30, 'Pet Assistant 29', '', 51, '0670000029', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (31, 'Pet Assistant 30', '', 52, '0670000030', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (32, 'Pet Assistant 31', '', 53, '0670000031', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (33, 'Pet Assistant 32', '', 54, '0670000032', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (34, 'Pet Assistant 33', '', 55, '0670000033', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (35, 'Pet Assistant 34', '', 56, '0670000034', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (36, 'Pet Assistant 35', '', 57, '0670000035', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (37, 'Pet Assistant 36', '', 58, '0670000036', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (38, 'Pet Assistant 37', '', 59, '0670000037', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (39, 'Pet Assistant 38', '', 60, '0670000038', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (40, 'Pet Assistant 39', '', 22, '0670000039', 1792246803, 1792246803);
+INSERT INTO `account_profile` (`user_id`, `name`, `photo`, `age`, `phone`, `created_at`, `updated_at`) VALUES (41, 'Pet Assistant 40', '', 23, '0670000040', 1792246803, 1792246803);
 
 -- owner_profile: 1 record
-INSERT INTO `owner_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `created_at`, `updated_at`)
-SELECT personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
-       personal.`location_lat`, personal.`location_lng`, personal.`created_at`, personal.`updated_at`
-FROM `personaldata` AS personal
-INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
-WHERE account.`role` = 'pet_owner';
+INSERT INTO `owner_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `created_at`, `updated_at`) VALUES (1, 'Roma', 'Via Corinna', '20', '41.7662686', '12.3605441', 1792249495, 1792698951);
 
 -- assistant_profile: 40 record
-INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`)
-SELECT personal.`user_id`, personal.`city`, personal.`address`, personal.`addressnumber`,
-       personal.`location_lat`, personal.`location_lng`, personal.`service_radius_km`,
-       personal.`created_at`, personal.`updated_at`
-FROM `personaldata` AS personal
-INNER JOIN `users` AS account ON account.`id` = personal.`user_id`
-WHERE account.`role` = 'pet_assistant';
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (2, 'Roma', 'Via Appia Nuova', '12', '41.9028000', '12.5423000', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (3, 'Roma', 'Via Tuscolana', '19', '41.9095267', '12.5537353', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (4, 'Roma', 'Via Nomentana', '26', '41.9188689', '12.5631642', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (5, 'Roma', 'Via Cassia', '33', '41.9304934', '12.5697744', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (6, 'Roma', 'Via Aurelia', '40', '41.9174946', '12.5237043', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (7, 'Roma', 'Via Ostiense', '47', '41.9268416', '12.5288562', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (8, 'Roma', 'Via Prenestina', '54', '41.9375877', '12.5305209', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (9, 'Roma', 'Via Tiburtina', '61', '41.9491323', '12.5282701', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (10, 'Roma', 'Viale Marconi', '68', '41.9608144', '12.5218475', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (11, 'Roma', 'Via Cristoforo Colombo', '75', '41.9274922', '12.5016797', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (12, 'Roma', 'Via Trionfale', '82', '41.9368000', '12.4964000', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (13, 'Roma', 'Via Salaria', '89', '41.9452706', '12.4873190', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (14, 'Roma', 'Via Laurentina', '96', '41.9522549', '12.4747070', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (15, 'Roma', 'Viale Libia', '103', '41.9571514', '12.4590139', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (16, 'Roma', 'Via Gregorio VII', '110', '41.9230254', '12.4765622', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (17, 'Roma', 'Via di Acilia', '117', '41.9268416', '12.4639438', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (18, 'Roma', 'Via Casilina', '124', '41.9280748', '12.4494366', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (19, 'Roma', 'Via Boccea', '131', '41.9264075', '12.4338513', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (20, 'Roma', 'Viale Europa', '138', '41.9216500', '12.4180805', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (21, 'Roma', 'Via del Pigneto', '145', '41.9067109', '12.4630655', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (22, 'Roma', 'Via Appia Nuova', '152', '41.9028000', '12.4505000', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (23, 'Roma', 'Via Tuscolana', '159', '41.8960733', '12.4390647', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (24, 'Roma', 'Via Nomentana', '166', '41.8867311', '12.4296358', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (25, 'Roma', 'Via Cassia', '173', '41.8751066', '12.4230256', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (26, 'Roma', 'Via Aurelia', '180', '41.8881054', '12.4690957', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (27, 'Roma', 'Via Ostiense', '7', '41.8787584', '12.4639438', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (28, 'Roma', 'Via Prenestina', '14', '41.8680123', '12.4622791', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (29, 'Roma', 'Via Tiburtina', '21', '41.8564677', '12.4645299', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (30, 'Roma', 'Viale Marconi', '28', '41.8447856', '12.4709525', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (31, 'Roma', 'Via Cristoforo Colombo', '35', '41.8781078', '12.4911203', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (32, 'Roma', 'Via Trionfale', '42', '41.8688000', '12.4964000', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (33, 'Roma', 'Via Salaria', '49', '41.8603294', '12.5054810', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (34, 'Roma', 'Via Laurentina', '56', '41.8533451', '12.5180930', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (35, 'Roma', 'Viale Libia', '63', '41.8484486', '12.5337861', 10, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (36, 'Roma', 'Via Gregorio VII', '70', '41.8825746', '12.5162378', 15, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (37, 'Roma', 'Via di Acilia', '77', '41.8787584', '12.5288562', 20, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (38, 'Roma', 'Via Casilina', '84', '41.8775252', '12.5433634', 3, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (39, 'Roma', 'Via Boccea', '91', '41.8791925', '12.5589487', 5, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (40, 'Roma', 'Viale Europa', '98', '41.8839500', '12.5747195', 8, 1792246803, 1792246803);
+INSERT INTO `assistant_profile` (`user_id`, `city`, `address`, `address_number`, `location_lat`, `location_lng`, `service_radius_km`, `created_at`, `updated_at`) VALUES (41, 'Roma', 'Via del Pigneto', '105', '41.8988891', '12.5297345', 10, 1792246803, 1792246803);
 
 -- operatordata: 40 record
 INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `business_name`, `vat_number`, `bio`, `experience_years`, `pet_size`, `booking_confirmation_mode`, `created_at`, `updated_at`) VALUES (1, 2, 'person', 'CBTUSR0000000001', '', '', 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.', 4, 'small', 'manual', 1792246803, 1792697894);
@@ -215,6 +303,10 @@ INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `bu
 INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `business_name`, `vat_number`, `bio`, `experience_years`, `pet_size`, `booking_confirmation_mode`, `created_at`, `updated_at`) VALUES (38, 39, 'person', 'CBTUSR0000000038', '', '', 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.', 15, 'medium', 'automatic', 1792246803, 1792246803);
 INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `business_name`, `vat_number`, `bio`, `experience_years`, `pet_size`, `booking_confirmation_mode`, `created_at`, `updated_at`) VALUES (39, 40, 'person', 'CBTUSR0000000039', '', '', 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.', 18, 'large', 'manual', 1792246803, 1792246803);
 INSERT INTO `operatordata` (`id`, `user_id`, `operator_type`, `fiscal_code`, `business_name`, `vat_number`, `bio`, `experience_years`, `pet_size`, `booking_confirmation_mode`, `created_at`, `updated_at`) VALUES (40, 41, 'association', '', 'Associazione Coccole Roma 40', '09900000040', 'Pet Assistant a Roma con esperienza nella cura quotidiana, nel benessere e nella gestione personalizzata degli animali.', 1, 'max', 'automatic', 1792246803, 1792246803);
+
+-- operator_public_profile: 0 record
+
+-- pet_assistant_favorite: 0 record
 
 -- operatorassociatedata: 0 record
 
@@ -7004,66 +7096,96 @@ INSERT INTO `calendar_day_slot_service` (`id`, `slot_id`, `service_id`, `enabled
 INSERT INTO `calendar_day_slot_service` (`id`, `slot_id`, `service_id`, `enabled`, `hour_price`, `created_at`, `updated_at`) VALUES (3103, 1625, 2, 1, '24.00', 1792248073, 1792248073);
 INSERT INTO `calendar_day_slot_service` (`id`, `slot_id`, `service_id`, `enabled`, `hour_price`, `created_at`, `updated_at`) VALUES (3104, 1626, 1, 1, '22.00', 1792248073, 1792248073);
 
--- user_reputation: 41 record
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (1, 60, 1792328481);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (2, 45, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (3, 52, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (4, 59, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (5, 66, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (6, 73, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (7, 80, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (8, 87, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (9, 48, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (10, 55, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (11, 62, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (12, 69, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (13, 76, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (14, 83, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (15, 90, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (16, 51, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (17, 58, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (18, 65, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (19, 72, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (20, 79, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (21, 86, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (22, 47, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (23, 54, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (24, 61, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (25, 68, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (26, 75, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (27, 82, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (28, 89, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (29, 50, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (30, 57, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (31, 64, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (32, 71, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (33, 78, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (34, 85, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (35, 46, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (36, 53, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (37, 60, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (38, 67, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (39, 74, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (40, 81, 1792328685);
-INSERT INTO `user_reputation` (`user_id`, `score`, `updated_at`) VALUES (41, 88, 1792328685);
-
--- profile_reputation: 81 record (41 Owner, 40 Assistant)
-INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
-SELECT account.`id`, 'owner',
-       CASE WHEN account.`role` = 'pet_owner' THEN legacy.`score` ELSE 60 END,
-       legacy.`updated_at`
-FROM `users` AS account
-INNER JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`;
-
-INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`)
-SELECT account.`id`, 'assistant', legacy.`score`, legacy.`updated_at`
-FROM `users` AS account
-INNER JOIN `user_reputation` AS legacy ON legacy.`user_id` = account.`id`
-WHERE account.`role` = 'pet_assistant';
+-- profile_reputation: 81 record
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (1, 'owner', 60, 1792328481);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (2, 'assistant', 45, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (2, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (3, 'assistant', 52, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (3, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (4, 'assistant', 59, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (4, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (5, 'assistant', 66, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (5, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (6, 'assistant', 73, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (6, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (7, 'assistant', 80, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (7, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (8, 'assistant', 87, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (8, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (9, 'assistant', 48, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (9, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (10, 'assistant', 55, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (10, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (11, 'assistant', 62, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (11, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (12, 'assistant', 69, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (12, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (13, 'assistant', 76, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (13, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (14, 'assistant', 83, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (14, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (15, 'assistant', 90, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (15, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (16, 'assistant', 51, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (16, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (17, 'assistant', 58, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (17, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (18, 'assistant', 65, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (18, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (19, 'assistant', 72, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (19, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (20, 'assistant', 79, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (20, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (21, 'assistant', 86, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (21, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (22, 'assistant', 47, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (22, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (23, 'assistant', 54, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (23, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (24, 'assistant', 61, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (24, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (25, 'assistant', 68, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (25, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (26, 'assistant', 75, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (26, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (27, 'assistant', 82, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (27, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (28, 'assistant', 89, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (28, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (29, 'assistant', 50, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (29, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (30, 'assistant', 57, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (30, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (31, 'assistant', 64, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (31, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (32, 'assistant', 71, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (32, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (33, 'assistant', 78, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (33, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (34, 'assistant', 85, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (34, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (35, 'assistant', 46, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (35, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (36, 'assistant', 53, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (36, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (37, 'assistant', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (37, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (38, 'assistant', 67, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (38, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (39, 'assistant', 74, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (39, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (40, 'assistant', 81, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (40, 'owner', 60, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (41, 'assistant', 88, 1792328685);
+INSERT INTO `profile_reputation` (`user_id`, `capability`, `score`, `updated_at`) VALUES (41, 'owner', 60, 1792328685);
 
 -- booking_counter: 0 record
 
+-- booking_batch: 0 record
+
 -- booking: 0 record
+
+-- booking_feature_preference: 0 record
 
 -- booking_reschedule: 0 record
 

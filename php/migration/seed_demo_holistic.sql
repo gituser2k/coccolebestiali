@@ -12,9 +12,10 @@ SELECT u.id AS user_id, s.id AS service_id,
        FIELD(u.name, 'utente3', 'utente7', 'utente10', 'utente19', 'utente22', 'utente35') AS profile_number
 FROM `users` AS u
 JOIN `operatordata` AS profile ON profile.user_id = u.id
+JOIN `user_capabilities` AS capability
+  ON capability.user_id = u.id AND capability.capability = 'assistant' AND capability.status = 'active'
 CROSS JOIN `service` AS s
-WHERE u.role = 'pet_assistant'
-  AND u.name IN ('utente3', 'utente7', 'utente10', 'utente19', 'utente22', 'utente35')
+WHERE u.name IN ('utente3', 'utente7', 'utente10', 'utente19', 'utente22', 'utente35')
   AND u.email = CONCAT(u.name, '@email.it')
   AND s.name = 'Operatore olistico';
 

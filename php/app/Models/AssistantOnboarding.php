@@ -14,14 +14,13 @@ final class AssistantOnboarding
 
     public function start(int $userId): array
     {
-        $user = DB::table('users')->select(['id', 'role'])->where('id', $userId)->first();
+        $user = DB::table('users')->select(['id'])->where('id', $userId)->first();
         if (! $user || ! Schema::hasTable('user_capabilities')) {
             throw new RuntimeException('Account non disponibile.');
         }
 
-        $capabilities = new UserCapability;
-        if (! DB::table('user_capabilities')->where('user_id', $userId)->exists()) {
-            $capabilities->provisionForLegacyRole($userId, (string) $user->role);
+        if (! (new UserCapability)->hasActive($userId, UserCapability::OWNER)) {
+            throw new RuntimeException('Capability Pet Owner non disponibile.');
         }
 
         $existing = DB::table('user_capabilities')
@@ -112,6 +111,7 @@ final class AssistantOnboarding
             if ($updated !== 1) {
                 throw new RuntimeException('Attivazione del profilo non completata.');
             }
+            (new ProfileReputation)->initialize($userId, ProfileReputation::ASSISTANT, $now);
         });
 
         return $this->state($userId);

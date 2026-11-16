@@ -9,10 +9,8 @@ use Illuminate\Support\Facades\Schema;
 
 class Profile extends Model
 {
-    public function getPersonalProfile(int $userId, ?string $context = null): array
+    public function getPersonalProfile(int $userId, string $context): array
     {
-        $this->ensurePersonalLocationSchema();
-        $context ??= $this->legacyProfileContext($userId);
         $row = (new ProfileData)->read($userId, $context);
 
         if ($row === []) {
@@ -603,11 +601,8 @@ class Profile extends Model
         ];
     }
 
-    public function savePersonalProfile(int $userId, array $payload, ?string $context = null): array
+    public function savePersonalProfile(int $userId, array $payload, string $context): array
     {
-        $this->ensurePersonalLocationSchema();
-        $context ??= $this->legacyProfileContext($userId);
-
         $now = time();
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
 
@@ -647,13 +642,6 @@ class Profile extends Model
         return $this->getPersonalProfile($userId, $context);
     }
 
-    private function legacyProfileContext(int $userId): string
-    {
-        return DB::table('users')->where('id', $userId)->value('role') === 'pet_assistant'
-            ? ProfileData::ASSISTANT
-            : ProfileData::OWNER;
-    }
-
     public function updateUserCredentials(int $userId, string $email, ?string $password): array
     {
         $normalizedEmail = strtolower(trim($email));
@@ -684,25 +672,6 @@ class Profile extends Model
         return [
             'email' => $normalizedEmail,
         ];
-    }
-
-    private function ensurePersonalLocationSchema(): void
-    {
-        if (! Schema::hasTable('personaldata')) {
-            return;
-        }
-
-        Schema::table('personaldata', function ($table) {
-            if (! Schema::hasColumn('personaldata', 'location_lat')) {
-                $table->decimal('location_lat', 10, 7)->default(0)->after('addressnumber');
-            }
-            if (! Schema::hasColumn('personaldata', 'location_lng')) {
-                $table->decimal('location_lng', 10, 7)->default(0)->after('location_lat');
-            }
-            if (! Schema::hasColumn('personaldata', 'service_radius_km')) {
-                $table->unsignedSmallInteger('service_radius_km')->default(5)->after('location_lng');
-            }
-        });
     }
 
     private function ensureOperatorIdentitySchema(): void

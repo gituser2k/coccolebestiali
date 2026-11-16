@@ -19,7 +19,7 @@ if (! in_array('--force', $argv, true)) {
 }
 
 $storagePaths = [];
-foreach (['personaldata' => 'photo', 'operatorgallery' => 'photo', 'ownerpetgallery' => 'photo'] as $table => $column) {
+foreach (['account_profile' => 'photo', 'operatorgallery' => 'photo', 'ownerpetgallery' => 'photo'] as $table => $column) {
     if (! Schema::hasTable($table)) {
         continue;
     }
@@ -73,12 +73,12 @@ if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === 
 }
 
 $tablesToReset = [
-    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking_feature_preference', 'booking', 'booking_batch', 'booking_counter', 'profile_reputation', 'user_reputation',
+    'booking_action_token', 'booking_review', 'reputation_event', 'booking_reschedule', 'booking_feature_preference', 'booking', 'booking_batch', 'booking_counter', 'profile_reputation',
     'calendar_day_slot_service', 'calendar_day_slot', 'calendar_day',
     'ownerpetdocument', 'ownerpetgallery', 'ownerpetbreeddata', 'ownerpettypedata', 'ownerpet',
     'operatorservicefeaturedata', 'operatorservicedata', 'operatorgallery',
     'housefeaturedata', 'pettypedata', 'petbreeddata', 'operatortitledata',
-    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'assistant_profile', 'owner_profile', 'account_profile', 'personaldata', 'social_accounts', 'user_capabilities', 'users',
+    'operatorassociatedata', 'operator_public_profile', 'pet_assistant_favorite', 'operatordata', 'assistant_profile', 'owner_profile', 'account_profile', 'social_accounts', 'user_capabilities', 'users',
 ];
 
 DB::transaction(function () use (
@@ -115,7 +115,6 @@ DB::transaction(function () use (
         $petSize = $number === 14 ? 'large' : $petSizes[($number - 1) % count($petSizes)];
 
         $userId = (int) DB::table('users')->insertGetId([
-            'role' => 'pet_assistant',
             'name' => $alias,
             'email' => $alias.'@email.it',
             'email_verified' => 1,
@@ -125,20 +124,17 @@ DB::transaction(function () use (
             'created_at' => $now,
             'updated_at' => $now,
         ]);
-        (new UserCapability)->provisionForLegacyRole($userId, 'pet_assistant', $now);
-
-        DB::table('personaldata')->insert([
+        (new UserCapability)->provisionOwner($userId, $now);
+        DB::table('user_capabilities')->insert([
             'user_id' => $userId,
-            'name' => 'Pet Assistant '.$number,
-            'photo' => '',
-            'age' => 22 + ($number % 39),
-            'city' => 'Roma',
-            'phone' => sprintf('06%08d', 70000000 + $number),
-            'address' => $addresses[($number - 1) % count($addresses)],
-            'addressnumber' => (string) (5 + (($number * 7) % 180)),
-            'location_lat' => round($latitude, 7),
-            'location_lng' => round($longitude, 7),
-            'service_radius_km' => $radiusOptions[($number - 1) % count($radiusOptions)],
+            'capability' => UserCapability::ASSISTANT,
+            'status' => UserCapability::STATUS_ACTIVE,
+            'onboarding_version' => 1,
+            'current_step' => 'complete',
+            'completed_at' => $now,
+            'activated_at' => $now,
+            'suspended_at' => 0,
+            'disabled_at' => 0,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -178,11 +174,6 @@ DB::transaction(function () use (
         ]);
 
         $assistantScore = 45 + ((($number - 1) * 7) % 46);
-        DB::table('user_reputation')->insert([
-            'user_id' => $userId,
-            'score' => $assistantScore,
-            'updated_at' => $now,
-        ]);
         DB::table('profile_reputation')->insert([
             ['user_id' => $userId, 'capability' => 'owner', 'score' => 60, 'updated_at' => $now],
             ['user_id' => $userId, 'capability' => 'assistant', 'score' => $assistantScore, 'updated_at' => $now],
@@ -284,10 +275,12 @@ $calendarTimezone = new DateTimeZone('Europe/Rome');
 $calendarStartDate = new DateTimeImmutable('today', $calendarTimezone);
 $calendarEndDate = $calendarStartDate->modify('+1 month');
 $seededUserIds = DB::table('users')
-    ->where('role', 'pet_assistant')
+    ->join('user_capabilities', 'user_capabilities.user_id', '=', 'users.id')
+    ->where('user_capabilities.capability', UserCapability::ASSISTANT)
+    ->where('user_capabilities.status', UserCapability::STATUS_ACTIVE)
     ->where('email', 'like', 'utente%@email.it')
-    ->orderBy('id')
-    ->pluck('id')
+    ->orderBy('users.id')
+    ->pluck('users.id')
     ->map(fn ($id) => (int) $id)
     ->all();
 $calendarStats = cbSeedPetAssistantCalendars($seededUserIds, $calendarStartDate, $calendarEndDate);

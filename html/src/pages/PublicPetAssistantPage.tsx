@@ -46,7 +46,6 @@ type PublicProfile = {
   isOwnProfile: boolean
   viewerAuthenticated: boolean
   viewerCapabilities: string[]
-  viewerRole: string
   pets: { id: number; name: string }[]
   policies: { maxBookingDurationMinutes: number; bookingMinNoticeHours: number; ownerFreeCancellationHours: number }
 }
@@ -282,7 +281,7 @@ export default function PublicPetAssistantPage() {
           </div>
           <div className="public-favorite">
             {profile.canFavorite ? <button type="button" className="public-link-button" aria-pressed={profile.favorite} disabled={favoriteBusy} onClick={() => void toggleFavorite()}><span aria-hidden="true">{profile.favorite ? '♥' : '♡'}</span> Preferito</button>
-              : !profile.viewerRole ? <a className="public-link-button" href={loginHref}><span aria-hidden="true">♡</span> Preferito</a> : null}
+              : !profile.viewerAuthenticated ? <a className="public-link-button" href={loginHref}><span aria-hidden="true">♡</span> Preferito</a> : null}
             {favoriteNotice && <p role="status">{favoriteNotice}</p>}
           </div>
         </section>

@@ -55,10 +55,8 @@ class BookingFlowTest extends TestCase
         $this->assertGreaterThan(0, DB::table('booking')->where('id', $booking['id'])->value('accepted_at'));
     }
 
-    public function test_booking_reads_contextual_scores_instead_of_the_legacy_account_score(): void
+    public function test_booking_reads_contextual_scores(): void
     {
-        DB::table('user_reputation')->where('user_id', 1)->update(['score' => 20]);
-        DB::table('user_reputation')->where('user_id', 2)->update(['score' => 30]);
         DB::table('profile_reputation')->where('user_id', 1)->where('capability', 'owner')->update(['score' => 71]);
         DB::table('profile_reputation')->where('user_id', 2)->where('capability', 'assistant')->update(['score' => 86]);
 
@@ -92,7 +90,6 @@ class BookingFlowTest extends TestCase
         $tomorrow = date('Y-m-d', time() + 43200);
         DB::table('booking')->where('id', $booking['id'])->update(['booking_date' => $tomorrow]);
         $model->cancel($booking['id'], 1, Booking::PERSPECTIVE_OWNER, 'Test annullamento tardivo');
-        $this->assertSame(55, (int) DB::table('user_reputation')->where('user_id', 1)->value('score'));
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 1, 'capability' => 'owner', 'score' => 55]);
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'owner', 'score' => 60]);
 
@@ -103,7 +100,6 @@ class BookingFlowTest extends TestCase
         ]);
         $model->review($second['id'], 1, Booking::PERSPECTIVE_OWNER, 'positive', 'Servizio professionale e puntuale.');
 
-        $this->assertSame(65, (int) DB::table('user_reputation')->where('user_id', 2)->value('score'));
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'assistant', 'score' => 65]);
         $this->assertDatabaseHas('profile_reputation', ['user_id' => 2, 'capability' => 'owner', 'score' => 60]);
         $this->assertDatabaseHas('reputation_event', [
@@ -326,8 +322,7 @@ class BookingFlowTest extends TestCase
         $model = new Booking;
         $incoming = $model->create(1, $this->payload());
 
-        DB::table('users')->where('id', 2)->update(['role' => 'pet_owner']);
-        DB::table('users')->insert(['id' => 3, 'role' => 'pet_assistant', 'name' => 'Second Assistant', 'email' => 'assistant2@example.test']);
+        DB::table('users')->insert(['id' => 3, 'name' => 'Second Assistant', 'email' => 'assistant2@example.test']);
         DB::table('user_capabilities')->insert([
             ['user_id' => 3, 'capability' => 'owner', 'status' => 'active'],
             ['user_id' => 3, 'capability' => 'assistant', 'status' => 'active'],
@@ -421,17 +416,13 @@ class BookingFlowTest extends TestCase
         $this->date = date('Y-m-d', $now + (3 * 86400));
         $this->alternativeDate = date('Y-m-d', $now + (4 * 86400));
         DB::table('users')->insert([
-            ['id' => 1, 'role' => 'pet_owner', 'name' => 'Owner', 'email' => 'owner@example.test'],
-            ['id' => 2, 'role' => 'pet_assistant', 'name' => 'Assistant', 'email' => 'assistant@example.test'],
+            ['id' => 1, 'name' => 'Owner', 'email' => 'owner@example.test'],
+            ['id' => 2, 'name' => 'Assistant', 'email' => 'assistant@example.test'],
         ]);
         DB::table('user_capabilities')->insert([
             ['user_id' => 1, 'capability' => 'owner', 'status' => 'active'],
             ['user_id' => 2, 'capability' => 'owner', 'status' => 'active'],
             ['user_id' => 2, 'capability' => 'assistant', 'status' => 'active'],
-        ]);
-        DB::table('user_reputation')->insert([
-            ['user_id' => 1, 'score' => 60, 'updated_at' => $now],
-            ['user_id' => 2, 'score' => 60, 'updated_at' => $now],
         ]);
         DB::table('profile_reputation')->insert([
             ['user_id' => 1, 'capability' => 'owner', 'score' => 60, 'updated_at' => $now],
@@ -463,7 +454,6 @@ class BookingFlowTest extends TestCase
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
-            $table->string('role');
             $table->string('name');
             $table->string('email')->nullable();
             $table->boolean('email_verified')->default(true);
@@ -473,11 +463,6 @@ class BookingFlowTest extends TestCase
             $table->string('capability', 16);
             $table->string('status', 32);
             $table->primary(['user_id', 'capability']);
-        });
-        Schema::create('user_reputation', function (Blueprint $table) {
-            $table->unsignedInteger('user_id')->primary();
-            $table->unsignedTinyInteger('score')->default(60);
-            $table->integer('updated_at')->default(0);
         });
         Schema::create('profile_reputation', function (Blueprint $table) {
             $table->unsignedInteger('user_id');
