@@ -11,6 +11,7 @@ CPANEL_HOME="${CPANEL_HOME:-/home/ouhklbwt}"
 DB_NAME="${DB_NAME:-ouhklbwt_coccolebestiali}"
 DB_USER="${DB_USER:-ouhklbwt_cbapp}"
 APP_DOMAIN="${APP_DOMAIN:-petsitedemo.netsons.org}"
+LOCAL_DB_SOCKET="${LOCAL_DB_SOCKET:-/Applications/MAMP/tmp/mysql/mysql.sock}"
 
 if [[ -e "$DEPLOY_ROOT" || -e "$ARCHIVE_PATH" ]]; then
   echo "La destinazione di deploy esiste gia. Rimuovila prima di rigenerare il pacchetto." >&2
@@ -59,7 +60,16 @@ rsync -a \
   "$DEPLOY_ROOT/coccolebestiali_app/php/"
 
 mkdir -p "$DEPLOY_ROOT/coccolebestiali_app/php/migration"
-cp "$ROOT/php/migration/seed_current_profiles.sql" "$DEPLOY_ROOT/coccolebestiali_app/php/migration/"
+cp \
+  "$ROOT/php/migration/migration.txt" \
+  "$ROOT/php/migration/seed_demo_data.sql" \
+  "$ROOT/php/migration/seed_demo_holistic.sql" \
+  "$ROOT/php/migration/seed_system_configuration.sql" \
+  "$ROOT/php/migration/step10_finalize_multi_profile.sql" \
+  "$DEPLOY_ROOT/coccolebestiali_app/php/migration/"
+rsync -a --exclude='.DS_Store' \
+  "$ROOT/php/migration/demo_storage" \
+  "$DEPLOY_ROOT/coccolebestiali_app/php/migration/"
 
 rsync -a --exclude='.DS_Store' "$ROOT/html/dist" "$DEPLOY_ROOT/coccolebestiali_app/html/"
 cp "$ROOT/html/src/html/cmsadminsite.html" "$DEPLOY_ROOT/coccolebestiali_app/html/src/html/"
@@ -189,13 +199,27 @@ mkdir -p "$DEPLOY_ROOT/database"
 php -r '
     $env = parse_ini_file($argv[1], false, INI_SCANNER_RAW);
     $config = "[client]\n";
-    $config .= "host=".$env["DB_HOST"]."\n";
-    $config .= "port=".$env["DB_PORT"]."\n";
+    if ($argv[3] !== "" && is_readable($argv[3])) {
+        $config .= "socket=".$argv[3]."\n";
+    } else {
+        $config .= "host=".$env["DB_HOST"]."\n";
+        $config .= "port=".$env["DB_PORT"]."\n";
+    }
     $config .= "user=".$env["DB_USERNAME"]."\n";
     $config .= "password=".($env["DB_PASSWORD"] ?? "")."\n";
     file_put_contents($argv[2], $config);
-' "$ROOT/php/.env" "$DEPLOY_ROOT/database/client.cnf"
+' "$ROOT/php/.env" "$DEPLOY_ROOT/database/client.cnf" "$LOCAL_DB_SOCKET"
 chmod 600 "$DEPLOY_ROOT/database/client.cnf"
+
+LOCAL_DB_NAME="$(php -r '
+    $env = parse_ini_file($argv[1], false, INI_SCANNER_RAW);
+    $name = trim((string) ($env["DB_DATABASE"] ?? ""));
+    if ($name === "" || ! preg_match("/^[A-Za-z0-9_]+$/", $name)) {
+        fwrite(STDERR, "Nome database locale non valido.\n");
+        exit(1);
+    }
+    echo $name;
+' "$ROOT/php/.env")"
 
 /Applications/MAMP/Library/bin/mysql80/bin/mysqldump \
   --defaults-extra-file="$DEPLOY_ROOT/database/client.cnf" \
@@ -206,7 +230,7 @@ chmod 600 "$DEPLOY_ROOT/database/client.cnf"
   --events \
   --no-tablespaces \
   --set-gtid-purged=OFF \
-  coccolebestiali > "$DEPLOY_ROOT/database/coccolebestiali-demo.sql"
+  "$LOCAL_DB_NAME" > "$DEPLOY_ROOT/database/coccolebestiali-demo.sql"
 
 rm "$DEPLOY_ROOT/database/client.cnf"
 

@@ -275,7 +275,7 @@ I token Apple reali sono verificati crittograficamente contro il JWKS ufficiale 
 
 ### 8.4 Ricerca, profilo pubblico e preferiti
 
-- `GET /api/search/pet-assistants/options`: servizi, pet autenticato, ruolo legacy, `activeCapabilities`, `canUseOwnerDiscovery`, `canFilterFavorites` e policy.
+- `GET /api/search/pet-assistants/options`: servizi, pet dell’account autenticato, `activeCapabilities`, `canUseOwnerDiscovery`, `canFilterFavorites` e policy.
 - `POST /api/search/pet-assistants`: date, servizi, durata, pet, ordinamento, foto, feature e preferiti.
 - `GET /api/pet-assistants/{assistantId}`: profilo pubblico completo; per il visitatore include `viewerCapabilities`, `viewerAuthenticated`, `canFavorite`, `canBook` e `isOwnProfile`.
 - `GET /api/pet-assistants/{assistantId}/availability?startDate=&endDate=`: slot del profilo.
@@ -665,6 +665,7 @@ Ogni modifica di dominio deve aggiungere test di autorizzazione positivi e negat
 6. **Controller/modelli molto estesi**: `AuthController`, `ProfileController`, `Profile` e `Booking` hanno responsabilità ampie.
 7. **CMS monolitico**: HTML/script inline e dipendenze CDN rendono più difficile testing e build riproducibile.
 8. **Configurazione cookie di produzione**: `SESSION_SECURE_COOKIE=true` deve essere imposto nell'ambiente HTTPS di deploy.
+9. **Advisory toolchain frontend**: `picomatch <=4.0.7` presenta `GHSA-fc5q-39xc-vjpf`; al 17 novembre 2026 non esiste una release corretta compatibile con Vite 8. La dipendenza è solo di sviluppo e non entra nel pacchetto pubblicato; aggiornare appena disponibile senza downgrade major automatici.
 
 ## 18. Architettura definitiva multi-profilo
 
@@ -867,6 +868,7 @@ Regole di esecuzione:
 | 2026-11-16 | STEP 10 cutover definitivo | Rimosso il ruolo esclusivo e resi autorevoli capability, profili contestuali e reputazioni per capability; aggiornati auth, discovery, booking, CMS demo, seed/export e schema cumulativo | `users`, `user_capabilities`, profili, `profile_reputation`, modelli/controller/frontend/test, `migration.txt`, `step10_finalize_multi_profile.sql`, seed ed export, `docs/migrations/changeaccount-step10-final-cutover.md` | Eliminati `users.role`, `personaldata`, `user_reputation`; backup privato verificato; rollback solo tramite restore completo | Cutover provato su clone 42/83/83 e applicato al DB locale; rebuild vuoto 46 tabelle; seed 41 account/40 Assistant/81 reputazioni; 66 test/362 asserzioni, 110 route, lint/build, audit Composer/npm e smoke HTTP puliti |
 | 2026-11-16 | Gate STEP 10 | Approvato il consolidamento definitivo multi-profilo e la regola CTA home coerente con lo switch Owner/Assistant | Intero changeset STEP 10 sul branch `changeaccount` | Database locale sullo schema finale; rollback disponibile dal backup privato verificato | Gate utente `OK STEP 10`; migrazione multi-profilo completata |
 | 2026-11-16 | Pulizia post-cutover | Rimossi il feature flag non consumato, la compatibilità runtime del cookie ruolo, il fallback a uno snapshot demo assente e sei dump intermedi; mantenuti migration di upgrade, audit, backup pre-STEP 0 e backup pre-cutover finale | `php/.env.example`, `PortalSession`, `AuthController`, `DemoData`, `php/config/features.php`, storage backup privato e documentazione | Nessuna modifica DB; i dump intermedi sono stati spostati nel Cestino e restano recuperabili fino al suo svuotamento | Ricerca globale dei residui, suite backend, lint e build frontend |
+| 2026-11-17 | Audit conclusivo multi-profilo | Corretto il pacchetto Netsons: rimosso il riferimento allo snapshot eliminato e inclusi schema finale, cutover, seed correnti e storage demo richiesti dal runtime; riallineata la descrizione dell’API ricerca e separata la toolchain frontend dalle dipendenze pubblicate | `deploy/build-netsons-package.sh`, `html/package.json`, lockfile, `ARCHITECTURE.md`, documentazione sicurezza e asset `php/migration` | Nessuna modifica DB; il pacchetto contiene sia gli asset runtime correnti sia gli strumenti necessari ad aggiornare o ricostruire lo schema | Pacchetto end-to-end, dump senza schema legacy, suite backend, lint/build, audit Composer e audit npm runtime puliti; advisory dev-only `picomatch` censita in attesa di fix upstream |
 
 ### Modello per nuove righe
 

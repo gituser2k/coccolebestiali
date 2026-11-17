@@ -65,6 +65,8 @@ Sono stati inoltre aggiunti rate limiting, rotazione sessione verificata, header
 - Composer simula la piattaforma PHP 8.3.30, uguale al runtime MAMP, per impedire l'installazione accidentale di pacchetti che richiedono PHP 8.4+;
 - `composer audit` non segnala più advisory dopo l'upgrade a Laravel 12.72.0; restano comunque attive le difese applicative per header email, firme HMAC, debug e sessioni.
 
+Aggiornamento del 17 novembre 2026: `npm audit --omit=dev` resta pulito. L'audit completo segnala l'advisory `GHSA-fc5q-39xc-vjpf` in `picomatch <=4.0.7`, dipendenza transitiva degli strumenti Vite/tinyglobby/TypeScript ESLint. La versione più recente pubblicata è ancora 4.0.7; la correzione automatica proposta richiede downgrade major coordinati di Vite, plugin React ed ESLint. Questi pacchetti sono classificati come `devDependencies` e non vengono inclusi nell'artefatto pubblicato, che contiene soltanto il bundle compilato. L'advisory deve essere rivalutata appena viene pubblicata una versione corretta, senza usare `npm audit fix --force` alla cieca.
+
 ## Rischi residui da non nascondere
 
 1. **Reset password**: il flusso attuale sostituisce subito la password con una temporanea inviata via email. Il rate limiting riduce l'abuso, ma resta possibile provocare lockout ripetuti conoscendo l'email. Va sostituito con token monouso hashato e scadenza, senza modificare la password fino alla conferma.
@@ -72,6 +74,7 @@ Sono stati inoltre aggiunti rate limiting, rotazione sessione verificata, header
 3. **2FA e session management**: il portale non offre MFA, elenco sessioni, revoca remota o notifica di nuovo accesso.
 4. **Rate limiting distribuito**: in produzione il limiter deve usare uno store condiviso e la configurazione proxy deve garantire un IP client affidabile.
 5. **Audit esterno**: questi test aumentano sensibilmente la sicurezza ma non equivalgono a un penetration test indipendente su infrastruttura, web server, TLS, DNS, email e hosting reali.
+6. **Toolchain frontend**: l'advisory ReDoS di `picomatch` riguarda la toolchain di sviluppo e non il bundle distribuito; aggiornare appena l'ecosistema Vite 8 rende disponibile una versione corretta compatibile.
 
 ## Requisiti di deploy
 
