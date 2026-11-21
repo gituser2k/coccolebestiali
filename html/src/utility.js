@@ -94,6 +94,24 @@ function getModalColor(theme) {
   return '#1f5fa7'
 }
 
+function appendSafeModalBody(bodyNode, body) {
+  const value = String(body ?? '')
+  const boldPattern = /<b>(.*?)<\/b>/gis
+  let cursor = 0
+  let match
+
+  while ((match = boldPattern.exec(value)) !== null) {
+    bodyNode.appendChild(document.createTextNode(value.slice(cursor, match.index)))
+
+    const strong = document.createElement('strong')
+    strong.textContent = match[1]
+    bodyNode.appendChild(strong)
+    cursor = match.index + match[0].length
+  }
+
+  bodyNode.appendChild(document.createTextNode(value.slice(cursor)))
+}
+
 export function showUtilityModal({
   testo_header = '',
   body = '',
@@ -131,7 +149,7 @@ export function showUtilityModal({
 
   const bodyNode = document.createElement('p')
   bodyNode.className = 'cb-modal-body'
-  bodyNode.textContent = String(body ?? '')
+  appendSafeModalBody(bodyNode, body)
 
   const actions = document.createElement('div')
   actions.className = 'cb-modal-actions'
