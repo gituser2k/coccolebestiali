@@ -66,6 +66,33 @@ class DemoDataMaintenanceTest extends TestCase
         }
     }
 
+    public function test_demo_calendars_cover_all_assistants_through_end_of_2027(): void
+    {
+        require_once base_path('migration/pet_assistant_calendar_seed.php');
+        $this->assertSame('2027-12-31', CB_DEMO_CALENDAR_END_DATE);
+
+        $sql = (string) file_get_contents(base_path('migration/seed_demo_data.sql'));
+        preg_match_all(
+            "/INSERT INTO `calendar_day` .*? VALUES \\(\\d+, (\\d+), '(\\d{4}-\\d{2}-\\d{2})', ([01]),/",
+            $sql,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        $this->assertNotEmpty($matches);
+        $dates = array_column($matches, 2);
+        $this->assertSame('2027-12-31', max($dates));
+
+        $activeFinalDayUsers = array_values(array_unique(array_map(
+            static fn (array $match): int => (int) $match[1],
+            array_filter(
+                $matches,
+                static fn (array $match): bool => $match[2] === '2027-12-31' && $match[3] === '1',
+            ),
+        )));
+        $this->assertCount(40, $activeFinalDayUsers);
+    }
+
     private function schemaTables(): array
     {
         $schema = (string) file_get_contents(base_path('migration/migration.txt'));

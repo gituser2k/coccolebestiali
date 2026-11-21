@@ -19,7 +19,6 @@ $userIds = DB::table('users')
     ->join('user_capabilities', 'user_capabilities.user_id', '=', 'users.id')
     ->where('user_capabilities.capability', 'assistant')
     ->where('user_capabilities.status', 'active')
-    ->where('email', 'like', 'utente%@email.it')
     ->orderBy('users.id')
     ->pluck('users.id')
     ->map(fn ($id) => (int) $id)
@@ -32,7 +31,11 @@ if (count($userIds) !== 40) {
 
 $timezone = new DateTimeZone('Europe/Rome');
 $startDate = new DateTimeImmutable('today', $timezone);
-$endDate = $startDate->modify('+1 month');
+$endDate = new DateTimeImmutable(CB_DEMO_CALENDAR_END_DATE, $timezone);
+if ($startDate > $endDate) {
+    fwrite(STDERR, "La data finale del dataset demo è precedente alla data corrente.\n");
+    exit(1);
+}
 $stats = cbSeedPetAssistantCalendars($userIds, $startDate, $endDate);
 
 fwrite(STDOUT, sprintf(

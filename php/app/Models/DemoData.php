@@ -311,6 +311,8 @@ class DemoData
             'assistantProfiles' => DB::table('user_capabilities')->where('capability', UserCapability::ASSISTANT)->where('status', UserCapability::STATUS_ACTIVE)->count(),
             'pets' => DB::table('ownerpet')->count(),
             'calendarDays' => DB::table('calendar_day')->count(),
+            'calendarStartDate' => DB::table('calendar_day')->min('date'),
+            'calendarEndDate' => DB::table('calendar_day')->max('date'),
         ];
     }
 }

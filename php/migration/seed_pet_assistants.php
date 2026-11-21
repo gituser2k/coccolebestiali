@@ -273,12 +273,15 @@ DB::transaction(function () use (
 require_once __DIR__.'/pet_assistant_calendar_seed.php';
 $calendarTimezone = new DateTimeZone('Europe/Rome');
 $calendarStartDate = new DateTimeImmutable('today', $calendarTimezone);
-$calendarEndDate = $calendarStartDate->modify('+1 month');
+$calendarEndDate = new DateTimeImmutable(CB_DEMO_CALENDAR_END_DATE, $calendarTimezone);
+if ($calendarStartDate > $calendarEndDate) {
+    fwrite(STDERR, "La data finale del dataset demo è precedente alla data corrente.\n");
+    exit(1);
+}
 $seededUserIds = DB::table('users')
     ->join('user_capabilities', 'user_capabilities.user_id', '=', 'users.id')
     ->where('user_capabilities.capability', UserCapability::ASSISTANT)
     ->where('user_capabilities.status', UserCapability::STATUS_ACTIVE)
-    ->where('email', 'like', 'utente%@email.it')
     ->orderBy('users.id')
     ->pluck('users.id')
     ->map(fn ($id) => (int) $id)

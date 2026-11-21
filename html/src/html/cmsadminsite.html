@@ -2481,7 +2481,7 @@
             </section>
             <section class="demo-data-card is-seed">
               <h4>Ripristina dataset dimostrativo</h4>
-              <p>Preserva cataloghi e policy, elimina tutti i dati operativi e ricostruisce 41 account globali, Rex, 40 profili Pet Assistant, gallery, documenti, calendari e ranking.</p>
+              <p>Preserva cataloghi e policy, elimina tutti i dati operativi e ricostruisce 41 account globali, Rex, 40 profili Pet Assistant, gallery, documenti, ranking e disponibilità fino al 31 dicembre 2027.</p>
               <button class="demo-data-action is-seed" type="button" data-action="seed-demo-data">CREA DATI DEMO</button>
             </section>
           </div>
@@ -2509,7 +2509,7 @@
           ? `Database svuotato: ${Number(summary.tablesCleared || 0)} tabelle senza dati.`
           : action === 'system'
             ? `Database ripristinato con i soli dati di sistema: ${Number(summary.services || 0)} servizi, ${Number(summary.features || 0)} funzionalità, ${Number(summary.qualifications || 0)} qualifiche e ${Number(summary.policies || 0)} policy.`
-            : `Dati demo ripristinati: ${Number(summary.accounts || 0)} account globali, ${Number(summary.assistantProfiles || 0)} profili Pet Assistant e ${Number(summary.pets || 0)} pet.`
+            : `Dati demo ripristinati: ${Number(summary.accounts || 0)} account globali, ${Number(summary.assistantProfiles || 0)} profili Pet Assistant, ${Number(summary.pets || 0)} pet e calendari fino al ${escapeHtml(summary.calendarEndDate || '31/12/2027')}.`
       }
 
       function renderPoliciesManager() {
@@ -3221,7 +3221,7 @@
                 ? 'L’operazione eliminerà definitivamente ogni dato presente nel database mantenendo soltanto la struttura delle tabelle. Per ricostruire il portale sarà necessario eseguire i due ripristini. <b>Procedere?</b>'
                 : isSystemRestore
                   ? 'L’operazione svuoterà completamente il database e ripristinerà soltanto cataloghi, configurazione e policy. Tutti gli account e i dati operativi saranno eliminati. <b>Procedere?</b>'
-                  : 'L’operazione conserverà cataloghi e policy, eliminerà tutti gli account e i dati operativi e li sostituirà con 41 account globali, Rex e 40 profili Pet Assistant, incluse immagini e documenti. <b>Procedere?</b>',
+                  : 'L’operazione conserverà cataloghi e policy, eliminerà tutti gli account e i dati operativi e li sostituirà con 41 account globali, Rex e 40 profili Pet Assistant, incluse immagini, documenti e disponibilità fino al 31 dicembre 2027. <b>Procedere?</b>',
               colorazione: 'warning',
               pulsanti: [
                 {

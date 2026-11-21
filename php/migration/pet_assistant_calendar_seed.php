@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\DB;
 
+const CB_DEMO_CALENDAR_END_DATE = '2027-12-31';
+
 /**
  * Popola disponibilita realistiche e riproducibili per i Pet Assistant indicati.
  *
@@ -59,13 +61,14 @@ function cbSeedPetAssistantCalendars(array $userIds, DateTimeImmutable $startDat
             }
 
             for ($date = $startDate; $date <= $endDate; $date = $date->modify('+1 day')) {
+                $isFinalDate = $date->format('Y-m-d') === $endDate->format('Y-m-d');
                 $isWeekend = in_array((int) $date->format('N'), [6, 7], true);
                 $availabilityChance = $isWeekend ? 58 : 74;
-                if (mt_rand(1, 100) > $availabilityChance) {
+                if (! $isFinalDate && mt_rand(1, 100) > $availabilityChance) {
                     continue;
                 }
 
-                $enabled = mt_rand(1, 100) <= 88;
+                $enabled = $isFinalDate || mt_rand(1, 100) <= 88;
                 $dayId = (int) DB::table('calendar_day')->insertGetId([
                     'user_id' => $userId,
                     'date' => $date->format('Y-m-d'),

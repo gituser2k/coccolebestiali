@@ -174,7 +174,7 @@ Il dataset varia in modo deterministico:
 - taglia, razze e tipologie di pet;
 - caratteristiche della casa;
 - servizi, funzionalità abilitate e prezzi orari.
-- calendari distribuiti casualmente per il mese successivo, con giornate attive e non attive, fasce non sovrapposte e servizi realmente configurati dall'operatore.
+- calendari distribuiti casualmente dalla data di generazione fino al 31 dicembre 2027, con giornate attive e non attive, fasce non sovrapposte e servizi realmente configurati dall'operatore; il 31 dicembre 2027 è garantito attivo per tutti i 40 profili Assistant.
 - almeno dieci Pet Assistant compatibili con Rex (`frabe75@gmail.com`): Pastore Tedesco, taglia grande e carattere docile.
 
 Per rigenerare esclusivamente i calendari dei 40 Pet Assistant, senza modificare account e profili:
@@ -184,7 +184,7 @@ cd /Applications/MAMP/htdocs/coccolebestiali/php
 /Applications/MAMP/bin/php/php8.3.30/bin/php migration/seed_pet_assistant_calendars.php --force
 ```
 
-L'intervallo parte dal giorno di esecuzione e termina un mese dopo. Il risultato casuale e riproducibile per lo stesso intervallo di date; ogni fascia usa minuti multipli di 15 e soltanto servizi associati al Pet Assistant.
+L'intervallo parte dal giorno di esecuzione e termina il 31 dicembre 2027. Il risultato è casuale e riproducibile per lo stesso intervallo di date; ogni fascia usa minuti multipli di 15 e soltanto servizi associati al Pet Assistant. Lo script seleziona i profili tramite capability Assistant attiva, indipendentemente dal formato dell'email.
 
 Le password brevi del dataset sono destinate esclusivamente allo sviluppo locale e non devono essere utilizzate in produzione.
 
