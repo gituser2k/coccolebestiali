@@ -92,6 +92,8 @@ Laravel carica `php/routes/api.php` come file di route `web` in `php/bootstrap/a
 
 In sviluppo Vite inoltra `/api` a `http://127.0.0.1:8000`. In produzione Laravel serve i file generati in `html/dist/src/html/`.
 
+Le entry HTML sono sempre restituite con `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`: dopo `npm run build` un normale refresh carica subito il nuovo bundle con hash, senza riavviare MAMP. Gli asset versionati possono invece restare cacheabili. Durante le attività locali Apache e MySQL di MAMP non devono essere arrestati automaticamente dai workflow di modifica o collaudo.
+
 ## 5. Struttura del repository
 
 ```text

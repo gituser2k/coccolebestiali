@@ -27,7 +27,10 @@ Route::get('/', function () {
 
     return response()->file($indexFile, [
         'Content-Type' => 'text/html; charset=UTF-8',
-    ]);
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 });
 
 Route::get('/register', function () {
@@ -40,7 +43,12 @@ Route::get('/profile/petowner', function () {
         return response('Pagina profilo pet owner non compilata. Esegui "npm run build" nella cartella html.', Response::HTTP_SERVICE_UNAVAILABLE);
     }
 
-    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+    return response()->file($file, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 });
 
 Route::get('/profile/petassistant', function () {
@@ -49,7 +57,12 @@ Route::get('/profile/petassistant', function () {
         return response('Pagina profilo pet assistant non compilata. Esegui "npm run build" nella cartella html.', Response::HTTP_SERVICE_UNAVAILABLE);
     }
 
-    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+    return response()->file($file, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 });
 
 Route::get('/search', function () {
@@ -58,7 +71,12 @@ Route::get('/search', function () {
         return response('Pagina ricerca non compilata. Esegui "npm run build" nella cartella html.', Response::HTTP_SERVICE_UNAVAILABLE);
     }
 
-    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+    return response()->file($file, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 });
 
 Route::get('/pet-assistants/{assistantId}', function (int $assistantId) {
@@ -66,7 +84,12 @@ Route::get('/pet-assistants/{assistantId}', function (int $assistantId) {
     $file = base_path('../html/dist/src/html/pet-assistant-detail.html');
     abort_unless(File::exists($file), 503, 'Profilo pubblico non compilato.');
 
-    return response()->file($file, ['Content-Type' => 'text/html; charset=UTF-8']);
+    return response()->file($file, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 })->whereNumber('assistantId');
 
 Route::get('/asset/{path}', function (string $path) {
@@ -104,8 +127,10 @@ Route::get('/cmsadminsite', function () {
 
     return response()->file($loginFile, [
         'Content-Type' => 'text/html; charset=UTF-8',
-        'Cache-Control' => 'no-store, no-cache, must-revalidate',
-    ]);
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ])->setPrivate();
 });
 
 Route::get('/utility.js', function () {

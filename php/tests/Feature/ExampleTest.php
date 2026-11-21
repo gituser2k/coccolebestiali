@@ -30,6 +30,22 @@ class ExampleTest extends TestCase
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     }
 
+    public function test_frontend_entry_pages_are_never_served_from_stale_browser_cache(): void
+    {
+        foreach (['/', '/profile/petowner', '/profile/petassistant', '/search', '/cmsadminsite'] as $uri) {
+            $response = $this->get($uri)
+                ->assertOk()
+                ->assertHeader('Pragma', 'no-cache')
+                ->assertHeader('Expires', '0');
+
+            $cacheControl = (string) $response->headers->get('Cache-Control');
+            $this->assertStringContainsString('no-store', $cacheControl);
+            $this->assertStringContainsString('no-cache', $cacheControl);
+            $this->assertStringContainsString('must-revalidate', $cacheControl);
+            $this->assertStringNotContainsString('public', $cacheControl);
+        }
+    }
+
     public function test_city_search_is_case_insensitive(): void
     {
         Cache::forget('cb_italian_cities_dataset');
