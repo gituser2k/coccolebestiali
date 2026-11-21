@@ -590,8 +590,7 @@ export default function PetAssistantSearchPage() {
                 </select>
               ) : null}
             </div>
-            <div className="search-field">
-              <span>Funzioni</span>
+            <div className="search-field search-field-unlabelled">
               <button
                 className={`portal-combobox-trigger${isCommandsOpen ? ' is-open' : ''}`}
                 type="button"
@@ -599,7 +598,7 @@ export default function PetAssistantSearchPage() {
                 aria-expanded={isCommandsOpen}
                 onClick={() => setIsCommandsOpen((open) => !open)}
               >
-                Comandi{selectedOptionCount > 0 ? ` (${selectedOptionCount})` : ''}
+                Opzioni{selectedOptionCount > 0 ? ` (${selectedOptionCount})` : ''}
               </button>
             </div>
           </div>
