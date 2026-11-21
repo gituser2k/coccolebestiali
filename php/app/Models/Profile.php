@@ -9,6 +9,50 @@ use Illuminate\Support\Facades\Schema;
 
 class Profile extends Model
 {
+    /** Common breeds and everyday names used only to find the corresponding pet group. */
+    private const PET_GROUP_SEARCH_TERMS = [
+        101 => 'pastore tedesco border collie australian shepherd pastore australiano pastore belga collie corgi pastore maremmano bovaro delle fiandre',
+        102 => 'dobermann pinscher schnauzer boxer alano rottweiler cane corso mastino napoletano bullmastiff san bernardo terranova bovaro bernese molosso molossi',
+        103 => 'jack russell yorkshire bull terrier staffordshire west highland white terrier westie airedale fox terrier',
+        104 => 'bassotto dachshund teckel',
+        105 => 'husky akita shiba spitz chow chow samoiedo volpino malamute basenji',
+        106 => 'beagle basset hound bloodhound dalmata rhodesian ridgeback segugio italiano',
+        107 => 'setter pointer bracco italiano weimaraner spinone epagneul breton',
+        108 => 'labrador golden retriever cocker spaniel springer spaniel lagotto romagnolo barbet flat coated retriever',
+        109 => 'chihuahua barboncino poodle maltese bolognese shih tzu carlino pug bulldog francese cavalier king bichon',
+        110 => 'greyhound whippet levriero afghano saluki borzoi piccolo levriero italiano',
+        111 => 'meticcio meticci incrocio non riconosciuto',
+        201 => 'persiano exotic shorthair esotico',
+        202 => 'maine coon norvegese delle foreste sacro di birmania ragdoll siberiano',
+        203 => 'certosino british shorthair europeo bengala abissino somalo russian blue blu di russia sphynx',
+        204 => 'siamese orientale balinese peterbald',
+        205 => 'gatto domestico meticcio soriano non classificato',
+        301 => 'nano olandese testa di leone ermellino',
+        302 => 'coniglio medio rex fulvo di borgogna',
+        303 => 'gigante fiammingo gigante pezzato',
+        304 => 'ariete angora pelo lungo',
+        401 => 'furetto ferret',
+        411 => 'criceto gerbillo topo ratto domestico',
+        412 => 'cavia porcellino india',
+        413 => 'cincilla degu',
+        414 => 'riccio africano insettivoro',
+        415 => 'petauro scoiattolo piccolo mammifero',
+        501 => 'pappagallo parrocchetto cocorita calopsitta inseparabile ara cacatua cenerino',
+        502 => 'canarino diamante mandarino cardellino fringillide',
+        503 => 'colombo tortora uccello ornamentale',
+        504 => 'gallina gallo anatra oca tacchino quaglia',
+        601 => 'geco iguana camaleonte pogona lucertola sauro',
+        602 => 'tartaruga testuggine chelone',
+        603 => 'serpente pitone boa colubro rettile',
+        701 => 'rana rospo tritone salamandra axolotl anfibio',
+        801 => 'guppy betta discus neon scalare pesce tropicale acqua dolce',
+        802 => 'pesce rosso carpa koi acqua fredda',
+        803 => 'pesce marino barriera corallo acquario marino',
+        901 => 'insetto aracnide tarantola scorpione lumaca gambero invertebrato',
+        1001 => 'cavallo pony asino mulo equide',
+        1101 => 'altro animale compagnia',
+    ];
+
     public function getPersonalProfile(int $userId, string $context): array
     {
         $row = (new ProfileData)->read($userId, $context);
@@ -110,6 +154,7 @@ class Profile extends Model
                     'id' => (int) $row->id,
                     'category' => (string) $row->category,
                     'name' => (string) $row->name,
+                    'searchTerms' => self::PET_GROUP_SEARCH_TERMS[(int) $row->id] ?? '',
                 ])
                 ->all(),
             'petTypes' => DB::table('pettype')
@@ -1287,11 +1332,11 @@ class Profile extends Model
         }
 
         $petGroups = [
-            [101, 'Cani', 'Gruppo 1 FCI · Cani da pastore e bovari'], [102, 'Cani', 'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri'],
-            [103, 'Cani', 'Gruppo 3 FCI · Terrier'], [104, 'Cani', 'Gruppo 4 FCI · Bassotti'], [105, 'Cani', 'Gruppo 5 FCI · Spitz e tipo primitivo'],
-            [106, 'Cani', 'Gruppo 6 FCI · Segugi e cani per pista di sangue'], [107, 'Cani', 'Gruppo 7 FCI · Cani da ferma'],
-            [108, 'Cani', 'Gruppo 8 FCI · Riporto, cerca e acqua'], [109, 'Cani', 'Gruppo 9 FCI · Cani da compagnia'],
-            [110, 'Cani', 'Gruppo 10 FCI · Levrieri'], [111, 'Cani', 'Meticci e non riconducibili a un gruppo FCI'],
+            [101, 'Cani', 'Cani da pastore e bovari'], [102, 'Cani', 'Pinscher, Schnauzer, Molossi e bovari svizzeri'],
+            [103, 'Cani', 'Terrier'], [104, 'Cani', 'Bassotti'], [105, 'Cani', 'Spitz e tipo primitivo'],
+            [106, 'Cani', 'Segugi e cani per pista di sangue'], [107, 'Cani', 'Cani da ferma'],
+            [108, 'Cani', 'Cani da riporto, da cerca e da acqua'], [109, 'Cani', 'Cani da compagnia'],
+            [110, 'Cani', 'Levrieri'], [111, 'Cani', 'Meticci e non classificati'],
             [201, 'Gatti', 'Pelo lungo e persiani/esotici'], [202, 'Gatti', 'Pelo semilungo'], [203, 'Gatti', 'Pelo corto e somali'],
             [204, 'Gatti', 'Orientali, siamesi e affini'], [205, 'Gatti', 'Gatti domestici, meticci o non classificati'],
             [301, 'Conigli', 'Conigli nani e piccoli'], [302, 'Conigli', 'Conigli medi'], [303, 'Conigli', 'Conigli grandi e giganti'],

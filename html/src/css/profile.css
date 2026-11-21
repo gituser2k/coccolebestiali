@@ -1229,6 +1229,47 @@
   font-weight: 700;
 }
 
+.profile-pet-group-filter {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.7rem;
+}
+
+.profile-pet-group-filter span {
+  color: #234465;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.profile-pet-group-filter input {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgb(31 95 167 / 30%);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 92%);
+  color: #183a5c;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.profile-pet-group-filter input:focus {
+  border-color: #1f5fa7;
+  outline: 3px solid rgb(31 95 167 / 14%);
+}
+
+.profile-pet-group-empty {
+  margin: 0;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 70%);
+  color: #52687f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .profile-pet-group-options {
   max-height: 22rem;
   overflow-y: auto;

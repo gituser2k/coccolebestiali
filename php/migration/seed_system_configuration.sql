@@ -26,17 +26,17 @@ INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_a
 INSERT INTO `operatortitle` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (6, 'Operatore Olistico', 60, 1794866628, 1795273407);
 
 -- petbreed: 40 record
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (101, 'Cani', 'Gruppo 1 FCI · Cani da pastore e bovari', 1010, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (102, 'Cani', 'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri', 1020, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (103, 'Cani', 'Gruppo 3 FCI · Terrier', 1030, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (104, 'Cani', 'Gruppo 4 FCI · Bassotti', 1040, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (105, 'Cani', 'Gruppo 5 FCI · Spitz e tipo primitivo', 1050, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (106, 'Cani', 'Gruppo 6 FCI · Segugi e cani per pista di sangue', 1060, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (107, 'Cani', 'Gruppo 7 FCI · Cani da ferma', 1070, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (108, 'Cani', 'Gruppo 8 FCI · Riporto, cerca e acqua', 1080, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (109, 'Cani', 'Gruppo 9 FCI · Cani da compagnia', 1090, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (110, 'Cani', 'Gruppo 10 FCI · Levrieri', 1100, 1795273407, 1795273407);
-INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (111, 'Cani', 'Meticci e non riconducibili a un gruppo FCI', 1110, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (101, 'Cani', 'Cani da pastore e bovari', 1010, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (102, 'Cani', 'Pinscher, Schnauzer, Molossi e bovari svizzeri', 1020, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (103, 'Cani', 'Terrier', 1030, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (104, 'Cani', 'Bassotti', 1040, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (105, 'Cani', 'Spitz e tipo primitivo', 1050, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (106, 'Cani', 'Segugi e cani per pista di sangue', 1060, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (107, 'Cani', 'Cani da ferma', 1070, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (108, 'Cani', 'Cani da riporto, da cerca e da acqua', 1080, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (109, 'Cani', 'Cani da compagnia', 1090, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (110, 'Cani', 'Levrieri', 1100, 1795273407, 1795273407);
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (111, 'Cani', 'Meticci e non classificati', 1110, 1795273407, 1795273407);
 INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (201, 'Gatti', 'Pelo lungo e persiani/esotici', 2010, 1795273407, 1795273407);
 INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (202, 'Gatti', 'Pelo semilungo', 2020, 1795273407, 1795273407);
 INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES (203, 'Gatti', 'Pelo corto e somali', 2030, 1795273407, 1795273407);

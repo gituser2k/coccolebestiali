@@ -98,7 +98,8 @@ class DemoDataMaintenanceTest extends TestCase
         $systemSql = (string) file_get_contents(base_path('migration/seed_system_configuration.sql'));
         preg_match_all('/INSERT INTO `petbreed` .*? VALUES /', $systemSql, $groupRows);
         $this->assertCount(40, $groupRows[0]);
-        $this->assertStringContainsString("'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri'", $systemSql);
+        $this->assertStringContainsString("'Pinscher, Schnauzer, Molossi e bovari svizzeri'", $systemSql);
+        $this->assertStringNotContainsString('Gruppo 2 FCI', $systemSql);
         $this->assertStringContainsString("'Malato'", $systemSql);
 
         $demoSql = (string) file_get_contents(base_path('migration/seed_demo_data.sql'));
