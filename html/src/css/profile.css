@@ -1267,6 +1267,13 @@
   outline: 3px solid rgb(31 95 167 / 14%);
 }
 
+.profile-pet-group-filter .portal-combobox {
+  --portal-combobox-height: 2.65rem;
+  border-width: 1px;
+  border-radius: 0.75rem;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 760px) {
   .profile-pet-group-filters {
     grid-template-columns: 1fr;

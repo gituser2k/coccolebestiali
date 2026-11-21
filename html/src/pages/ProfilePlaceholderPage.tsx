@@ -2842,7 +2842,7 @@ export default function ProfilePlaceholderPage() {
                             <div className="profile-pet-group-filters">
                               <label className="profile-pet-group-filter">
                                 <span>Categoria animale</span>
-                                <select value={acceptedPetCategoryFilter} onChange={(event) => setAcceptedPetCategoryFilter(event.target.value)}>
+                                <select className="portal-combobox" value={acceptedPetCategoryFilter} onChange={(event) => setAcceptedPetCategoryFilter(event.target.value)}>
                                   <option value="">Tutte le categorie</option>
                                   {petGroupCategories.map((category) => <option key={`accepted-category-${category}`} value={category}>{category}</option>)}
                                 </select>
@@ -2868,7 +2868,7 @@ export default function ProfilePlaceholderPage() {
                             <div className="profile-pet-group-filters">
                               <label className="profile-pet-group-filter">
                                 <span>Categoria animale</span>
-                                <select value={rejectedPetCategoryFilter} onChange={(event) => setRejectedPetCategoryFilter(event.target.value)}>
+                                <select className="portal-combobox" value={rejectedPetCategoryFilter} onChange={(event) => setRejectedPetCategoryFilter(event.target.value)}>
                                   <option value="">Tutte le categorie</option>
                                   {petGroupCategories.map((category) => <option key={`rejected-category-${category}`} value={category}>{category}</option>)}
                                 </select>

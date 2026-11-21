@@ -163,6 +163,8 @@ Il frontend non è una SPA con router globale. Vite costruisce più entry HTML, 
 | `RankingStars` | rappresentazione visuale del ranking |
 | `PublicFooter` | footer delle pagine pubbliche |
 
+Convenzione UI: ogni `select` nativa deve usare la classe condivisa `portal-combobox` di `css/combobox.css`. La freccia personalizzata mantiene sempre spazio sul bordo destro tramite `padding-right` e `background-position`; eventuali varianti locali possono cambiare altezza, bordo e raggio, ma non devono sostituire queste regole.
+
 ### 6.4 Stato e comunicazione
 
 - Le pagine usano stato React locale e `fetch` diretto.
