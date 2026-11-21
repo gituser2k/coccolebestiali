@@ -764,7 +764,7 @@ class Booking
                 'booking.*',
                 'owner.name as owner_name', 'owner.email as owner_email',
                 'assistant.name as assistant_name', 'assistant.email as assistant_email',
-                'pet.name as pet_name', 'service.name as service_name',
+                'pet.name as pet_name', 'pet.sex as pet_sex', 'service.name as service_name',
                 DB::raw($ownerScore.' as owner_score'),
                 DB::raw($assistantScore.' as assistant_score'),
             ]);
@@ -789,6 +789,7 @@ class Booking
             'assistantName' => (string) $row->assistant_name,
             'petId' => (int) $row->pet_id,
             'petName' => (string) $row->pet_name,
+            'petSex' => (string) $row->pet_sex,
             'serviceId' => (int) $row->service_id,
             'serviceName' => (string) $row->service_name,
             'slotId' => (int) $row->source_slot_id,

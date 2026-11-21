@@ -36,6 +36,7 @@ class BookingFlowTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^\d{4}-000001$/', $booking['bookingNumber']);
         $this->assertSame('pending', $booking['status']);
+        $this->assertSame('male', $booking['petSex']);
 
         $second = $model->create(1, [...$this->payload(), 'startTime' => '10:00', 'endTime' => '11:00']);
         $this->assertMatchesRegularExpression('/^\d{4}-000002$/', $second['bookingNumber']);
@@ -430,7 +431,7 @@ class BookingFlowTest extends TestCase
             ['user_id' => 2, 'capability' => 'assistant', 'score' => 60, 'updated_at' => $now],
         ]);
         DB::table('operatordata')->insert(['user_id' => 2, 'booking_confirmation_mode' => 'manual', 'updated_at' => $now]);
-        DB::table('ownerpet')->insert(['id' => 1, 'user_id' => 1, 'name' => 'Rex']);
+        DB::table('ownerpet')->insert(['id' => 1, 'user_id' => 1, 'name' => 'Rex', 'sex' => 'male']);
         DB::table('service')->insert(['id' => 1, 'name' => 'Passeggiata']);
         DB::table('operatorservicedata')->insert(['user_id' => 2, 'service_id' => 1]);
         DB::table('servicefeature')->insert([
@@ -481,6 +482,7 @@ class BookingFlowTest extends TestCase
             $table->increments('id');
             $table->unsignedInteger('user_id');
             $table->string('name');
+            $table->string('sex', 16)->default('');
         });
         Schema::create('service', function (Blueprint $table) {
             $table->increments('id');

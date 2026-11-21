@@ -19,6 +19,7 @@ type BookingData = {
   ownerName: string
   assistantName: string
   petName: string
+  petSex: 'male' | 'female' | 'unknown' | ''
   serviceName: string
   date: string
   startTime: string
@@ -78,6 +79,13 @@ function formatDate(value: string) {
 
 function formatPrice(value: number) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value)
+}
+
+function formatPetSex(value: BookingData['petSex']) {
+  if (value === 'male') return 'Maschio'
+  if (value === 'female') return 'Femmina'
+  if (value === 'unknown') return 'Non determinato'
+  return 'Non specificato'
 }
 
 export default function BookingsSection({ perspective }: { perspective: 'owner' | 'assistant' }) {
@@ -254,6 +262,7 @@ export default function BookingsSection({ perspective }: { perspective: 'owner' 
               <div className="profile-booking-facts">
                 <div><span>{perspective === 'owner' ? 'Pet Assistant' : 'Pet Owner'}</span><strong>{perspective === 'owner' ? booking.assistantName : booking.ownerName}</strong></div>
                 <div><span>Pet</span><strong>{booking.petName}</strong></div>
+                <div><span>Sesso</span><strong>{formatPetSex(booking.petSex)}</strong></div>
                 <div><span>Quando</span><strong>{formatDate(booking.date)} · {booking.startTime}–{booking.endTime}</strong></div>
                 <div><span>Totale</span><strong>{formatPrice(booking.totalPrice)}</strong></div>
               </div>
