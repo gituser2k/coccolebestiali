@@ -2476,12 +2476,12 @@
             </section>
             <section class="demo-data-card is-system">
               <h4>Ripristina sistema e configurazione</h4>
-              <p>Ripristina servizi, funzionalità, qualifiche, razze, tipi di pet, caratteristiche casa e policy. Account e dati operativi restano invariati.</p>
+              <p>Svuota completamente il database e ripristina soltanto servizi, funzionalità, qualifiche, razze, tipi di pet, caratteristiche casa e policy. Account e dati operativi vengono eliminati.</p>
               <button class="demo-data-action is-system" type="button" data-action="restore-system-data">RIPRISTINA DATI DI SISTEMA</button>
             </section>
             <section class="demo-data-card is-seed">
               <h4>Ripristina dataset dimostrativo</h4>
-              <p>Ricostruisce lo stato demo corrente con 1 Pet Owner, Rex, 40 Pet Assistant, profili, gallery, documenti, calendari, ranking e prenotazioni.</p>
+              <p>Preserva cataloghi e policy, elimina tutti i dati operativi e ricostruisce 41 account globali, Rex, 40 profili Pet Assistant, gallery, documenti, calendari e ranking.</p>
               <button class="demo-data-action is-seed" type="button" data-action="seed-demo-data">CREA DATI DEMO</button>
             </section>
           </div>
@@ -2508,8 +2508,8 @@
         statusNote.textContent = action === 'clearAll'
           ? `Database svuotato: ${Number(summary.tablesCleared || 0)} tabelle senza dati.`
           : action === 'system'
-            ? `Configurazione ripristinata: ${Number(summary.services || 0)} servizi, ${Number(summary.features || 0)} funzionalità e ${Number(summary.policies || 0)} policy.`
-            : `Dati demo ripristinati: ${Number(summary.petAssistants || 0)} Pet Assistant, ${Number(summary.petOwners || 0)} Pet Owner e ${Number(summary.pets || 0)} pet.`
+            ? `Database ripristinato con i soli dati di sistema: ${Number(summary.services || 0)} servizi, ${Number(summary.features || 0)} funzionalità, ${Number(summary.qualifications || 0)} qualifiche e ${Number(summary.policies || 0)} policy.`
+            : `Dati demo ripristinati: ${Number(summary.accounts || 0)} account globali, ${Number(summary.assistantProfiles || 0)} profili Pet Assistant e ${Number(summary.pets || 0)} pet.`
       }
 
       function renderPoliciesManager() {
@@ -3220,8 +3220,8 @@
               body: isClearAll
                 ? 'L’operazione eliminerà definitivamente ogni dato presente nel database mantenendo soltanto la struttura delle tabelle. Per ricostruire il portale sarà necessario eseguire i due ripristini. <b>Procedere?</b>'
                 : isSystemRestore
-                  ? 'L’operazione ripristinerà cataloghi e policy allo snapshot corrente senza modificare account e profili. <b>Procedere?</b>'
-                  : 'L’operazione sostituirà tutti gli account e i dati operativi con lo snapshot del Pet Owner di Rex e dei 40 Pet Assistant, incluse immagini e documenti. <b>Procedere?</b>',
+                  ? 'L’operazione svuoterà completamente il database e ripristinerà soltanto cataloghi, configurazione e policy. Tutti gli account e i dati operativi saranno eliminati. <b>Procedere?</b>'
+                  : 'L’operazione conserverà cataloghi e policy, eliminerà tutti gli account e i dati operativi e li sostituirà con 41 account globali, Rex e 40 profili Pet Assistant, incluse immagini e documenti. <b>Procedere?</b>',
               colorazione: 'warning',
               pulsanti: [
                 {

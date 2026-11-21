@@ -613,14 +613,20 @@ Il fuso applicativo Laravel ha default `UTC`, mentre il dominio prenotazioni usa
 
 - `migration.txt`: schema cumulativo e seed strutturali.
 - `seed_system_configuration.sql`: cataloghi, servizi e policy.
-- `seed_demo_data.sql`: un Owner, Rex, 40 Assistant e dati operativi.
+- `seed_demo_data.sql`: 41 account globali, Rex, 40 profili Assistant e dati operativi.
 - `seed_demo_holistic.sql`: estensione operatori olistici e disponibilità.
 - `seed_pet_assistants.php`: rigenerazione distruttiva dei 40 profili locali.
 - `seed_pet_assistant_calendars.php`: rigenera soltanto calendari.
 - `export_current_profiles.php`: esporta snapshot e file referenziati.
 - `demo_storage/manifest.json`: inventario asset demo.
 
-Le operazioni CMS `clear-all`, `restore-system` e `seed` sono distruttive o materialmente mutative e devono restare protette dalla sessione admin.
+Le operazioni CMS `clear-all`, `restore-system` e `seed` sono distruttive o materialmente mutative e devono restare protette dalla sessione admin. Lo schema definitivo è partizionato in nove tabelle di sistema e 37 operative:
+
+- `clear-all` svuota dinamicamente tutte le tabelle presenti nello schema e azzera gli auto-increment;
+- `restore-system` esegue prima lo svuotamento completo, poi carica soltanto cataloghi, servizi, feature, qualifiche, razze, tipologie, caratteristiche casa e policy;
+- `seed` conserva le tabelle di sistema, svuota tutte le 37 tabelle operative, elimina gli asset utente dalle directory operative e ripristina dataset e storage demo validati dal manifest.
+
+`DemoDataMaintenanceTest` confronta questa partizione con `migration.txt` e verifica che gli snapshot tocchino esclusivamente il proprio perimetro.
 
 ## 16. Test e verifiche
 
@@ -869,6 +875,7 @@ Regole di esecuzione:
 | 2026-11-16 | Gate STEP 10 | Approvato il consolidamento definitivo multi-profilo e la regola CTA home coerente con lo switch Owner/Assistant | Intero changeset STEP 10 sul branch `changeaccount` | Database locale sullo schema finale; rollback disponibile dal backup privato verificato | Gate utente `OK STEP 10`; migrazione multi-profilo completata |
 | 2026-11-16 | Pulizia post-cutover | Rimossi il feature flag non consumato, la compatibilità runtime del cookie ruolo, il fallback a uno snapshot demo assente e sei dump intermedi; mantenuti migration di upgrade, audit, backup pre-STEP 0 e backup pre-cutover finale | `php/.env.example`, `PortalSession`, `AuthController`, `DemoData`, `php/config/features.php`, storage backup privato e documentazione | Nessuna modifica DB; i dump intermedi sono stati spostati nel Cestino e restano recuperabili fino al suo svuotamento | Ricerca globale dei residui, suite backend, lint e build frontend |
 | 2026-11-17 | Audit conclusivo multi-profilo | Corretto il pacchetto Netsons: rimosso il riferimento allo snapshot eliminato e inclusi schema finale, cutover, seed correnti e storage demo richiesti dal runtime; riallineata la descrizione dell’API ricerca e separata la toolchain frontend dalle dipendenze pubblicate | `deploy/build-netsons-package.sh`, `html/package.json`, lockfile, `ARCHITECTURE.md`, documentazione sicurezza e asset `php/migration` | Nessuna modifica DB; il pacchetto contiene sia gli asset runtime correnti sia gli strumenti necessari ad aggiornare o ricostruire lo schema | Pacchetto end-to-end, dump senza schema legacy, suite backend, lint/build, audit Composer e audit npm runtime puliti; advisory dev-only `picomatch` censita in attesa di fix upstream |
+| 2026-11-21 | Comandi CMS manutenzione dati | Allineati i tre comandi allo schema multi-profilo: svuotamento totale, ripristino sistema previa pulizia completa e ripristino demo limitato a dati/storage operativi; corretti testi e contatori CMS | `DemoData`, `DemoDataMaintenanceTest`, `cmsadminsite.html`, snapshot e documentazione migration | Nessuna modifica schema; partizione esplicita 9 tabelle sistema + 37 operative; backup DB privati esclusi dalla pulizia storage | Test statici di copertura schema/snapshot, collaudo MySQL isolato dei tre comandi, suite backend, lint e build frontend |
 
 ### Modello per nuove righe
 

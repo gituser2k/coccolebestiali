@@ -11,6 +11,18 @@ class DemoData
 {
     private const HOLISTIC_SNAPSHOT = 'migration/seed_demo_holistic.sql';
 
+    private const SYSTEM_TABLES = [
+        'operatortitle',
+        'petbreed',
+        'pettype',
+        'housefeature',
+        'service',
+        'servicefeature',
+        'servicefeaturedata',
+        'portal_policy',
+        'policy_change_log',
+    ];
+
     private const DATA_TABLES = [
         'booking_action_token',
         'booking_review',
@@ -51,6 +63,11 @@ class DemoData
         'error',
     ];
 
+    private const OPERATIONAL_STORAGE_DIRECTORIES = [
+        'public' => ['profile-photos', 'operator-gallery', 'owner-pet-gallery'],
+        'private' => ['owner-pet-documents'],
+    ];
+
     public function clearAll(): array
     {
         $connection = DB::connection();
@@ -82,7 +99,7 @@ class DemoData
         ];
     }
 
-    private function clear(): void
+    private function clearOperationalData(): void
     {
         $connection = DB::connection();
         $connection->statement('SET FOREIGN_KEY_CHECKS = 0');
@@ -113,10 +130,12 @@ class DemoData
                 throw new RuntimeException('Snapshot dati demo non disponibile: '.basename($path));
             }
         }
+        $storageManifest = $this->loadStorageManifest();
 
-        $this->clear();
+        $this->clearOperationalData();
         $this->runSnapshot($snapshotPath, $holisticPath);
-        $this->restoreStorageSnapshot();
+        $this->clearOperationalStorage();
+        $this->restoreStorageSnapshot($storageManifest);
 
         $summary = $this->summary();
         if ($summary['assistantProfiles'] !== 40 || $summary['accounts'] !== 41) {
@@ -138,15 +157,41 @@ class DemoData
             throw new RuntimeException('Snapshot configurazione di sistema non disponibile.');
         }
 
+        $clearSummary = $this->clearAll();
         $this->runSnapshot($snapshotPath);
 
         return [
+            'tablesCleared' => $clearSummary['tablesCleared'],
             'services' => DB::table('service')->count(),
             'features' => DB::table('servicefeature')->count(),
+            'qualifications' => DB::table('operatortitle')->count(),
+            'breeds' => DB::table('petbreed')->count(),
             'petTypes' => DB::table('pettype')->count(),
             'houseFeatures' => DB::table('housefeature')->count(),
             'policies' => DB::table('portal_policy')->count(),
+            'systemRows' => $this->countRows(self::SYSTEM_TABLES),
+            'operationalRows' => $this->countRows(self::DATA_TABLES),
         ];
+    }
+
+    private function clearOperationalStorage(): void
+    {
+        foreach (self::OPERATIONAL_STORAGE_DIRECTORIES as $visibility => $directories) {
+            foreach ($directories as $directory) {
+                $path = storage_path('app/'.$visibility.'/'.$directory);
+                if (File::isDirectory($path) && ! File::deleteDirectory($path)) {
+                    throw new RuntimeException('Pulizia storage operativo non riuscita: '.$directory);
+                }
+            }
+        }
+    }
+
+    private function countRows(array $tables): int
+    {
+        return array_sum(array_map(
+            static fn (string $table): int => DB::table($table)->count(),
+            $tables,
+        ));
     }
 
     private function runSnapshot(string ...$snapshotPaths): void
@@ -202,7 +247,7 @@ class DemoData
         }
     }
 
-    private function restoreStorageSnapshot(): void
+    private function loadStorageManifest(): array
     {
         $snapshotRoot = base_path('migration/demo_storage');
         $manifestPath = $snapshotRoot.'/manifest.json';
@@ -213,7 +258,6 @@ class DemoData
         $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
         foreach (['public', 'private'] as $visibility) {
             $sourceRoot = $snapshotRoot.'/'.$visibility;
-            $targetRoot = storage_path('app/'.$visibility);
             foreach (($manifest[$visibility] ?? []) as $relativePath) {
                 $relativePath = ltrim(str_replace('\\', '/', (string) $relativePath), '/');
                 if ($relativePath === '' || str_contains($relativePath, '..')) {
@@ -224,6 +268,21 @@ class DemoData
                 if (! is_file($source)) {
                     throw new RuntimeException('File demo mancante: '.$relativePath);
                 }
+            }
+        }
+
+        return $manifest;
+    }
+
+    private function restoreStorageSnapshot(array $manifest): void
+    {
+        $snapshotRoot = base_path('migration/demo_storage');
+        foreach (['public', 'private'] as $visibility) {
+            $sourceRoot = $snapshotRoot.'/'.$visibility;
+            $targetRoot = storage_path('app/'.$visibility);
+            foreach (($manifest[$visibility] ?? []) as $relativePath) {
+                $relativePath = ltrim(str_replace('\\', '/', (string) $relativePath), '/');
+                $source = $sourceRoot.'/'.$relativePath;
 
                 $target = $targetRoot.'/'.$relativePath;
                 File::ensureDirectoryExists(dirname($target));

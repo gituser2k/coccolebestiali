@@ -193,17 +193,17 @@ Le password brevi del dataset sono destinate esclusivamente allo sviluppo locale
 Gli snapshot riproducono lo stato corrente del portale in due blocchi indipendenti:
 
 - [`seed_system_configuration.sql`](./seed_system_configuration.sql) ripristina servizi, funzionalita, qualifiche, razze, tipi di pet, caratteristiche casa e policy;
-- [`seed_demo_data.sql`](./seed_demo_data.sql) ripristina 1 Pet Owner, Rex, 40 Pet Assistant e tutti i dati operativi collegati, inclusi profili, calendari, ranking e prenotazioni;
+- [`seed_demo_data.sql`](./seed_demo_data.sql) ripristina 41 account globali, Rex, 40 profili Pet Assistant e tutti i dati operativi collegati, inclusi profili, calendari, ranking e prenotazioni;
 - [`seed_demo_holistic.sql`](./seed_demo_holistic.sql) configura sei Pet Assistant demo come operatori olistici, con tariffe, funzioni e disponibilità nelle quattro settimane successive all'esecuzione. Si può rieseguire sul dataset esistente per aggiungere disponibilità, conservando i dati già presenti;
 - [`demo_storage`](./demo_storage) contiene le immagini pubbliche e i documenti privati referenziati dal dataset demo; `manifest.json` ne descrive i percorsi.
 
-Prima degli snapshot deve essere sempre applicato `migration.txt`. I pulsanti nella sezione **Dati demo** del CMS eseguono separatamente i due ripristini; **CREA DATI DEMO** ripulisce i dati operativi prima dell'importazione e ricopia automaticamente immagini e documenti nelle cartelle Laravel.
+Prima degli snapshot deve essere sempre applicato `migration.txt`. I pulsanti nella sezione **Dati demo** del CMS eseguono operazioni distinte; **RIPRISTINA DATI DI SISTEMA** svuota prima l'intero database, mentre **CREA DATI DEMO** preserva le nove tabelle di sistema, ripulisce le 37 tabelle operative e sostituisce anche immagini e documenti operativi nelle cartelle Laravel.
 
 La stessa sezione offre tre operazioni distinte:
 
 - **SVUOTA TUTTO IL DATABASE** elimina tutti i record da tutte le tabelle, mantenendone la struttura;
-- **RIPRISTINA DATI DI SISTEMA** ricrea esclusivamente cataloghi, configurazione e policy;
-- **CREA DATI DEMO** ricrea account e dati operativi dallo snapshot e aggiunge le disponibilità future degli operatori olistici.
+- **RIPRISTINA DATI DI SISTEMA** elimina tutti i record e ricrea esclusivamente cataloghi, configurazione e policy; al termine non rimangono account o dati operativi;
+- **CREA DATI DEMO** conserva cataloghi, configurazione e policy, elimina ogni dato operativo e ricrea account globali, capability, profili contestuali, reputazioni, pet, calendari e asset dallo snapshot, aggiungendo le disponibilità future degli operatori olistici.
 
 Il collaudo completo deve eseguire i tre comandi in questo ordine e confrontare tutte le tabelle con lo stato precedente allo svuotamento. Lo snapshot corrente non contiene prenotazioni pregresse.
 
