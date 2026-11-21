@@ -104,6 +104,7 @@ Route::get('/cmsadminsite', function () {
 
     return response()->file($loginFile, [
         'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate',
     ]);
 });
 
@@ -116,6 +117,7 @@ Route::get('/utility.js', function () {
 
     return response()->file($utilityFile, [
         'Content-Type' => 'application/javascript; charset=UTF-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate',
     ]);
 });
 
