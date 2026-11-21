@@ -443,6 +443,12 @@ export default function ProfilePlaceholderPage() {
   const [petGroups, setPetGroups] = useState<PetGroupOption[]>([])
   const [acceptedPetGroupFilter, setAcceptedPetGroupFilter] = useState('')
   const [rejectedPetGroupFilter, setRejectedPetGroupFilter] = useState('')
+  const [acceptedPetCategoryFilter, setAcceptedPetCategoryFilter] = useState('')
+  const [rejectedPetCategoryFilter, setRejectedPetCategoryFilter] = useState('')
+  const petGroupCategories = useMemo(
+    () => Array.from(new Set(petGroups.map((petGroup) => petGroup.category))).sort((left, right) => left.localeCompare(right, 'it')),
+    [petGroups],
+  )
   const [petTypes, setPetTypes] = useState<PetTypeOption[]>([])
   const [houseFeatures, setHouseFeatures] = useState<HouseFeatureOption[]>([])
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([])
@@ -1320,16 +1326,19 @@ export default function ProfilePlaceholderPage() {
     }))
   }
 
-  function filterPetGroups(filter: string) {
+  function filterPetGroups(filter: string, category: string) {
     const normalizeSearchText = (value: string) => value
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('it-IT')
     const normalizedFilter = normalizeSearchText(filter.trim())
-    if (normalizedFilter === '') return petGroups
+    return petGroups.filter((petGroup) => {
+      const categoryMatches = category === '' || petGroup.category === category
+      const textMatches = normalizedFilter === '' || normalizeSearchText(`${petGroup.category} ${petGroup.name} ${petGroup.searchTerms || ''}`)
+        .includes(normalizedFilter)
 
-    return petGroups.filter((petGroup) => normalizeSearchText(`${petGroup.category} ${petGroup.name} ${petGroup.searchTerms || ''}`)
-      .includes(normalizedFilter))
+      return categoryMatches && textMatches
+    })
   }
 
   function isServiceSelected(serviceId: number) {
@@ -2830,35 +2839,53 @@ export default function ProfilePlaceholderPage() {
                           <fieldset className="profile-pet-group-choice is-accepted">
                             <legend>Pet accettati</legend>
                             <p>Seleziona esplicitamente i gruppi che puoi assistere.</p>
-                            <label className="profile-pet-group-filter">
-                              <span>Filtra per razza o gruppo</span>
-                              <input type="search" value={acceptedPetGroupFilter} onChange={(event) => setAcceptedPetGroupFilter(event.target.value)} placeholder="Es. Labrador, Molosso, Coniglio" />
-                            </label>
+                            <div className="profile-pet-group-filters">
+                              <label className="profile-pet-group-filter">
+                                <span>Categoria animale</span>
+                                <select value={acceptedPetCategoryFilter} onChange={(event) => setAcceptedPetCategoryFilter(event.target.value)}>
+                                  <option value="">Tutte le categorie</option>
+                                  {petGroupCategories.map((category) => <option key={`accepted-category-${category}`} value={category}>{category}</option>)}
+                                </select>
+                              </label>
+                              <label className="profile-pet-group-filter">
+                                <span>Filtra per razza o gruppo</span>
+                                <input type="search" value={acceptedPetGroupFilter} onChange={(event) => setAcceptedPetGroupFilter(event.target.value)} placeholder="Es. Labrador, Molosso" />
+                              </label>
+                            </div>
                             <div className="profile-pet-group-options">
-                              {filterPetGroups(acceptedPetGroupFilter).map((petGroup) => (
+                              {filterPetGroups(acceptedPetGroupFilter, acceptedPetCategoryFilter).map((petGroup) => (
                                 <label key={`accepted-${petGroup.id}`}>
                                   <input type="checkbox" checked={operatorProfile.acceptedPetGroupIds.includes(petGroup.id)} onChange={() => togglePetGroup('acceptedPetGroupIds', petGroup.id)} />
                                   <span><strong>{petGroup.category}</strong>{petGroup.name}</span>
                                 </label>
                               ))}
-                              {petGroups.length > 0 && filterPetGroups(acceptedPetGroupFilter).length === 0 && <p className="profile-pet-group-empty">Nessun gruppo corrisponde alla ricerca.</p>}
+                              {petGroups.length > 0 && filterPetGroups(acceptedPetGroupFilter, acceptedPetCategoryFilter).length === 0 && <p className="profile-pet-group-empty">Nessun gruppo corrisponde ai filtri.</p>}
                             </div>
                           </fieldset>
                           <fieldset className="profile-pet-group-choice is-rejected">
                             <legend>Pet NON accettati</legend>
                             <p>Indica i gruppi che non puoi prendere in carico.</p>
-                            <label className="profile-pet-group-filter">
-                              <span>Filtra per razza o gruppo</span>
-                              <input type="search" value={rejectedPetGroupFilter} onChange={(event) => setRejectedPetGroupFilter(event.target.value)} placeholder="Es. Labrador, Molosso, Coniglio" />
-                            </label>
+                            <div className="profile-pet-group-filters">
+                              <label className="profile-pet-group-filter">
+                                <span>Categoria animale</span>
+                                <select value={rejectedPetCategoryFilter} onChange={(event) => setRejectedPetCategoryFilter(event.target.value)}>
+                                  <option value="">Tutte le categorie</option>
+                                  {petGroupCategories.map((category) => <option key={`rejected-category-${category}`} value={category}>{category}</option>)}
+                                </select>
+                              </label>
+                              <label className="profile-pet-group-filter">
+                                <span>Filtra per razza o gruppo</span>
+                                <input type="search" value={rejectedPetGroupFilter} onChange={(event) => setRejectedPetGroupFilter(event.target.value)} placeholder="Es. Labrador, Molosso" />
+                              </label>
+                            </div>
                             <div className="profile-pet-group-options">
-                              {filterPetGroups(rejectedPetGroupFilter).map((petGroup) => (
+                              {filterPetGroups(rejectedPetGroupFilter, rejectedPetCategoryFilter).map((petGroup) => (
                                 <label key={`rejected-${petGroup.id}`}>
                                   <input type="checkbox" checked={operatorProfile.rejectedPetGroupIds.includes(petGroup.id)} onChange={() => togglePetGroup('rejectedPetGroupIds', petGroup.id)} />
                                   <span><strong>{petGroup.category}</strong>{petGroup.name}</span>
                                 </label>
                               ))}
-                              {petGroups.length > 0 && filterPetGroups(rejectedPetGroupFilter).length === 0 && <p className="profile-pet-group-empty">Nessun gruppo corrisponde alla ricerca.</p>}
+                              {petGroups.length > 0 && filterPetGroups(rejectedPetGroupFilter, rejectedPetCategoryFilter).length === 0 && <p className="profile-pet-group-empty">Nessun gruppo corrisponde ai filtri.</p>}
                             </div>
                           </fieldset>
                           <label className="profile-field">
