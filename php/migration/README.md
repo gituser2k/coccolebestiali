@@ -4,6 +4,19 @@
 
 Il file [`migration.txt`](./migration.txt) è la fonte cumulativa dello schema MySQL/MariaDB del portale.
 
+Per aggiornare un dataset dimostrativo esistente senza ripristinarlo integralmente,
+[`extend_demo_calendar_2027.sql`](./extend_demo_calendar_2027.sql) estende in modo
+idempotente i calendari dei soli account demo fino al 31 dicembre 2027. Lo script
+replica per giorno della settimana l'ultima configurazione disponibile nel 2026,
+incluse fasce, servizi e tariffe, senza cancellare utenti, prenotazioni o giornate
+già presenti.
+
+Per un database ancora basato su `users.role` e `personaldata`,
+[`backfill_legacy_multi_profile.sql`](./backfill_legacy_multi_profile.sql) copia in
+modo idempotente capability, profili contestuali e reputazioni prima del cutover.
+Non elimina le strutture legacy; la loro rimozione rimane confinata allo script
+esplicito [`step10_finalize_multi_profile.sql`](./step10_finalize_multi_profile.sql).
+
 Il punto di recupero completo precedente allo STEP 0 della migrazione multi-profilo è descritto in [`backups/pre-step0-20261109.md`](./backups/pre-step0-20261109.md). Il manifesto registra tag Git, checksum, dump privato e procedura di ripristino verificata.
 
 Il progetto non usa al momento le migration versionate standard di Laravel. Il file contiene:
