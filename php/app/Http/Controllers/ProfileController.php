@@ -189,8 +189,8 @@ class ProfileController extends Controller
                 'pets.*.microchipCode' => ['nullable', 'string', 'max:64'],
                 'pets.*.generalNotes' => ['nullable', 'string', 'max:4096'],
                 'pets.*.petSize' => ['nullable', 'string', 'in:small,medium,large,max'],
-                'pets.*.petBreedIds' => ['nullable', 'array'],
-                'pets.*.petBreedIds.*' => ['required', 'integer', 'min:1'],
+                'pets.*.petGroupIds' => ['nullable', 'array'],
+                'pets.*.petGroupIds.*' => ['required', 'integer', 'min:1'],
                 'pets.*.petTypeIds' => ['nullable', 'array'],
                 'pets.*.petTypeIds.*' => ['required', 'integer', 'min:1'],
                 'pets.*.gallery' => ['nullable', 'array', 'max:20'],
@@ -307,7 +307,7 @@ class ProfileController extends Controller
                     'microchipCode' => strtoupper(trim((string) ($pet['microchipCode'] ?? ''))),
                     'generalNotes' => trim((string) ($pet['generalNotes'] ?? '')),
                     'petSize' => (string) ($pet['petSize'] ?? ''),
-                    'petBreedIds' => $pet['petBreedIds'] ?? [],
+                    'petGroupIds' => $pet['petGroupIds'] ?? [],
                     'petTypeIds' => $pet['petTypeIds'] ?? [],
                     'gallery' => $gallery,
                     'documents' => $documents,
@@ -858,8 +858,10 @@ class ProfileController extends Controller
                 'publicProfile.publishExactLocation' => ['sometimes', 'boolean'],
                 'titleIds' => ['nullable', 'array'],
                 'titleIds.*' => ['required', 'integer', 'min:1'],
-                'petBreedIds' => ['nullable', 'array'],
-                'petBreedIds.*' => ['required', 'integer', 'min:1'],
+                'acceptedPetGroupIds' => ['nullable', 'array'],
+                'acceptedPetGroupIds.*' => ['required', 'integer', 'min:1'],
+                'rejectedPetGroupIds' => ['nullable', 'array'],
+                'rejectedPetGroupIds.*' => ['required', 'integer', 'min:1'],
                 'petSize' => ['nullable', 'string', 'in:small,medium,large,max'],
                 'petTypeIds' => ['nullable', 'array'],
                 'petTypeIds.*' => ['required', 'integer', 'min:1'],
@@ -881,6 +883,13 @@ class ProfileController extends Controller
             ]);
 
             $galleryItems = [];
+            $acceptedPetGroupIds = array_values(array_unique(array_map('intval', $validated['acceptedPetGroupIds'] ?? [])));
+            $rejectedPetGroupIds = array_values(array_unique(array_map('intval', $validated['rejectedPetGroupIds'] ?? [])));
+            if (array_intersect($acceptedPetGroupIds, $rejectedPetGroupIds) !== []) {
+                throw ValidationException::withMessages([
+                    'rejectedPetGroupIds' => 'Uno stesso gruppo pet non può essere sia accettato sia non accettato.',
+                ]);
+            }
             $existingGallery = $request->input('existingGallery', []);
             if (is_array($existingGallery)) {
                 foreach ($existingGallery as $item) {
@@ -936,7 +945,8 @@ class ProfileController extends Controller
                 'experienceYears' => isset($validated['experienceYears']) ? (int) $validated['experienceYears'] : 0,
                 'publicProfile' => $validated['publicProfile'] ?? null,
                 'titleIds' => $validated['titleIds'] ?? [],
-                'petBreedIds' => $validated['petBreedIds'] ?? [],
+                'acceptedPetGroupIds' => $acceptedPetGroupIds,
+                'rejectedPetGroupIds' => $rejectedPetGroupIds,
                 'petSize' => $validated['petSize'] ?? '',
                 'petTypeIds' => $validated['petTypeIds'] ?? [],
                 'houseFeatureIds' => $validated['houseFeatureIds'] ?? [],

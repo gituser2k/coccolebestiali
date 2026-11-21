@@ -40,8 +40,9 @@ type OperatorTitleOption = {
   name: string
 }
 
-type PetBreedOption = {
+type PetGroupOption = {
   id: number
+  category: string
   name: string
 }
 
@@ -138,7 +139,8 @@ type OperatorProfileData = {
   bio: string
   experienceYears: number
   titleIds: number[]
-  petBreedIds: number[]
+  acceptedPetGroupIds: number[]
+  rejectedPetGroupIds: number[]
   petSize: string
   petTypeIds: number[]
   houseFeatureIds: number[]
@@ -226,7 +228,8 @@ const EMPTY_OPERATOR_PROFILE: OperatorProfileData = {
   bio: '',
   experienceYears: 0,
   titleIds: [],
-  petBreedIds: [],
+  acceptedPetGroupIds: [],
+  rejectedPetGroupIds: [],
   petSize: '',
   petTypeIds: [],
   houseFeatureIds: [],
@@ -436,7 +439,7 @@ export default function ProfilePlaceholderPage() {
   const [fieldVisibility, setFieldVisibility] = useState<PersonalFieldVisibility>(DEFAULT_PERSONAL_FIELD_VISIBILITY)
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfileData>(EMPTY_OPERATOR_PROFILE)
   const [operatorTitles, setOperatorTitles] = useState<OperatorTitleOption[]>([])
-  const [petBreeds, setPetBreeds] = useState<PetBreedOption[]>([])
+  const [petGroups, setPetGroups] = useState<PetGroupOption[]>([])
   const [petTypes, setPetTypes] = useState<PetTypeOption[]>([])
   const [houseFeatures, setHouseFeatures] = useState<HouseFeatureOption[]>([])
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([])
@@ -448,7 +451,6 @@ export default function ProfilePlaceholderPage() {
   const [cityOptions, setCityOptions] = useState<CityOption[]>([])
   const [isCityLoading, setIsCityLoading] = useState(false)
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false)
-  const [isPetBreedDropdownOpen, setIsPetBreedDropdownOpen] = useState(false)
   const [isPetTypeDropdownOpen, setIsPetTypeDropdownOpen] = useState(false)
   const [isHouseFeatureDropdownOpen, setIsHouseFeatureDropdownOpen] = useState(false)
   const [isMapLoading, setIsMapLoading] = useState(false)
@@ -486,13 +488,10 @@ export default function ProfilePlaceholderPage() {
   const [isCalendarCopying, setIsCalendarCopying] = useState(false)
   const [calendarCopySourceDate, setCalendarCopySourceDate] = useState<string | null>(null)
   const didAttemptInitialGeocodeRef = useRef(false)
-  const petBreedDropdownRef = useRef<HTMLDivElement | null>(null)
   const petTypeDropdownRef = useRef<HTMLDivElement | null>(null)
   const houseFeatureDropdownRef = useRef<HTMLDivElement | null>(null)
-  const petBreedTriggerRef = useRef<HTMLButtonElement | null>(null)
   const petTypeTriggerRef = useRef<HTMLButtonElement | null>(null)
   const houseFeatureTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const [petBreedTriggerWidth, setPetBreedTriggerWidth] = useState(0)
   const [petTypeTriggerWidth, setPetTypeTriggerWidth] = useState(0)
   const [houseFeatureTriggerWidth, setHouseFeatureTriggerWidth] = useState(0)
   const profileEntryMode = useMemo<'register' | 'login'>(() => {
@@ -517,7 +516,7 @@ export default function ProfilePlaceholderPage() {
       sanitizeText(operatorProfile.bio) !== '',
       operatorProfile.experienceYears > 0,
       operatorProfile.titleIds.length > 0,
-      operatorProfile.petBreedIds.length > 0,
+      operatorProfile.acceptedPetGroupIds.length > 0,
       sanitizeText(operatorProfile.petSize) !== '',
       operatorProfile.petTypeIds.length > 0,
       operatorProfile.services.length > 0,
@@ -539,7 +538,7 @@ export default function ProfilePlaceholderPage() {
     operatorProfile.businessName,
     operatorProfile.experienceYears,
     operatorProfile.fiscalCode,
-    operatorProfile.petBreedIds.length,
+    operatorProfile.acceptedPetGroupIds.length,
     operatorProfile.petSize,
     operatorProfile.services.length,
     operatorProfile.petTypeIds.length,
@@ -689,52 +688,11 @@ export default function ProfilePlaceholderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operatorProfile.petTypeIds, petTypes, petTypeTriggerWidth])
 
-  const petBreedSummary = useMemo(() => {
-    return buildMultiSelectSummary(operatorProfile.petBreedIds, petBreeds, petBreedTriggerRef.current, petBreedTriggerWidth)
-    // Helper depends only on the provided values and DOM trigger width.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operatorProfile.petBreedIds, petBreeds, petBreedTriggerWidth])
-
   const houseFeatureSummary = useMemo(() => {
     return buildMultiSelectSummary(operatorProfile.houseFeatureIds, houseFeatures, houseFeatureTriggerRef.current, houseFeatureTriggerWidth)
     // Helper depends only on the provided values and DOM trigger width.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operatorProfile.houseFeatureIds, houseFeatures, houseFeatureTriggerWidth])
-
-  useEffect(() => {
-    if (activeMenu !== 'operator' || isLoading || !petBreedTriggerRef.current) {
-      return
-    }
-
-    const syncWidth = () => {
-      if (petBreedTriggerRef.current) {
-        setPetBreedTriggerWidth(Math.round(petBreedTriggerRef.current.getBoundingClientRect().width))
-      }
-    }
-
-    syncWidth()
-    window.addEventListener('resize', syncWidth)
-
-    if (typeof ResizeObserver === 'undefined') {
-      return () => {
-        window.removeEventListener('resize', syncWidth)
-      }
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry) {
-        setPetBreedTriggerWidth(Math.round(entry.contentRect.width))
-      }
-    })
-
-    observer.observe(petBreedTriggerRef.current)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', syncWidth)
-    }
-  }, [activeMenu, isLoading, petBreeds.length])
 
   useEffect(() => {
     if (activeMenu !== 'operator' || isLoading || !petTypeTriggerRef.current) {
@@ -1028,7 +986,7 @@ export default function ProfilePlaceholderPage() {
 
         if (operatorOptionsResponse.ok && operatorOptionsPayload?.ok) {
           setOperatorTitles(Array.isArray(operatorOptionsPayload?.data?.titles) ? operatorOptionsPayload.data.titles : [])
-          setPetBreeds(Array.isArray(operatorOptionsPayload?.data?.petBreeds) ? operatorOptionsPayload.data.petBreeds : [])
+          setPetGroups(Array.isArray(operatorOptionsPayload?.data?.petGroups) ? operatorOptionsPayload.data.petGroups : [])
           setPetTypes(Array.isArray(operatorOptionsPayload?.data?.petTypes) ? operatorOptionsPayload.data.petTypes : [])
           setHouseFeatures(Array.isArray(operatorOptionsPayload?.data?.houseFeatures) ? operatorOptionsPayload.data.houseFeatures : [])
           setServiceOptions(Array.isArray(operatorOptionsPayload?.data?.services) ? operatorOptionsPayload.data.services : [])
@@ -1072,8 +1030,11 @@ export default function ProfilePlaceholderPage() {
           titleIds: Array.isArray(operatorProfilePayload?.data?.titleIds)
             ? operatorProfilePayload.data.titleIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
             : [],
-          petBreedIds: Array.isArray(operatorProfilePayload?.data?.petBreedIds)
-            ? operatorProfilePayload.data.petBreedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
+          acceptedPetGroupIds: Array.isArray(operatorProfilePayload?.data?.acceptedPetGroupIds)
+            ? operatorProfilePayload.data.acceptedPetGroupIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
+            : [],
+          rejectedPetGroupIds: Array.isArray(operatorProfilePayload?.data?.rejectedPetGroupIds)
+            ? operatorProfilePayload.data.rejectedPetGroupIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0)
             : [],
           petSize: sanitizeText(operatorProfilePayload?.data?.petSize ?? ''),
           petTypeIds: Array.isArray(operatorProfilePayload?.data?.petTypeIds)
@@ -1307,7 +1268,7 @@ export default function ProfilePlaceholderPage() {
   }
 
   function toggleOperatorSelection(
-    field: 'titleIds' | 'petBreedIds' | 'petTypeIds' | 'houseFeatureIds',
+    field: 'titleIds' | 'petTypeIds' | 'houseFeatureIds',
     id: number,
     options: Array<{ id: number; name: string }> = []
   ) {
@@ -1345,6 +1306,15 @@ export default function ProfilePlaceholderPage() {
         [field]: alreadySelected ? values.filter((value) => value !== id) : [...values, id],
       }
     })
+  }
+
+  function togglePetGroup(field: 'acceptedPetGroupIds' | 'rejectedPetGroupIds', id: number) {
+    const otherField = field === 'acceptedPetGroupIds' ? 'rejectedPetGroupIds' : 'acceptedPetGroupIds'
+    setOperatorProfile((current) => ({
+      ...current,
+      [field]: current[field].includes(id) ? current[field].filter((value) => value !== id) : [...current[field], id],
+      [otherField]: current[otherField].filter((value) => value !== id),
+    }))
   }
 
   function isServiceSelected(serviceId: number) {
@@ -2155,8 +2125,11 @@ export default function ProfilePlaceholderPage() {
     operatorProfile.titleIds.forEach((titleId) => {
       body.append('titleIds[]', String(titleId))
     })
-    operatorProfile.petBreedIds.forEach((petBreedId) => {
-      body.append('petBreedIds[]', String(petBreedId))
+    operatorProfile.acceptedPetGroupIds.forEach((petGroupId) => {
+      body.append('acceptedPetGroupIds[]', String(petGroupId))
+    })
+    operatorProfile.rejectedPetGroupIds.forEach((petGroupId) => {
+      body.append('rejectedPetGroupIds[]', String(petGroupId))
     })
     operatorProfile.petTypeIds.forEach((petTypeId) => {
       body.append('petTypeIds[]', String(petTypeId))
@@ -2234,7 +2207,8 @@ export default function ProfilePlaceholderPage() {
             })).filter((item: OperatorLinkedAssociation) => item.userId > 0)
           : [],
         titleIds: Array.isArray(payload?.data?.titleIds) ? payload.data.titleIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
-        petBreedIds: Array.isArray(payload?.data?.petBreedIds) ? payload.data.petBreedIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
+        acceptedPetGroupIds: Array.isArray(payload?.data?.acceptedPetGroupIds) ? payload.data.acceptedPetGroupIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
+        rejectedPetGroupIds: Array.isArray(payload?.data?.rejectedPetGroupIds) ? payload.data.rejectedPetGroupIds.map((value: number | string) => Number(value)).filter((value: number) => value > 0) : [],
         petSize: sanitizeText(payload?.data?.petSize ?? ''),
         services: Array.isArray(payload?.data?.services)
           ? payload.data.services.map((item: Record<string, unknown>) => ({
@@ -2838,42 +2812,30 @@ export default function ProfilePlaceholderPage() {
                           <p className="profile-location-kicker">CARATTERISTICHE PET</p>
                         </div>
                         <div className="profile-form-grid profile-pet-characteristics-grid">
-                          <div className="profile-field profile-multiselect-field" ref={petBreedDropdownRef}>
-                            <span>Razza pet</span>
-                            <button
-                              type="button"
-                              className={`profile-multiselect-trigger portal-combobox-trigger ${isPetBreedDropdownOpen ? 'is-open' : ''}`}
-                              ref={petBreedTriggerRef}
-                              onClick={() => setIsPetBreedDropdownOpen((current) => !current)}
-                              aria-haspopup="listbox"
-                              aria-expanded={isPetBreedDropdownOpen}
-                            >
-                              <span className={`profile-multiselect-value ${operatorProfile.petBreedIds.length > 0 ? 'is-selected' : ''}`}>
-                                {petBreedSummary}
-                              </span>
-                            </button>
-                            {isPetBreedDropdownOpen ? (
-                              <div className="profile-city-dropdown profile-multiselect-dropdown" role="listbox" aria-multiselectable="true">
-                                {petBreeds.length > 0 ? (
-                                  petBreeds.map((petBreed) => (
-                                    <label
-                                      key={petBreed.id}
-                                      className={`profile-multiselect-option ${isAnyMultiselectOption(petBreed) ? 'is-any-option' : ''}`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={operatorProfile.petBreedIds.includes(petBreed.id)}
-                                        onChange={() => toggleOperatorSelection('petBreedIds', petBreed.id, petBreeds)}
-                                      />
-                                      <span>{petBreed.name}</span>
-                                    </label>
-                                  ))
-                                ) : (
-                                  <div className="profile-city-state">Nessuna razza disponibile.</div>
-                                )}
-                              </div>
-                            ) : null}
-                          </div>
+                          <fieldset className="profile-pet-group-choice is-accepted">
+                            <legend>Pet accettati</legend>
+                            <p>Seleziona esplicitamente i gruppi che puoi assistere.</p>
+                            <div className="profile-pet-group-options">
+                              {petGroups.map((petGroup) => (
+                                <label key={`accepted-${petGroup.id}`}>
+                                  <input type="checkbox" checked={operatorProfile.acceptedPetGroupIds.includes(petGroup.id)} onChange={() => togglePetGroup('acceptedPetGroupIds', petGroup.id)} />
+                                  <span><strong>{petGroup.category}</strong>{petGroup.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </fieldset>
+                          <fieldset className="profile-pet-group-choice is-rejected">
+                            <legend>Pet NON accettati</legend>
+                            <p>Indica i gruppi che non puoi prendere in carico.</p>
+                            <div className="profile-pet-group-options">
+                              {petGroups.map((petGroup) => (
+                                <label key={`rejected-${petGroup.id}`}>
+                                  <input type="checkbox" checked={operatorProfile.rejectedPetGroupIds.includes(petGroup.id)} onChange={() => togglePetGroup('rejectedPetGroupIds', petGroup.id)} />
+                                  <span><strong>{petGroup.category}</strong>{petGroup.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </fieldset>
                           <label className="profile-field">
                             <span>Taglia</span>
                             <select

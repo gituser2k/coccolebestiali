@@ -101,13 +101,14 @@ class Profile extends Model
                     'name' => (string) $row->name,
                 ])
                 ->all(),
-            'petBreeds' => DB::table('petbreed')
-                ->select(['id', 'name'])
+            'petGroups' => DB::table('petbreed')
+                ->select(['id', 'category', 'name'])
                 ->orderBy('sortorder')
                 ->orderBy('name')
                 ->get()
                 ->map(fn ($row) => [
                     'id' => (int) $row->id,
+                    'category' => (string) $row->category,
                     'name' => (string) $row->name,
                 ])
                 ->all(),
@@ -141,13 +142,14 @@ class Profile extends Model
         $this->ensureOperatorMetadataSeeded();
 
         return [
-            'petBreeds' => DB::table('petbreed')
-                ->select(['id', 'name'])
+            'petGroups' => DB::table('petbreed')
+                ->select(['id', 'category', 'name'])
                 ->orderBy('sortorder')
                 ->orderBy('name')
                 ->get()
                 ->map(fn ($row) => [
                     'id' => (int) $row->id,
+                    'category' => (string) $row->category,
                     'name' => (string) $row->name,
                 ])
                 ->all(),
@@ -183,7 +185,7 @@ class Profile extends Model
         }
 
         $petIds = $pets->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $breedIds = DB::table('ownerpetbreeddata')
+        $groupIds = DB::table('ownerpetbreeddata')
             ->whereIn('pet_id', $petIds)
             ->orderBy('petbreed_id')
             ->get(['pet_id', 'petbreed_id'])
@@ -209,7 +211,7 @@ class Profile extends Model
             ])
             ->groupBy('pet_id');
 
-        return $pets->map(function ($pet) use ($breedIds, $typeIds, $gallery, $documents) {
+        return $pets->map(function ($pet) use ($groupIds, $typeIds, $gallery, $documents) {
             $petId = (int) $pet->id;
 
             return [
@@ -220,7 +222,7 @@ class Profile extends Model
                 'microchipCode' => (string) $pet->microchip_code,
                 'generalNotes' => (string) $pet->general_notes,
                 'petSize' => (string) $pet->pet_size,
-                'petBreedIds' => collect($breedIds->get($petId, []))
+                'petGroupIds' => collect($groupIds->get($petId, []))
                     ->pluck('petbreed_id')->map(fn ($id) => (int) $id)->values()->all(),
                 'petTypeIds' => collect($typeIds->get($petId, []))
                     ->pluck('pettype_id')->map(fn ($id) => (int) $id)->values()->all(),
@@ -372,11 +374,11 @@ class Profile extends Model
                     'updated_at' => $now,
                 ]);
 
-                foreach (array_values(array_unique(array_map('intval', $pet['petBreedIds'] ?? []))) as $breedId) {
-                    if ($breedId > 0) {
+                foreach (array_values(array_unique(array_map('intval', $pet['petGroupIds'] ?? []))) as $groupId) {
+                    if ($groupId > 0) {
                         DB::table('ownerpetbreeddata')->insert([
                             'pet_id' => $petId,
-                            'petbreed_id' => $breedId,
+                            'petbreed_id' => $groupId,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);
@@ -506,8 +508,18 @@ class Profile extends Model
             ->values()
             ->all();
 
-        $petBreedIds = DB::table('petbreeddata')
+        $acceptedPetGroupIds = DB::table('petbreeddata')
             ->where('user_id', $userId)
+            ->where('acceptance', 'accepted')
+            ->orderBy('petbreed_id')
+            ->pluck('petbreed_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $rejectedPetGroupIds = DB::table('petbreeddata')
+            ->where('user_id', $userId)
+            ->where('acceptance', 'rejected')
             ->orderBy('petbreed_id')
             ->pluck('petbreed_id')
             ->map(fn ($id) => (int) $id)
@@ -592,7 +604,8 @@ class Profile extends Model
                 'publishExactLocation' => (bool) ($public->publish_exact_location ?? false),
             ],
             'titleIds' => $titleIds,
-            'petBreedIds' => $petBreedIds,
+            'acceptedPetGroupIds' => $acceptedPetGroupIds,
+            'rejectedPetGroupIds' => $rejectedPetGroupIds,
             'petSize' => (string) ($row->pet_size ?? ''),
             'petTypeIds' => $petTypeIds,
             'houseFeatureIds' => $houseFeatureIds,
@@ -713,11 +726,15 @@ class Profile extends Model
         if (! Schema::hasTable('petbreed')) {
             Schema::create('petbreed', function ($table) {
                 $table->increments('id');
+                $table->string('category', 80)->default('');
                 $table->string('name', 160)->default('');
                 $table->integer('sortorder')->default(0);
                 $table->integer('created_at')->default(0);
                 $table->integer('updated_at')->default(0);
             });
+        }
+        if (! Schema::hasColumn('petbreed', 'category')) {
+            Schema::table('petbreed', fn ($table) => $table->string('category', 80)->default('')->after('id'));
         }
 
         if (! Schema::hasTable('petbreeddata')) {
@@ -725,12 +742,16 @@ class Profile extends Model
                 $table->increments('id');
                 $table->unsignedInteger('user_id')->default(0);
                 $table->unsignedInteger('petbreed_id')->default(0);
+                $table->string('acceptance', 16)->default('accepted');
                 $table->integer('created_at')->default(0);
                 $table->integer('updated_at')->default(0);
                 $table->unique(['user_id', 'petbreed_id'], 'uk_petbreeddata_user_breed');
                 $table->index('user_id', 'idx_petbreeddata_user_id');
                 $table->index('petbreed_id', 'idx_petbreeddata_breed_id');
             });
+        }
+        if (! Schema::hasColumn('petbreeddata', 'acceptance')) {
+            Schema::table('petbreeddata', fn ($table) => $table->string('acceptance', 16)->default('accepted')->after('petbreed_id'));
         }
     }
 
@@ -927,18 +948,21 @@ class Profile extends Model
             }
 
             DB::table('petbreeddata')->where('user_id', $userId)->delete();
-            $petBreedIds = array_values(array_unique(array_map('intval', $payload['petBreedIds'] ?? [])));
-            foreach ($petBreedIds as $petBreedId) {
-                if ($petBreedId <= 0) {
-                    continue;
-                }
+            foreach (['accepted' => 'acceptedPetGroupIds', 'rejected' => 'rejectedPetGroupIds'] as $acceptance => $field) {
+                $petGroupIds = array_values(array_unique(array_map('intval', $payload[$field] ?? [])));
+                foreach ($petGroupIds as $petGroupId) {
+                    if ($petGroupId <= 0) {
+                        continue;
+                    }
 
-                DB::table('petbreeddata')->insert([
-                    'user_id' => $userId,
-                    'petbreed_id' => $petBreedId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                    DB::table('petbreeddata')->insert([
+                        'user_id' => $userId,
+                        'petbreed_id' => $petGroupId,
+                        'acceptance' => $acceptance,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
             }
 
             DB::table('pettypedata')->where('user_id', $userId)->delete();
@@ -1262,49 +1286,32 @@ class Profile extends Model
             );
         }
 
-        $petBreeds = [
-            ['id' => 18, 'name' => 'Qualsiasi', 'sortorder' => 0],
-            ['id' => 1, 'name' => 'Meticcio / Misto', 'sortorder' => 10],
-            ['id' => 2, 'name' => 'Labrador Retriever', 'sortorder' => 20],
-            ['id' => 3, 'name' => 'Golden Retriever', 'sortorder' => 30],
-            ['id' => 4, 'name' => 'Pastore Tedesco', 'sortorder' => 40],
-            ['id' => 5, 'name' => 'Bulldog Francese', 'sortorder' => 50],
-            ['id' => 6, 'name' => 'Barboncino', 'sortorder' => 60],
-            ['id' => 7, 'name' => 'Beagle', 'sortorder' => 70],
-            ['id' => 8, 'name' => 'Border Collie', 'sortorder' => 80],
-            ['id' => 9, 'name' => 'Chihuahua', 'sortorder' => 90],
-            ['id' => 10, 'name' => 'Jack Russell Terrier', 'sortorder' => 100],
-            ['id' => 11, 'name' => 'Maltese', 'sortorder' => 110],
-            ['id' => 12, 'name' => 'Cocker Spaniel', 'sortorder' => 120],
-            ['id' => 13, 'name' => 'Gatto Europeo', 'sortorder' => 130],
-            ['id' => 14, 'name' => 'Maine Coon', 'sortorder' => 140],
-            ['id' => 15, 'name' => 'Siamese', 'sortorder' => 150],
-            ['id' => 16, 'name' => 'Persiano', 'sortorder' => 160],
-            ['id' => 17, 'name' => 'Altro', 'sortorder' => 170],
+        $petGroups = [
+            [101, 'Cani', 'Gruppo 1 FCI · Cani da pastore e bovari'], [102, 'Cani', 'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri'],
+            [103, 'Cani', 'Gruppo 3 FCI · Terrier'], [104, 'Cani', 'Gruppo 4 FCI · Bassotti'], [105, 'Cani', 'Gruppo 5 FCI · Spitz e tipo primitivo'],
+            [106, 'Cani', 'Gruppo 6 FCI · Segugi e cani per pista di sangue'], [107, 'Cani', 'Gruppo 7 FCI · Cani da ferma'],
+            [108, 'Cani', 'Gruppo 8 FCI · Riporto, cerca e acqua'], [109, 'Cani', 'Gruppo 9 FCI · Cani da compagnia'],
+            [110, 'Cani', 'Gruppo 10 FCI · Levrieri'], [111, 'Cani', 'Meticci e non riconducibili a un gruppo FCI'],
+            [201, 'Gatti', 'Pelo lungo e persiani/esotici'], [202, 'Gatti', 'Pelo semilungo'], [203, 'Gatti', 'Pelo corto e somali'],
+            [204, 'Gatti', 'Orientali, siamesi e affini'], [205, 'Gatti', 'Gatti domestici, meticci o non classificati'],
+            [301, 'Conigli', 'Conigli nani e piccoli'], [302, 'Conigli', 'Conigli medi'], [303, 'Conigli', 'Conigli grandi e giganti'],
+            [304, 'Conigli', 'Conigli ariete e a pelo lungo'], [401, 'Furetti', 'Furetti'],
+            [411, 'Piccoli mammiferi', 'Criceti, gerbilli, topi e ratti domestici'], [412, 'Piccoli mammiferi', 'Cavie e porcellini d’India'],
+            [413, 'Piccoli mammiferi', 'Cincillà e degu'], [414, 'Piccoli mammiferi', 'Ricci domestici e altri piccoli insettivori'],
+            [415, 'Piccoli mammiferi', 'Altri piccoli mammiferi da compagnia'], [501, 'Uccelli', 'Psittaciformi · pappagalli e parrocchetti'],
+            [502, 'Uccelli', 'Passeriformi · canarini, fringillidi e affini'], [503, 'Uccelli', 'Columbiformi e altri uccelli ornamentali'],
+            [504, 'Uccelli', 'Uccelli da cortile tenuti come compagnia'], [601, 'Rettili', 'Sauri · lucertole, gechi e iguane'],
+            [602, 'Rettili', 'Cheloni · tartarughe terrestri e acquatiche'], [603, 'Rettili', 'Serpenti e altri rettili'],
+            [701, 'Anfibi', 'Anuri e urodeli · rane, rospi, tritoni e salamandre'], [801, 'Pesci ornamentali', 'Acqua dolce tropicale'],
+            [802, 'Pesci ornamentali', 'Acqua fredda'], [803, 'Pesci ornamentali', 'Marini e di barriera'],
+            [901, 'Invertebrati', 'Invertebrati terrestri e acquatici da compagnia'], [1001, 'Equidi', 'Cavalli, pony e asini da compagnia'],
+            [1101, 'Altri pet', 'Altri animali da compagnia consentiti'],
         ];
 
-        if (! DB::table('petbreed')->exists()) {
-            foreach ($petBreeds as $petBreed) {
-                DB::table('petbreed')->updateOrInsert(
-                    ['id' => $petBreed['id']],
-                    [
-                        'name' => $petBreed['name'],
-                        'sortorder' => $petBreed['sortorder'],
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ]
-                );
-            }
-        } else {
-            $anyPetBreed = $petBreeds[0];
+        foreach ($petGroups as $index => [$id, $category, $name]) {
             DB::table('petbreed')->updateOrInsert(
-                ['id' => $anyPetBreed['id']],
-                [
-                    'name' => $anyPetBreed['name'],
-                    'sortorder' => $anyPetBreed['sortorder'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
+                ['id' => $id],
+                ['category' => $category, 'name' => $name, 'sortorder' => ($index + 1) * 10, 'created_at' => $now, 'updated_at' => $now]
             );
         }
 
@@ -1318,27 +1325,15 @@ class Profile extends Model
             ['id' => 6, 'name' => 'Anziano', 'sortorder' => 60],
             ['id' => 7, 'name' => 'Cucciolo', 'sortorder' => 70],
             ['id' => 8, 'name' => 'Con esigenze speciali', 'sortorder' => 80],
+            ['id' => 10, 'name' => 'Malato', 'sortorder' => 90],
         ];
 
-        if (! DB::table('pettype')->exists()) {
-            foreach ($petTypes as $petType) {
-                DB::table('pettype')->updateOrInsert(
-                    ['id' => $petType['id']],
-                    [
-                        'name' => $petType['name'],
-                        'sortorder' => $petType['sortorder'],
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ]
-                );
-            }
-        } else {
-            $anyPetType = $petTypes[0];
+        foreach ($petTypes as $petType) {
             DB::table('pettype')->updateOrInsert(
-                ['id' => $anyPetType['id']],
+                ['id' => $petType['id']],
                 [
-                    'name' => $anyPetType['name'],
-                    'sortorder' => $anyPetType['sortorder'],
+                    'name' => $petType['name'],
+                    'sortorder' => $petType['sortorder'],
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]

@@ -165,7 +165,7 @@ class DemoData
             'services' => DB::table('service')->count(),
             'features' => DB::table('servicefeature')->count(),
             'qualifications' => DB::table('operatortitle')->count(),
-            'breeds' => DB::table('petbreed')->count(),
+            'petGroups' => DB::table('petbreed')->count(),
             'petTypes' => DB::table('pettype')->count(),
             'houseFeatures' => DB::table('housefeature')->count(),
             'policies' => DB::table('portal_policy')->count(),

@@ -6,6 +6,7 @@ import { sanitizeText } from '../utility.js'
 type PetOption = {
   id: number
   name: string
+  category?: string
 }
 
 type PetGalleryItem = {
@@ -39,7 +40,7 @@ type OwnerPet = {
   microchipCode: string
   generalNotes: string
   petSize: string
-  petBreedIds: number[]
+  petGroupIds: number[]
   petTypeIds: number[]
   gallery: PetGalleryItem[]
   documents: PetDocumentItem[]
@@ -104,7 +105,7 @@ function createPet(): OwnerPet {
     microchipCode: '',
     generalNotes: '',
     petSize: '',
-    petBreedIds: [],
+    petGroupIds: [],
     petTypeIds: [],
     gallery: [],
     documents: [],
@@ -123,8 +124,8 @@ function normalizePet(item: Record<string, unknown>, index: number): OwnerPet {
     microchipCode: sanitizeText(item.microchipCode ?? ''),
     generalNotes: sanitizeText(item.generalNotes ?? ''),
     petSize: sanitizeText(item.petSize ?? ''),
-    petBreedIds: Array.isArray(item.petBreedIds)
-      ? item.petBreedIds.map(Number).filter((id) => id > 0)
+    petGroupIds: Array.isArray(item.petGroupIds)
+      ? item.petGroupIds.map(Number).filter((id) => id > 0)
       : [],
     petTypeIds: Array.isArray(item.petTypeIds)
       ? item.petTypeIds.map(Number).filter((id) => id > 0)
@@ -175,7 +176,7 @@ export { PetsIcon }
 
 export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: Props) {
   const [pets, setPets] = useState<OwnerPet[]>([])
-  const [petBreeds, setPetBreeds] = useState<PetOption[]>([])
+  const [petGroups, setPetGroups] = useState<PetOption[]>([])
   const [petTypes, setPetTypes] = useState<PetOption[]>([])
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null)
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null)
@@ -217,7 +218,7 @@ export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: P
           : []
         const removeAnyOption = (option: PetOption) => option.name.trim().toLowerCase() !== 'qualsiasi'
         setPets(nextPets)
-        setPetBreeds((Array.isArray(optionsPayload?.data?.petBreeds) ? optionsPayload.data.petBreeds : []).filter(removeAnyOption))
+        setPetGroups(Array.isArray(optionsPayload?.data?.petGroups) ? optionsPayload.data.petGroups : [])
         setPetTypes((Array.isArray(optionsPayload?.data?.petTypes) ? optionsPayload.data.petTypes : []).filter(removeAnyOption))
         setSelectedPetId(nextPets[0]?.id ?? null)
         setSelectedGalleryId(nextPets[0]?.gallery[0]?.id ?? null)
@@ -263,7 +264,7 @@ export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: P
     }
   }
 
-  function toggleSelection(field: 'petBreedIds' | 'petTypeIds', optionId: number) {
+  function toggleSelection(field: 'petGroupIds' | 'petTypeIds', optionId: number) {
     updateSelectedPet((pet) => ({
       ...pet,
       [field]: pet[field].includes(optionId)
@@ -471,7 +472,7 @@ export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: P
       body.append(`pets[${petIndex}][microchipCode]`, sanitizeText(pet.microchipCode))
       body.append(`pets[${petIndex}][generalNotes]`, sanitizeText(pet.generalNotes))
       body.append(`pets[${petIndex}][petSize]`, pet.petSize)
-      pet.petBreedIds.forEach((id, index) => body.append(`pets[${petIndex}][petBreedIds][${index}]`, String(id)))
+      pet.petGroupIds.forEach((id, index) => body.append(`pets[${petIndex}][petGroupIds][${index}]`, String(id)))
       pet.petTypeIds.forEach((id, index) => body.append(`pets[${petIndex}][petTypeIds][${index}]`, String(id)))
       pet.gallery.forEach((item, galleryIndex) => {
         body.append(`pets[${petIndex}][gallery][${galleryIndex}][isProfile]`, item.isProfile ? '1' : '0')
@@ -638,12 +639,12 @@ export default function PetOwnerPetsSection({ onToast, onProfilePhotoChange }: P
                 </select>
               </label>
               <fieldset className="owner-pet-choice-card">
-                <legend>Razza pet</legend>
+                <legend>Gruppo pet</legend>
                 <div className="owner-pet-choice-list">
-                  {petBreeds.map((option) => (
+                  {petGroups.map((option) => (
                     <label key={option.id} className="profile-checkbox-option">
-                      <input type="checkbox" checked={selectedPet.petBreedIds.includes(option.id)} onChange={() => toggleSelection('petBreedIds', option.id)} />
-                      <span>{option.name}</span>
+                      <input type="checkbox" checked={selectedPet.petGroupIds.includes(option.id)} onChange={() => toggleSelection('petGroupIds', option.id)} />
+                      <span>{option.category ? `${option.category} · ` : ''}{option.name}</span>
                     </label>
                   ))}
                 </div>

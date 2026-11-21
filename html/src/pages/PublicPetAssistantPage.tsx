@@ -28,7 +28,8 @@ type PublicProfile = {
   safetyAndHome: string
   ownerInstructions: string
   petSize: string
-  breeds: string[]
+  acceptedPetGroups: string[]
+  rejectedPetGroups: string[]
   petTypes: string[]
   houseFeatures: string[]
   gallery: GalleryPhoto[]
@@ -330,10 +331,16 @@ export default function PublicPetAssistantPage() {
             <section className="public-panel">
               <h2>Pet accettati</h2>
               {profile.petSize && <p><strong>Taglia</strong> · {petSizes[profile.petSize] ?? profile.petSize}</p>}
-              {profile.breeds.length > 0 && <p><strong>Razze</strong> · {profile.breeds.join(', ')}</p>}
+              {profile.acceptedPetGroups.length > 0 && <ul className="public-tags">{profile.acceptedPetGroups.map((group) => <li key={group}>{group}</li>)}</ul>}
               {profile.petTypes.length > 0 && <p><strong>Caratteristiche</strong> · {profile.petTypes.join(', ')}</p>}
-              {!profile.petSize && !profile.breeds.length && !profile.petTypes.length && <p>Caratteristiche non ancora indicate.</p>}
+              {!profile.petSize && !profile.acceptedPetGroups.length && !profile.petTypes.length && <p>Gruppi accettati non ancora indicati.</p>}
               {profile.ownerInstructions && <><h3>Cosa vorrebbe sapere sul tuo pet</h3><p className="public-prose">{profile.ownerInstructions}</p></>}
+            </section>
+            <section className="public-panel">
+              <h2>Pet NON accettati</h2>
+              {profile.rejectedPetGroups.length > 0
+                ? <ul className="public-tags">{profile.rejectedPetGroups.map((group) => <li key={group}>{group}</li>)}</ul>
+                : <p>Nessun gruppo esplicitamente escluso.</p>}
             </section>
             <section className="public-panel">
               <h2>Recensioni</h2>

@@ -76,8 +76,8 @@ Le prenotazioni richiedono almeno 24 ore di anticipo e riservano intervalli cont
 | --- | --- |
 | `operatortitle` | Qualifiche professionali disponibili. |
 | `operatortitledata` | Qualifiche selezionate dal Pet Assistant. |
-| `petbreed` | Catalogo delle razze. |
-| `petbreeddata` | Razze gestite dal Pet Assistant. |
+| `petbreed` | Catalogo dei gruppi pet, organizzati per categoria animale. Il nome fisico storico è conservato per compatibilità. |
+| `petbreeddata` | Gruppi esplicitamente accettati o rifiutati dal Pet Assistant tramite `acceptance=accepted/rejected`. |
 | `pettype` | Catalogo delle caratteristiche comportamentali del pet. |
 | `pettypedata` | Caratteristiche accettate dal Pet Assistant. |
 | `housefeature` | Catalogo delle caratteristiche della casa. |
@@ -91,7 +91,7 @@ Il catalogo qualifiche comprende anche `Operatore Olistico`. Le qualifiche selez
 | Tabella | Funzione |
 | --- | --- |
 | `ownerpet` | Dati anagrafici di ogni pet: nome, sesso, data di nascita, microchip, note generali e taglia. |
-| `ownerpetbreeddata` | Razze associate al singolo pet. |
+| `ownerpetbreeddata` | Gruppi associati al singolo pet; nome fisico storico conservato per compatibilità. |
 | `ownerpettypedata` | Caratteristiche associate al singolo pet. |
 | `ownerpetgallery` | Foto, didascalie e ordine della gallery del singolo pet. |
 | `ownerpetdocument` | Documenti privati, metadati, date e percorso del file associati al singolo pet. |
@@ -171,7 +171,7 @@ Il dataset varia in modo deterministico:
 - raggio operativo;
 - tipo operatore;
 - qualifica ed esperienza;
-- taglia, razze e tipologie di pet;
+- taglia, gruppi pet accettati/non accettati e tipologie del pet, incluso `Malato`;
 - caratteristiche della casa;
 - servizi, funzionalità abilitate e prezzi orari.
 - calendari distribuiti casualmente dalla data di generazione fino al 31 dicembre 2027, con giornate attive e non attive, fasce non sovrapposte e servizi realmente configurati dall'operatore; il 31 dicembre 2027 è garantito attivo per tutti i 40 profili Assistant.
@@ -192,7 +192,7 @@ Le password brevi del dataset sono destinate esclusivamente allo sviluppo locale
 
 Gli snapshot riproducono lo stato corrente del portale in due blocchi indipendenti:
 
-- [`seed_system_configuration.sql`](./seed_system_configuration.sql) ripristina servizi, funzionalita, qualifiche, razze, tipi di pet, caratteristiche casa e policy;
+- [`seed_system_configuration.sql`](./seed_system_configuration.sql) ripristina servizi, funzionalita, qualifiche, gruppi pet, tipi di pet, caratteristiche casa e policy;
 - [`seed_demo_data.sql`](./seed_demo_data.sql) ripristina 41 account globali, Rex, 40 profili Pet Assistant e tutti i dati operativi collegati, inclusi profili, calendari, ranking e prenotazioni;
 - [`seed_demo_holistic.sql`](./seed_demo_holistic.sql) configura sei Pet Assistant demo come operatori olistici, con tariffe, funzioni e disponibilità nelle quattro settimane successive all'esecuzione. Si può rieseguire sul dataset esistente per aggiungere disponibilità, conservando i dati già presenti;
 - [`demo_storage`](./demo_storage) contiene le immagini pubbliche e i documenti privati referenziati dal dataset demo; `manifest.json` ne descrive i percorsi.

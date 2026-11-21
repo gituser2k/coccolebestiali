@@ -51,9 +51,8 @@ $addresses = [
 $petSizes = ['small', 'medium', 'large', 'max'];
 $radiusOptions = [3, 5, 8, 10, 15, 20];
 $titleIds = DB::table('operatortitle')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
-$breedIds = DB::table('petbreed')->where('name', '<>', 'Qualsiasi')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
-$anyBreedId = (int) (DB::table('petbreed')->where('name', 'Qualsiasi')->value('id') ?? 0);
-$rexBreedId = (int) (DB::table('petbreed')->where('name', 'Pastore Tedesco')->value('id') ?? 0);
+$petGroupIds = DB::table('petbreed')->orderBy('sortorder')->pluck('id')->map(fn ($id) => (int) $id)->all();
+$rexGroupId = 101;
 $petTypeIds = DB::table('pettype')->where('name', '<>', 'Qualsiasi')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 $anyPetTypeId = (int) (DB::table('pettype')->where('name', 'Qualsiasi')->value('id') ?? 0);
 $rexPetTypeId = (int) (DB::table('pettype')->where('name', 'Docile')->value('id') ?? 0);
@@ -66,7 +65,7 @@ $serviceFeatureMap = DB::table('servicefeaturedata')
     ->map(fn ($rows) => $rows->pluck('feature_id')->map(fn ($id) => (int) $id)->values()->all())
     ->all();
 
-if ($titleIds === [] || $breedIds === [] || $rexBreedId <= 0 || $petTypeIds === [] || $rexPetTypeId <= 0 || $houseFeatureIds === [] || $serviceIds === []
+if ($titleIds === [] || $petGroupIds === [] || ! in_array($rexGroupId, $petGroupIds, true) || $petTypeIds === [] || $rexPetTypeId <= 0 || $houseFeatureIds === [] || $serviceIds === []
     || ! DB::table('service')->where('name', 'Operatore olistico')->exists()) {
     fwrite(STDERR, "Cataloghi CRM incompleti. Esegui prima migration/migration.txt.\n");
     exit(1);
@@ -87,9 +86,8 @@ DB::transaction(function () use (
     $petSizes,
     $radiusOptions,
     $titleIds,
-    $breedIds,
-    $anyBreedId,
-    $rexBreedId,
+    $petGroupIds,
+    $rexGroupId,
     $petTypeIds,
     $anyPetTypeId,
     $rexPetTypeId,
@@ -192,19 +190,37 @@ DB::transaction(function () use (
             ]);
         }
 
-        $selectedBreeds = $number % 10 === 0 && $anyBreedId > 0
-            ? [$anyBreedId]
-            : [
-                $breedIds[($number - 1) % count($breedIds)],
-                $breedIds[($number + 4) % count($breedIds)],
-            ];
+        $acceptedPetGroups = [
+            $petGroupIds[($number - 1) % count($petGroupIds)],
+            $petGroupIds[($number + 4) % count($petGroupIds)],
+            $petGroupIds[($number + 11) % count($petGroupIds)],
+        ];
         if ($petSize === 'large') {
-            $selectedBreeds[] = $rexBreedId;
+            $acceptedPetGroups[] = $rexGroupId;
         }
-        foreach (array_unique($selectedBreeds) as $breedId) {
+        $acceptedPetGroups = array_values(array_unique($acceptedPetGroups));
+        foreach ($acceptedPetGroups as $petGroupId) {
             DB::table('petbreeddata')->insert([
                 'user_id' => $userId,
-                'petbreed_id' => $breedId,
+                'petbreed_id' => $petGroupId,
+                'acceptance' => 'accepted',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $rejectedPetGroups = [];
+        for ($offset = 1; count($rejectedPetGroups) < 3 && $offset <= count($petGroupIds); $offset += 1) {
+            $candidate = $petGroupIds[($number + 17 + $offset) % count($petGroupIds)];
+            if (! in_array($candidate, $acceptedPetGroups, true)) {
+                $rejectedPetGroups[] = $candidate;
+            }
+        }
+        foreach ($rejectedPetGroups as $petGroupId) {
+            DB::table('petbreeddata')->insert([
+                'user_id' => $userId,
+                'petbreed_id' => $petGroupId,
+                'acceptance' => 'rejected',
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);

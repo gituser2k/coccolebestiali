@@ -565,7 +565,7 @@ class PetAssistantSearch
             throw new RuntimeException('PET_NOT_AVAILABLE');
         }
 
-        $pet->breedIds = DB::table('ownerpetbreeddata')->where('pet_id', $petId)->pluck('petbreed_id')->map(fn ($id) => (int) $id)->all();
+        $pet->groupIds = DB::table('ownerpetbreeddata')->where('pet_id', $petId)->pluck('petbreed_id')->map(fn ($id) => (int) $id)->all();
         $pet->typeIds = DB::table('ownerpettypedata')->where('pet_id', $petId)->pluck('pettype_id')->map(fn ($id) => (int) $id)->all();
 
         return $pet;
@@ -580,27 +580,27 @@ class PetAssistantSearch
             ]])->all();
         }
 
-        $anyBreedId = (int) DB::table('petbreed')->whereRaw('LOWER(name) = ?', ['qualsiasi'])->value('id');
         $anyTypeId = (int) DB::table('pettype')->whereRaw('LOWER(name) = ?', ['qualsiasi'])->value('id');
-        $breeds = DB::table('petbreeddata')->whereIn('user_id', $assistantIds)->get(['user_id', 'petbreed_id'])->groupBy('user_id');
+        $groups = DB::table('petbreeddata')->whereIn('user_id', $assistantIds)->get(['user_id', 'petbreed_id', 'acceptance'])->groupBy('user_id');
         $types = DB::table('pettypedata')->whereIn('user_id', $assistantIds)->get(['user_id', 'pettype_id'])->groupBy('user_id');
         $sizes = DB::table('operatordata')->whereIn('user_id', $assistantIds)->pluck('pet_size', 'user_id');
 
         $result = [];
         foreach ($assistantIds as $assistantId) {
-            $assistantBreedIds = collect($breeds->get($assistantId, []))->pluck('petbreed_id')->map(fn ($id) => (int) $id)->all();
+            $assistantAcceptedGroupIds = collect($groups->get($assistantId, []))->where('acceptance', 'accepted')->pluck('petbreed_id')->map(fn ($id) => (int) $id)->all();
+            $assistantRejectedGroupIds = collect($groups->get($assistantId, []))->where('acceptance', 'rejected')->pluck('petbreed_id')->map(fn ($id) => (int) $id)->all();
             $assistantTypeIds = collect($types->get($assistantId, []))->pluck('pettype_id')->map(fn ($id) => (int) $id)->all();
-            $breedMatches = $pet->breedIds === []
-                || in_array($anyBreedId, $assistantBreedIds, true)
-                || array_intersect($pet->breedIds, $assistantBreedIds) !== [];
+            $groupMatches = $pet->groupIds === []
+                || (array_intersect($pet->groupIds, $assistantAcceptedGroupIds) !== []
+                    && array_intersect($pet->groupIds, $assistantRejectedGroupIds) === []);
             $typeMatches = $pet->typeIds === []
                 || in_array($anyTypeId, $assistantTypeIds, true)
                 || array_intersect($pet->typeIds, $assistantTypeIds) !== [];
             $sizeMatches = (string) $pet->pet_size === '' || (string) ($sizes[$assistantId] ?? '') === (string) $pet->pet_size;
 
             $result[$assistantId] = [
-                'matches' => $breedMatches && $typeMatches && $sizeMatches,
-                'label' => $breedMatches && $typeMatches && $sizeMatches ? 'Compatibile con '.$pet->name : '',
+                'matches' => $groupMatches && $typeMatches && $sizeMatches,
+                'label' => $groupMatches && $typeMatches && $sizeMatches ? 'Compatibile con '.$pet->name : '',
             ];
         }
 

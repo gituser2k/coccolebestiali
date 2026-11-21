@@ -1198,6 +1198,89 @@
   align-items: start;
 }
 
+.profile-pet-group-choice {
+  min-width: 0;
+  margin: 0;
+  padding: 0.9rem;
+  border: 2px solid rgb(47 122 74 / 24%);
+  border-radius: 1rem;
+  background: rgb(241 250 244 / 72%);
+}
+
+.profile-pet-group-choice.is-rejected {
+  border-color: rgb(174 45 36 / 22%);
+  background: rgb(255 245 244 / 72%);
+}
+
+.profile-pet-group-choice legend {
+  padding: 0 0.35rem;
+  color: #25613b;
+  font-weight: 950;
+}
+
+.profile-pet-group-choice.is-rejected legend {
+  color: #9d3028;
+}
+
+.profile-pet-group-choice > p {
+  margin: 0 0 0.7rem;
+  color: #52687f;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.profile-pet-group-options {
+  max-height: 22rem;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.42rem;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.profile-pet-group-options label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgb(31 95 167 / 15%);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 78%);
+  cursor: pointer;
+}
+
+.profile-pet-group-options label:has(input:checked) {
+  border-color: #2f7a4a;
+  background: #e6f4ea;
+}
+
+.profile-pet-group-choice.is-rejected .profile-pet-group-options label:has(input:checked) {
+  border-color: #ae2d24;
+  background: #fbe9e7;
+}
+
+.profile-pet-group-options span,
+.profile-pet-group-options strong {
+  display: block;
+}
+
+.profile-pet-group-options span {
+  color: #234465;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.profile-pet-group-options strong {
+  margin-bottom: 0.12rem;
+  color: #1f5fa7;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .profile-field {
   display: grid;
   gap: 0.46rem;

@@ -93,6 +93,23 @@ class DemoDataMaintenanceTest extends TestCase
         $this->assertCount(40, $activeFinalDayUsers);
     }
 
+    public function test_pet_group_taxonomy_and_demo_preferences_are_complete(): void
+    {
+        $systemSql = (string) file_get_contents(base_path('migration/seed_system_configuration.sql'));
+        preg_match_all('/INSERT INTO `petbreed` .*? VALUES /', $systemSql, $groupRows);
+        $this->assertCount(40, $groupRows[0]);
+        $this->assertStringContainsString("'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri'", $systemSql);
+        $this->assertStringContainsString("'Malato'", $systemSql);
+
+        $demoSql = (string) file_get_contents(base_path('migration/seed_demo_data.sql'));
+        $this->assertStringContainsString("'accepted'", $demoSql);
+        $this->assertStringContainsString("'rejected'", $demoSql);
+        $this->assertMatchesRegularExpression(
+            "/INSERT INTO `ownerpetbreeddata` .*? VALUES \(\d+, 1, 101, /",
+            $demoSql,
+        );
+    }
+
     private function schemaTables(): array
     {
         $schema = (string) file_get_contents(base_path('migration/migration.txt'));

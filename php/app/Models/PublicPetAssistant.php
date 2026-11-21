@@ -74,7 +74,8 @@ class PublicPetAssistant
             'safetyAndHome' => (string) $row->safety_and_home,
             'ownerInstructions' => (string) $row->owner_instructions,
             'petSize' => (string) $row->pet_size,
-            'breeds' => $this->labels($assistantId, 'petbreeddata', 'petbreed', 'petbreed_id'),
+            'acceptedPetGroups' => $this->petGroupLabels($assistantId, 'accepted'),
+            'rejectedPetGroups' => $this->petGroupLabels($assistantId, 'rejected'),
             'petTypes' => $this->labels($assistantId, 'pettypedata', 'pettype', 'pettype_id'),
             'houseFeatures' => $this->labels($assistantId, 'housefeaturedata', 'housefeature', 'housefeature_id'),
             'gallery' => DB::table('operatorgallery')->where('user_id', $assistantId)->orderBy('sortorder')->orderBy('id')
@@ -208,6 +209,18 @@ class PublicPetAssistant
     {
         return DB::table($table.' as selected')->join($catalog.' as catalog', 'catalog.id', '=', 'selected.'.$foreignKey)
             ->where('selected.user_id', $assistantId)->orderBy('catalog.name')->pluck('catalog.name')->all();
+    }
+
+    private function petGroupLabels(int $assistantId, string $acceptance): array
+    {
+        return DB::table('petbreeddata as selected')
+            ->join('petbreed as catalog', 'catalog.id', '=', 'selected.petbreed_id')
+            ->where('selected.user_id', $assistantId)
+            ->where('selected.acceptance', $acceptance)
+            ->orderBy('catalog.sortorder')
+            ->get(['catalog.category', 'catalog.name'])
+            ->map(fn ($row) => trim((string) $row->category).' · '.(string) $row->name)
+            ->all();
     }
 
     private function displayName(object $row): string

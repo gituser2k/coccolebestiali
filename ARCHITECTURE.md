@@ -259,7 +259,7 @@ I token Apple reali sono verificati crittograficamente contro il JWKS ufficiale 
 
 - `GET|POST /api/profile/petowner/personal`: profilo personale Owner.
 - `POST /api/profile/petowner/password`: cambio password Owner.
-- `GET /api/profile/petowner/pets/options`: razze/tipi/taglie e metadati documento.
+- `GET /api/profile/petowner/pets/options`: gruppi pet/tipi/taglie e metadati documento.
 - `GET|POST /api/profile/petowner/pets`: lettura e salvataggio collezione pet; il POST può includere file.
 - `POST /api/profile/petowner/pets/profile-photo`: selezione foto profilo principale.
 - `GET /api/profile/petowner/pets/documents/{documentId}`: download privato autorizzato.
@@ -366,7 +366,10 @@ Il CMS usa la chiave di sessione `cb_admin_authenticated`, incapsulata in `App\S
 ### 10.2 Pet Owner
 
 - Un Owner può possedere fino a 20 pet nel payload corrente.
-- Ogni pet ha anagrafica, taglia, razze, caratteristiche, gallery e documenti.
+- Ogni pet ha anagrafica, taglia, gruppi pet, caratteristiche, gallery e documenti.
+- Il catalogo comprende 40 gruppi trasversali a tutti gli animali da compagnia supportati. Per i cani segue i dieci gruppi della [nomenclatura FCI](https://www.fci.be/en/nomenclature/), per i gatti aggrega le categorie della [classificazione FIFe](https://fifeweb.org/cats/breeds/) e per le altre specie usa le famiglie di companion animals previste dalla [classificazione europea](https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=OJ:L_202601115). La categoria “Altri pet” copre solo animali legalmente detenibili come compagnia.
+- Un Pet Assistant classifica ogni gruppo in modo esplicito come `accepted` o `rejected`; lo stesso gruppo non può appartenere a entrambi gli insiemi. L’assenza da entrambi significa “non dichiarato”, non accettazione implicita.
+- Il matching della ricerca richiede che il gruppo del pet sia accettato e non sia rifiutato. Le associazioni storiche vengono convertite in `accepted`; il sistema non inventa rifiuti per profili reali preesistenti.
 - Una sola foto gallery può essere principale per la visualizzazione.
 - I documenti sono privati e scaricabili soltanto dal proprietario.
 - I preferiti sono coppie Owner/Assistant tra account distinti: servono capability Owner attiva e Assistant attiva, il self-favorite è vietato da controller, modello e check DB.
@@ -468,7 +471,7 @@ Lo schema legacy affida gran parte dell'integrità a indici, vincoli univoci e c
 | Tabella | Funzione |
 | --- | --- |
 | `operatortitle` / `operatortitledata` | catalogo qualifiche e relazione Assistant-qualifica |
-| `petbreed` / `petbreeddata` | catalogo razze e razze gestite dall'Assistant |
+| `petbreed` / `petbreeddata` | catalogo gruppi pet per categoria animale e stato esplicito `accepted/rejected`; nomi fisici storici mantenuti per upgrade compatibile |
 | `pettype` / `pettypedata` | catalogo caratteristiche e caratteristiche accettate |
 | `housefeature` / `housefeaturedata` | catalogo e caratteristiche abitazione |
 | `operatorgallery` | foto, caption e ordine gallery Assistant |
@@ -484,7 +487,7 @@ Il consenso `publish_exact_location`, pur restando nella stessa tabella, è gest
 | Tabella | Campi principali | Relazioni |
 | --- | --- | --- |
 | `ownerpet` | `user_id`, nome, sesso, data nascita, microchip, note, taglia, ordine | molti pet per utente |
-| `ownerpetbreeddata` | `pet_id`,`petbreed_id` unique | razze del pet |
+| `ownerpetbreeddata` | `pet_id`,`petbreed_id` unique | gruppi del pet; nome fisico storico |
 | `ownerpettypedata` | `pet_id`,`pettype_id` unique | caratteristiche del pet |
 | `ownerpetgallery` | `pet_id`, percorso foto, `is_profile`, ordine | gallery pubblica |
 | `ownerpetdocument` | `pet_id`, tipo, titolo, date, note, path, nome/mime/size | documenti privati |
@@ -623,7 +626,7 @@ Il fuso applicativo Laravel ha default `UTC`, mentre il dominio prenotazioni usa
 Le operazioni CMS `clear-all`, `restore-system` e `seed` sono distruttive o materialmente mutative e devono restare protette dalla sessione admin. Lo schema definitivo è partizionato in nove tabelle di sistema e 37 operative:
 
 - `clear-all` svuota dinamicamente tutte le tabelle presenti nello schema e azzera gli auto-increment;
-- `restore-system` esegue prima lo svuotamento completo, poi carica soltanto cataloghi, servizi, feature, qualifiche, razze, tipologie, caratteristiche casa e policy;
+- `restore-system` esegue prima lo svuotamento completo, poi carica soltanto cataloghi, servizi, feature, qualifiche, gruppi pet, tipologie, caratteristiche casa e policy;
 - `seed` conserva le tabelle di sistema, svuota tutte le 37 tabelle operative, elimina gli asset utente dalle directory operative e ripristina dataset e storage demo validati dal manifest.
 
 `DemoDataMaintenanceTest` confronta questa partizione con `migration.txt` e verifica che gli snapshot tocchino esclusivamente il proprio perimetro.
@@ -878,6 +881,7 @@ Regole di esecuzione:
 | 2026-11-21 | Comandi CMS manutenzione dati | Allineati i tre comandi allo schema multi-profilo: svuotamento totale, ripristino sistema previa pulizia completa e ripristino demo limitato a dati/storage operativi; corretti testi e contatori CMS | `DemoData`, `DemoDataMaintenanceTest`, `cmsadminsite.html`, snapshot e documentazione migration | Nessuna modifica schema; partizione esplicita 9 tabelle sistema + 37 operative; backup DB privati esclusi dalla pulizia storage | Test statici di copertura schema/snapshot, collaudo MySQL isolato dei tre comandi, suite backend, lint e build frontend |
 | 2026-11-21 | Calendari dataset demo 2027 | Estese disponibilità e fasce dei 40 profili Assistant dal 21 novembre 2026 al 31 dicembre 2027; selezione basata su capability attiva e copertura obbligatoria dell'ultima data | generatori calendario, `seed_demo_data.sql`, riepilogo `DemoData`, CMS e documentazione | Nessuna modifica schema; snapshot rigenerato in database isolato senza alterare il DB di lavoro | Snapshot base: 11.210 giornate, 20.866 fasce e 39.094 associazioni servizio; ripristino completo con estensione olistica: 11.235 giornate in 2,261 s; 40/40 Assistant attivi il 31/12/2027; test di regressione dedicato |
 | 2026-11-21 | Sesso pet nelle prenotazioni | Esposto il sesso già presente nell'anagrafica del pet all'interno del DTO prenotazione e delle card riservate a Pet Owner e Pet Assistant, con label italiane e fallback esplicito | `Booking`, `BookingsSection`, test del flusso prenotazioni | Nessuna modifica DB: riutilizzata la colonna `ownerpet.sex` già esistente e validata | Test di regressione sul mapping `petSex`, suite backend, lint e build frontend |
+| 2026-11-21 | Tassonomia gruppi pet e accettazione esplicita | Sostituite le razze puntuali con 40 gruppi pet per cani, gatti, conigli, furetti, piccoli mammiferi, uccelli, rettili, anfibi, pesci, invertebrati, equidi e altri pet; separati i gruppi accettati e non accettati; aggiunto il tipo `Malato` | profili Owner/Assistant, ricerca, dettaglio pubblico, migration, snapshot sistema/demo e test | Aggiunte `petbreed.category` e `petbreeddata.acceptance`; nomi fisici legacy mantenuti per upgrade non distruttivo; conversione automatica delle associazioni esistenti | Fonti tassonomiche: FCI, FIFe e classificazione UE dei companion animals; migration MySQL isolata, 40 gruppi, 131 preferenze accettate, 120 rifiutate, 10 profili demo `Malato` |
 
 ### Modello per nuove righe
 

@@ -219,6 +219,7 @@ CREATE TABLE IF NOT EXISTS `operatortitledata` (
 
 CREATE TABLE IF NOT EXISTS `petbreed` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `category` varchar(80) NOT NULL DEFAULT '',
   `name` varchar(160) NOT NULL DEFAULT '',
   `sortorder` int NOT NULL DEFAULT 0,
   `created_at` int NOT NULL DEFAULT 0,
@@ -230,6 +231,7 @@ CREATE TABLE IF NOT EXISTS `petbreeddata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL DEFAULT 0,
   `petbreed_id` int(10) unsigned NOT NULL DEFAULT 0,
+  `acceptance` varchar(16) NOT NULL DEFAULT 'accepted',
   `created_at` int NOT NULL DEFAULT 0,
   `updated_at` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -237,6 +239,26 @@ CREATE TABLE IF NOT EXISTS `petbreeddata` (
   KEY `idx_petbreeddata_user_id` (`user_id`),
   KEY `idx_petbreeddata_breed_id` (`petbreed_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Compatibilità upgrade: petbreed/petbreeddata sono i nomi fisici storici, ora usati
+-- rispettivamente come catalogo gruppi pet e preferenze esplicite accepted/rejected.
+SET @petgroup_add_category = IF(
+  EXISTS(SELECT 1 FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'petbreed' AND `COLUMN_NAME` = 'category'),
+  'SELECT 1',
+  'ALTER TABLE `petbreed` ADD COLUMN `category` varchar(80) NOT NULL DEFAULT '''' AFTER `id`'
+);
+PREPARE petgroup_stmt FROM @petgroup_add_category;
+EXECUTE petgroup_stmt;
+DEALLOCATE PREPARE petgroup_stmt;
+
+SET @petgroup_add_acceptance = IF(
+  EXISTS(SELECT 1 FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'petbreeddata' AND `COLUMN_NAME` = 'acceptance'),
+  'SELECT 1',
+  'ALTER TABLE `petbreeddata` ADD COLUMN `acceptance` varchar(16) NOT NULL DEFAULT ''accepted'' AFTER `petbreed_id`'
+);
+PREPARE petgroup_stmt FROM @petgroup_add_acceptance;
+EXECUTE petgroup_stmt;
+DEALLOCATE PREPARE petgroup_stmt;
 
 CREATE TABLE IF NOT EXISTS `pettype` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -374,7 +396,7 @@ PREPARE ownerpet_stmt FROM @ownerpet_add_general_notes;
 EXECUTE ownerpet_stmt;
 DEALLOCATE PREPARE ownerpet_stmt;
 
--- Relazione molti-a-molti tra il singolo pet del proprietario e le razze configurate in petbreed.
+-- Relazione molti-a-molti tra il singolo pet del proprietario e i gruppi pet configurati nella tabella legacy petbreed.
 CREATE TABLE IF NOT EXISTS `ownerpetbreeddata` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `pet_id` int(10) unsigned NOT NULL DEFAULT 0,
@@ -945,29 +967,89 @@ ON DUPLICATE KEY UPDATE
   `sortorder` = VALUES(`sortorder`),
   `updated_at` = VALUES(`updated_at`);
 
-INSERT INTO `petbreed` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
-  (18, 'Qualsiasi', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (1, 'Meticcio / Misto', 10, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (2, 'Labrador Retriever', 20, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (3, 'Golden Retriever', 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (4, 'Pastore Tedesco', 40, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (5, 'Bulldog Francese', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (6, 'Barboncino', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (7, 'Beagle', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (8, 'Border Collie', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (9, 'Chihuahua', 90, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (10, 'Jack Russell Terrier', 100, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (11, 'Maltese', 110, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (12, 'Cocker Spaniel', 120, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (13, 'Gatto Europeo', 130, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (14, 'Maine Coon', 140, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (15, 'Siamese', 150, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (16, 'Persiano', 160, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (17, 'Altro', 170, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+INSERT INTO `petbreed` (`id`, `category`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
+  (101, 'Cani', 'Gruppo 1 FCI · Cani da pastore e bovari', 1010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (102, 'Cani', 'Gruppo 2 FCI · Pinscher, Schnauzer, Molossi e bovari svizzeri', 1020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (103, 'Cani', 'Gruppo 3 FCI · Terrier', 1030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (104, 'Cani', 'Gruppo 4 FCI · Bassotti', 1040, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (105, 'Cani', 'Gruppo 5 FCI · Spitz e tipo primitivo', 1050, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (106, 'Cani', 'Gruppo 6 FCI · Segugi e cani per pista di sangue', 1060, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (107, 'Cani', 'Gruppo 7 FCI · Cani da ferma', 1070, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (108, 'Cani', 'Gruppo 8 FCI · Riporto, cerca e acqua', 1080, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (109, 'Cani', 'Gruppo 9 FCI · Cani da compagnia', 1090, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (110, 'Cani', 'Gruppo 10 FCI · Levrieri', 1100, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (111, 'Cani', 'Meticci e non riconducibili a un gruppo FCI', 1110, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (201, 'Gatti', 'Pelo lungo e persiani/esotici', 2010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (202, 'Gatti', 'Pelo semilungo', 2020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (203, 'Gatti', 'Pelo corto e somali', 2030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (204, 'Gatti', 'Orientali, siamesi e affini', 2040, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (205, 'Gatti', 'Gatti domestici, meticci o non classificati', 2050, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (301, 'Conigli', 'Conigli nani e piccoli', 3010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (302, 'Conigli', 'Conigli medi', 3020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (303, 'Conigli', 'Conigli grandi e giganti', 3030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (304, 'Conigli', 'Conigli ariete e a pelo lungo', 3040, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (401, 'Furetti', 'Furetti', 4010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (411, 'Piccoli mammiferi', 'Criceti, gerbilli, topi e ratti domestici', 4110, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (412, 'Piccoli mammiferi', 'Cavie e porcellini d’India', 4120, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (413, 'Piccoli mammiferi', 'Cincillà e degu', 4130, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (414, 'Piccoli mammiferi', 'Ricci domestici e altri piccoli insettivori', 4140, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (415, 'Piccoli mammiferi', 'Altri piccoli mammiferi da compagnia', 4150, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (501, 'Uccelli', 'Psittaciformi · pappagalli e parrocchetti', 5010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (502, 'Uccelli', 'Passeriformi · canarini, fringillidi e affini', 5020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (503, 'Uccelli', 'Columbiformi e altri uccelli ornamentali', 5030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (504, 'Uccelli', 'Uccelli da cortile tenuti come compagnia', 5040, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (601, 'Rettili', 'Sauri · lucertole, gechi e iguane', 6010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (602, 'Rettili', 'Cheloni · tartarughe terrestri e acquatiche', 6020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (603, 'Rettili', 'Serpenti e altri rettili', 6030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (701, 'Anfibi', 'Anuri e urodeli · rane, rospi, tritoni e salamandre', 7010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (801, 'Pesci ornamentali', 'Acqua dolce tropicale', 8010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (802, 'Pesci ornamentali', 'Acqua fredda', 8020, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (803, 'Pesci ornamentali', 'Marini e di barriera', 8030, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (901, 'Invertebrati', 'Invertebrati terrestri e acquatici da compagnia', 9010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1001, 'Equidi', 'Cavalli, pony e asini da compagnia', 10010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1101, 'Altri pet', 'Altri animali da compagnia consentiti', 11010, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
+  `category` = VALUES(`category`),
   `name` = VALUES(`name`),
   `sortorder` = VALUES(`sortorder`),
   `updated_at` = VALUES(`updated_at`);
+
+-- Converte le selezioni del catalogo storico delle razze nei nuovi gruppi pet.
+INSERT IGNORE INTO `petbreeddata` (`user_id`, `petbreed_id`, `acceptance`, `created_at`, `updated_at`)
+SELECT `user_id`,
+  CASE `petbreed_id`
+    WHEN 1 THEN 111 WHEN 2 THEN 108 WHEN 3 THEN 108 WHEN 4 THEN 101
+    WHEN 5 THEN 109 WHEN 6 THEN 109 WHEN 7 THEN 106 WHEN 8 THEN 101
+    WHEN 9 THEN 109 WHEN 10 THEN 103 WHEN 11 THEN 109 WHEN 12 THEN 108
+    WHEN 13 THEN 203 WHEN 14 THEN 202 WHEN 15 THEN 204 WHEN 16 THEN 201
+    WHEN 17 THEN 1101 ELSE NULL
+  END,
+  'accepted', `created_at`, UNIX_TIMESTAMP()
+FROM `petbreeddata`
+WHERE `petbreed_id` BETWEEN 1 AND 17;
+
+INSERT IGNORE INTO `petbreeddata` (`user_id`, `petbreed_id`, `acceptance`, `created_at`, `updated_at`)
+SELECT legacy.`user_id`, catalog_groups.`id`, 'accepted', legacy.`created_at`, UNIX_TIMESTAMP()
+FROM `petbreeddata` AS legacy
+CROSS JOIN `petbreed` AS catalog_groups
+WHERE legacy.`petbreed_id` = 18 AND catalog_groups.`id` >= 101;
+
+INSERT IGNORE INTO `ownerpetbreeddata` (`pet_id`, `petbreed_id`, `created_at`, `updated_at`)
+SELECT `pet_id`,
+  CASE `petbreed_id`
+    WHEN 1 THEN 111 WHEN 2 THEN 108 WHEN 3 THEN 108 WHEN 4 THEN 101
+    WHEN 5 THEN 109 WHEN 6 THEN 109 WHEN 7 THEN 106 WHEN 8 THEN 101
+    WHEN 9 THEN 109 WHEN 10 THEN 103 WHEN 11 THEN 109 WHEN 12 THEN 108
+    WHEN 13 THEN 203 WHEN 14 THEN 202 WHEN 15 THEN 204 WHEN 16 THEN 201
+    WHEN 17 THEN 1101 ELSE NULL
+  END,
+  `created_at`, UNIX_TIMESTAMP()
+FROM `ownerpetbreeddata`
+WHERE `petbreed_id` BETWEEN 1 AND 17;
+
+DELETE FROM `petbreeddata` WHERE `petbreed_id` BETWEEN 1 AND 18;
+DELETE FROM `ownerpetbreeddata` WHERE `petbreed_id` BETWEEN 1 AND 18;
+DELETE FROM `petbreed` WHERE `id` BETWEEN 1 AND 18;
 
 INSERT INTO `pettype` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VALUES
   (9, 'Qualsiasi', 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
@@ -978,7 +1060,8 @@ INSERT INTO `pettype` (`id`, `name`, `sortorder`, `created_at`, `updated_at`) VA
   (5, 'Iperattivo', 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (6, 'Anziano', 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (7, 'Cucciolo', 70, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (8, 'Con esigenze speciali', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+  (8, 'Con esigenze speciali', 80, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (10, 'Malato', 90, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `sortorder` = VALUES(`sortorder`),
